@@ -1,0 +1,223 @@
+@import "tailwindcss";
+
+/* --------------------------------------------------------------------------
+   DESIGN TOKENS — one palette, two themes.
+
+   Tailwind v4 emits every `@theme` entry as a real CSS variable on :root, and
+   utilities reference it as var(--color-*). That means a theme switch is just a
+   re-declaration of those same variables under a [data-theme] selector — no
+   `dark:` prefix on thousands of class names, and no duplicated markup.
+
+   The names are positional (ink-950 = furthest back, mist-100 = most prominent
+   text), not literal colours, so they stay meaningful when the ramp inverts.
+   -------------------------------------------------------------------------- */
+@theme {
+  --color-ink-950: var(--s-bg);
+  --color-ink-900: var(--s-surface);
+  --color-ink-850: var(--s-input);
+  --color-ink-800: var(--s-raised);
+  --color-ink-700: var(--s-border);
+  --color-ink-600: var(--s-border-strong);
+  --color-ink-500: var(--s-faint);
+  --color-mist-400: var(--t-muted);
+  --color-mist-300: var(--t-secondary);
+  --color-mist-200: var(--t-strong);
+  --color-mist-100: var(--t-primary);
+
+  --color-brand-400: var(--a-400);
+  --color-brand-500: var(--a-500);
+  --color-brand-600: var(--a-600);
+
+  /* Status colours are theme-driven too: a green tuned for a near-black
+     background is unreadable on white, and status text is exactly where poor
+     contrast costs a person real information. */
+  --color-good-400: var(--c-good);
+  --color-good-500: var(--c-good-strong);
+  --color-warn-400: var(--c-warn);
+  --color-warn-500: var(--c-warn-strong);
+  --color-bad-400: var(--c-bad);
+  --color-bad-500: var(--c-bad-strong);
+
+  --color-viz-1: #8b8b95;
+  --color-viz-2: #22d3ee;
+  --color-viz-3: #34d399;
+  --color-viz-4: #fbbf24;
+  --color-viz-5: #f472b6;
+  --color-viz-6: #a78bfa;
+
+  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+}
+
+/* Dark is the default so a no-JS first paint lands on the intended look.
+   The ramp is true neutral — no blue cast — and the accent is monochrome. */
+:root {
+  --s-bg: #08080a;
+  --s-surface: #0e0e11;
+  --s-input: #141417;
+  --s-raised: #1a1a1e;
+  --s-border: #26262b;
+  --s-border-strong: #37373e;
+  --s-faint: #52525b;
+  --t-muted: #7b7b86;
+  --t-secondary: #a1a1ab;
+  --t-strong: #d0d0d6;
+  --t-primary: #f4f4f6;
+
+  /* A black accent on a black background is an invisible button, so in dark
+     mode the monochrome accent inverts to near-white and --a-on carries the
+     label colour with it. Same token, both themes, always legible. */
+  --a-400: #d4d4d9;
+  --a-500: #ededf0;
+  --a-600: #ffffff;
+  --a-on: #08080a;
+
+  --c-good: #34d399;
+  --c-good-strong: #10b981;
+  --c-warn: #fbbf24;
+  --c-warn-strong: #f59e0b;
+  --c-bad: #fb7185;
+  --c-bad-strong: #f43f5e;
+
+  --card-bg: #0e0e11;
+  --card-bg-hover: #16161a;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --scrim: rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --s-bg: #f7f7f8;
+  --s-surface: #ffffff;
+  --s-input: #ffffff;
+  --s-raised: #f0f0f2;
+  --s-border: #e4e4e7;
+  --s-border-strong: #d1d1d6;
+  --s-faint: #a1a1aa;
+  --t-muted: #71717a;
+  --t-secondary: #52525b;
+  --t-strong: #3f3f46;
+  --t-primary: #09090b;
+
+  --a-400: #27272a;
+  --a-500: #18181b;
+  --a-600: #000000;
+  --a-on: #ffffff;
+
+  /* Darkened so status text clears WCAG AA against a white surface. */
+  --c-good: #047a55;
+  --c-good-strong: #059669;
+  --c-warn: #9a6300;
+  --c-warn-strong: #b45309;
+  --c-bad: #c02a48;
+  --c-bad-strong: #d1274a;
+
+  --card-bg: #ffffff;
+  --card-bg-hover: #fafafa;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --scrim: rgba(16, 24, 40, 0.35);
+  color-scheme: light;
+}
+
+html,
+body {
+  background: var(--s-bg);
+  color: var(--t-primary);
+}
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular numerals wherever a metric is shown, so digits do not jitter as values
+   update and columns of numbers line up. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--s-border-strong);
+  border-radius: 8px;
+  border: 2px solid var(--s-bg);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--s-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+}
+.card-hover:hover {
+  border-color: var(--s-border-strong);
+  background: var(--card-bg-hover);
+}
+
+.recharts-cartesian-grid line {
+  stroke: var(--s-border);
+}
+.recharts-text {
+  fill: var(--t-muted);
+  font-size: 11px;
+}
+.recharts-curve.recharts-tooltip-cursor {
+  stroke: var(--s-faint);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 0.35s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+.slide-in {
+  animation: slide-in 0.22s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+/* The board's drag affordances. */
+.drag-ghost {
+  opacity: 0.4;
+}
+.drop-target {
+  outline: 2px dashed var(--a-500);
+  outline-offset: -4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .slide-in {
+    animation: none;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+}
