@@ -6,51 +6,41 @@ import type { LoanRule, TeamMember } from "./types";
 /**
  * Ops bootstrap.
  *
- * Creates the team, the default workflow config and a starter set of
- * loan-analysis rules for an org. Deliberately does NOT fabricate customers or
- * loan cases: this workflow handles real people's financial documents, and
- * seeding fake applications into it would make the dashboards lie about what
- * work actually exists. Customers arrive through the WhatsApp webhook, and the
- * test harness drives the full lifecycle explicitly.
+ * Creates the default workflow config and a starter set of loan-analysis rules
+ * for an org; the team roster is no longer part of it (see `ensureOpsSeed`).
+ * Deliberately does NOT fabricate customers or loan cases: this workflow handles
+ * real people's financial documents, and seeding fake applications into it would
+ * make the dashboards lie about what work actually exists. Customers arrive
+ * through the WhatsApp webhook, and the test harness drives the full lifecycle
+ * explicitly.
  */
-
-const TEAM: Array<Pick<TeamMember, "name" | "email" | "role" | "capacity">> = [
-  { name: "Team Admin", email: "admin@example.com", role: "ADMIN", capacity: 999 },
-  { name: "Sales Manager 1", email: "sales1@example.com", role: "SALES_MANAGER", capacity: 25 },
-  { name: "Sales Manager 2", email: "sales2@example.com", role: "SALES_MANAGER", capacity: 25 },
-  { name: "Sales Manager 3", email: "sales3@example.com", role: "SALES_MANAGER", capacity: 25 },
-  { name: "Loan Officer 1", email: "loan1@example.com", role: "LOAN_OFFICER", capacity: 20 },
-  { name: "Loan Officer 2", email: "loan2@example.com", role: "LOAN_OFFICER", capacity: 20 },
-  { name: "Loan Officer 3", email: "loan3@example.com", role: "LOAN_OFFICER", capacity: 20 },
-];
 
 const STARTER_RULES: Array<Omit<LoanRule, "id" | "orgId" | "createdAt">> = [
   { label: "Minimum declared income", kind: "MIN_INCOME", operator: "gte", value: "0", severity: "BLOCKING", enabled: false, notes: "Set a real threshold before enabling." },
   { label: "Maximum loan amount", kind: "MAX_LOAN_AMOUNT", operator: "lte", value: "0", severity: "BLOCKING", enabled: false, notes: "Set a real ceiling before enabling." },
-  { label: "Minimum employment duration (months)", kind: "MIN_EMPLOYMENT_MONTHS", operator: "gte", value: "12", severity: "WARNING", enabled: false },
+  { label: "Minimum employment duration (months)", kind: "MIN_EMPLOYMENT_MONTHS", operator: "gte", value: "0", severity: "WARNING", enabled: false, notes: "Set a real minimum before enabling." },
   { label: "Maximum debt-to-income ratio", kind: "MAX_DTI", operator: "lte", value: "0.5", severity: "WARNING", enabled: false },
 ];
 
-/** Idempotent: safe to call on every boot. */
+/**
+ * Idempotent: safe to call on every boot.
+ *
+ * Creates the org's workflow configuration and its (disabled) starter loan
+ * rules. It no longer fabricates a team roster — staff are real Supabase Auth
+ * users provisioned by `npm run provision-users`, and a second, invented roster
+ * in the JSON store made the assignment dashboards count people who do not
+ * exist.
+ */
 export function ensureOpsSeed(orgId: string): { created: boolean; members: TeamMember[] } {
   const db = read();
-  const existing = db.teamMembers.filter((m) => m.orgId === orgId);
-  if (existing.length) return { created: false, members: existing };
+  const members = db.teamMembers.filter((m) => m.orgId === orgId);
+
+  const hasConfig = db.workflowConfigs.some((c) => c.orgId === orgId);
+  const hasRules = db.loanRules.some((r) => r.orgId === orgId);
+  if (hasConfig && hasRules) return { created: false, members };
 
   const now = new Date().toISOString();
-  const members: TeamMember[] = TEAM.map((t) => ({
-    id: uid("mem"),
-    orgId,
-    name: t.name,
-    email: t.email,
-    role: t.role,
-    active: true,
-    capacity: t.capacity,
-    createdAt: now,
-  }));
-
   mutate((d) => {
-    d.teamMembers.push(...members);
     if (!d.workflowConfigs.some((c) => c.orgId === orgId)) d.workflowConfigs.push(defaultConfig(orgId));
     if (!d.loanRules.some((r) => r.orgId === orgId)) {
       d.loanRules.push(...STARTER_RULES.map((r) => ({ ...r, id: uid("lrl"), orgId, createdAt: now })));
@@ -60,7 +50,6 @@ export function ensureOpsSeed(orgId: string): { created: boolean; members: TeamM
   return { created: true, members };
 }
 
-/** The org is the workspace — one tenant boundary, reused from the existing model. */
 export function defaultOrgId(): string {
   return read().workspaces[0]?.id ?? "ws_default";
 }

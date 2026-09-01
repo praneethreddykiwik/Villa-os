@@ -41,13 +41,20 @@ export function buildHeatmap(db: Database, brandId: string, channel?: ChannelId)
       (!channel || p.targets.some((t) => t.channel === channel)),
   );
 
+  // No published post with metrics means there is no account mean to shrink
+  // towards and no evidence in any cell. An empty grid is the honest answer:
+  // filling 168 cells from a placeholder prior would paint a confident-looking
+  // heatmap out of nothing, which is exactly the failure this engine exists to
+  // avoid. Callers treat an empty result as "no signal yet".
+  if (!posts.length) return [];
+
   const buckets = new Map<string, number[]>();
   for (const p of posts) {
     const d = new Date(p.publishedAt!);
     const key = `${d.getDay()}-${d.getHours()}`;
     buckets.set(key, [...(buckets.get(key) ?? []), p.metrics!.engagementRate]);
   }
-  const globalMean = mean(posts.map((p) => p.metrics!.engagementRate)) || 1;
+  const globalMean = mean(posts.map((p) => p.metrics!.engagementRate));
 
   const cells: HeatCell[] = [];
   for (let day = 0; day < 7; day++) {
@@ -103,6 +110,11 @@ export function suggestSlots(
 ): SlotSuggestion[] {
   const { count = 5, channel, from = new Date(), minGapHours = 6, quietStart = 23, quietEnd = 6 } = opts;
   const heat = buildHeatmap(db, brandId, channel);
+  // Nothing published yet, so every hour is equally unproven. Ranking them anyway
+  // would hand back arbitrary times carrying a "reason" line that implies history
+  // we do not have; return nothing and let the UI say so.
+  if (!heat.length) return [];
+
   const best = new Map<string, HeatCell>();
   for (const c of heat) best.set(`${c.day}-${c.hour}`, c);
 

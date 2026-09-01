@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "provision-users": "node scripts/provision-users.mjs",
     "test": "rm -rf .test-build && tsc -p tsconfig.test.json && node --test \"./.test-build/tests/**/*.test.js\"",
-    "tick": "curl -s -X POST \"http://localhost:4321/api/publish/tick?secret=${WORKER_SECRET:-dev-secret}\"",
+    "tick": "curl -s -X POST \"http://localhost:4321/api/publish/tick?secret=${WORKER_SECRET:?set WORKER_SECRET}\"",
     "reseed": "rm -f .data/db.json && echo 'database reset - it rebuilds on the next request'",
     "dev:webpack": "next dev -p 4321"
   },

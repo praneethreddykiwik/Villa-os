@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { logAuthEvent, stampLastLogin } from "@/lib/auth/audit";
+import { clientKey } from "@/lib/ops/ratelimit";
 
 /**
  * Completes a magic-link or OAuth sign-in.
@@ -45,9 +47,26 @@ export async function GET(req: NextRequest) {
     },
   );
 
-  const { error } = await sb.auth.exchangeCodeForSession(code);
+  const { data, error } = await sb.auth.exchangeCodeForSession(code);
+
+  // This is where a magic-link or Google sign-in actually completes, so it is
+  // the only place those two methods can be recorded at all — logging the
+  // password action alone would have left every link-based sign-in invisible.
+  // The method is not distinguishable from the code, so it is reported as the
+  // flow rather than guessed at.
+  const source = clientKey(req);
+
   // A used, expired or forged code all land here, and all get the same message.
-  if (error) return fail("link-expired");
+  if (error) {
+    // No user was resolved, so there is no address to attribute it to. An empty
+    // field is the honest record; inventing one from the query string would put
+    // attacker-chosen text in the identity column of the audit log.
+    logAuthEvent({ method: "magic_link", outcome: "failure", email: "", source });
+    return fail("link-expired");
+  }
+
+  logAuthEvent({ method: "magic_link", outcome: "success", email: data.user?.email ?? "", source });
+  if (data.user) await stampLastLogin(data.user.id);
 
   return NextResponse.redirect(new URL(next, url.origin));
 }

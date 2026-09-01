@@ -50,11 +50,14 @@ let cache: Database | null = null;
 let cacheMtime = 0;
 
 function ensureFile(): void {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
   if (!fs.existsSync(DB_PATH)) {
-    // Lazily seed on first read so a fresh clone boots with a populated demo brand.
-    const { buildSeed } = require("./seed") as typeof import("./seed");
-    fs.writeFileSync(DB_PATH, JSON.stringify(buildSeed(), null, 0));
+    // A fresh clone boots with the tenant shell only — no fabricated content.
+    const { buildBootstrap } = require("./bootstrap") as typeof import("./bootstrap");
+    // 0600, and the directory 0700. This file holds plaintext OAuth tokens and
+    // customer PII; the default 0644 made it readable by every account and every
+    // process on the host.
+    fs.writeFileSync(DB_PATH, JSON.stringify(buildBootstrap(), null, 0), { mode: 0o600 });
   }
 }
 
@@ -77,7 +80,9 @@ export function mutate<T>(fn: (db: Database) => T): T {
   const db = read();
   const result = fn(db);
   const tmp = `${DB_PATH}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 0));
+  // The temp file inherits the same restriction, or the atomic rename would
+  // publish a 0644 copy of the tokens on every single write.
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 0), { mode: 0o600 });
   fs.renameSync(tmp, DB_PATH);
   cacheMtime = fs.statSync(DB_PATH).mtimeMs;
   cache = db;
@@ -87,14 +92,18 @@ export function mutate<T>(fn: (db: Database) => T): T {
 /** Overwrite everything — used by the reseed endpoint. */
 export function replaceAll(db: Database): void {
   ensureFile();
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 0));
+  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 0), { mode: 0o600 });
   cache = db;
   cacheMtime = fs.statSync(DB_PATH).mtimeMs;
 }
 
-export function resetToSeed(): Database {
-  const { buildSeed } = require("./seed") as typeof import("./seed");
-  const fresh = buildSeed();
+/**
+ * Return the store to the bootstrap tenant shell, discarding every business
+ * record. Named for what it does now: there is no seed dataset to restore.
+ */
+export function resetToBootstrap(): Database {
+  const { buildBootstrap } = require("./bootstrap") as typeof import("./bootstrap");
+  const fresh = buildBootstrap();
   replaceAll(fresh);
   return fresh;
 }

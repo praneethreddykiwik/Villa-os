@@ -1,6 +1,6 @@
 import { read } from "@/lib/db";
 import { assertCustomerAccess, authorize, can } from "@/lib/ops/auth";
-import { handleError, ok } from "@/lib/ops/http";
+import { fail, handleError, ok } from "@/lib/ops/http";
 import { setControl, setStage, snapshot, updateCustomer } from "@/lib/ops/customers";
 import { sentimentTimeline } from "@/lib/ops/intelligence";
 import { buildBriefing } from "@/lib/ops/sales";
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
 
     await assertCustomerAccess(session, id);
     const snap = snapshot(id);
-    if (!snap) return ok({ customer: null }, 404);
+    if (!snap) return fail("Not found", 404);
 
     const loanCase = activeCase(id);
     // Sales cannot see documents — the payload omits them rather than relying on

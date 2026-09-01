@@ -65,7 +65,7 @@ Portable target: `supabase/migrations/0001_ops_workflow.sql` — 18 tables, enum
 | `/api/ops/customers` | GET (list / 360), PATCH (profile, stage, takeover) | `customer:read` / `customer:write` |
 | `/api/ops/sales` | GET workspace, POST `updateTask` `logCall` `markQualified` `markNotInterested` `markFinancingRequired` `reassign` | `sales:read` / `sales:write` |
 | `/api/ops/loan` | GET workspace/case, POST `addItems` `applyTemplate` `updateItem` `removeItem` `setStatus` `requestDocuments` `reassign` `addNote` | `loan:read` / `loan:write` |
-| `/api/ops/documents` | GET (metadata / signed download), POST upload, PATCH review | `document:read` / `document:download` / `document:review` |
+| `/api/ops/documents` | GET (metadata / signed download), POST upload, PATCH review | `document:read` / `document:review` |
 | `/api/ops/followups` | POST tick (`?dryRun=true`), GET, PATCH resolve/cancel | worker secret or `admin:read` |
 | `/api/ops/admin` | GET overview + workload/SLA, PATCH config | `admin:read` / `config:write` |
 | `/api/webhooks/whatsapp` | GET verify, POST inbound | signature-verified |
@@ -107,7 +107,7 @@ OPS_DATA_DIR, OPS_DOCUMENT_DIR   test isolation
 
 - **Authentication**: scrypt (memory-hard, parameters stored so cost can be raised without a migration), constant-time verification, NFKC normalisation. Login failures are uniform — an unknown email spends comparable work so timing does not disclose which accounts exist.
 - **Rate limiting**: asymmetric by design. Strict per account (8 / 5 min, 15 min lockout) because attempts on one account are almost always an attack; permissive per source address (60 / 5 min) because an office behind one NAT shares an address and a tight IP lockout is a self-inflicted outage. Probing an unclaimed account does not consume the account budget, or an account could be locked before anyone claims it.
-- **RBAC**: one `authorize()` guard, throwing rather than returning a boolean, so a forgotten `if` cannot grant access. Sales holds `loan:read` (case status) but **not** `document:read`/`download`.
+- **RBAC**: one `authorize()` guard, throwing rather than returning a boolean, so a forgotten `if` cannot grant access. Sales holds `loan:read` (case status) but **not** `document:read`, which is what the download path requires as well — there is no separate `download` permission, and the handler no longer pretends to check one.
 - **Row-level scoping**: non-admins reach only customers they own — verified 403 in tests and over HTTP.
 - **Revocation is immediate**: `verifyToken` re-checks the member row; disabling a member kills live tokens.
 - **Documents**: stored under `.private/` (never `public/`), mode `0600`, path traversal rejected. Downloads need a short-lived HMAC signature **bound to the requesting member** *and* a fresh permission check. Served `attachment` + `nosniff` + `no-store`.
@@ -151,7 +151,7 @@ Customer identity & idempotency · scoring determinism/configurability/clamping 
 ```bash
 npm install
 npm test                 # 40 tests incl. the full acceptance scenario
-npm run build && WORKER_SECRET=dev-secret OPS_SESSION_SECRET=$(openssl rand -hex 32) npm start
+npm run build && WORKER_SECRET=$(openssl rand -hex 32) OPS_SESSION_SECRET=$(openssl rand -hex 32) npm start
 ```
 
 Then, end to end:
@@ -167,6 +167,6 @@ Then, end to end:
 3. `/ops/sales` — the lead appears, scored, with an AI briefing and an assigned manager.
 4. Sign in as that manager → open the customer → log the call and hit **Mark financing required** in the call-flow panel.
 5. Sign in as the assigned loan officer → `/ops/loans` → open the case → apply a checklist template → **Request from customer**.
-6. Run the worker: `curl -X POST "localhost:4321/api/ops/followups?secret=dev-secret"` — the customer receives a request naming one real checklist item.
+6. Run the worker: `curl -X POST "localhost:4321/api/ops/followups?secret=$WORKER_SECRET"` — the customer receives a request naming one real checklist item.
 7. Upload a document on the case page, then **Reject** it with a reason — the customer receives that exact reason and the case returns to `DOCUMENTS_INCOMPLETE`. **Accept** instead and completion advances.
 8. Accept every required document → the case flips to `READY_FOR_ANALYSIS`, the officer is notified, and `/ops/customers/<id>` shows the complete audit timeline.

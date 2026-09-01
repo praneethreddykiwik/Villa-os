@@ -20,9 +20,20 @@ export default async function ComposerPage({
     .filter((c) => c.brandId === brandId && adapterFor(c.channel))
     .map((c) => {
       const a = adapterFor(c.channel)!;
+      // Allowlist, not spread-and-strip.
+      //
+      // This was `{ ...c, accessToken: undefined }`, which fails open: it
+      // removes the one field someone remembered to name, and silently
+      // serialises every field added to Connection afterwards. `refreshToken`
+      // was added with the OAuth flow and went straight into the browser as a
+      // result — a long-lived credential that can post as the brand, readable
+      // in the page source. Naming what the client may see means a new secret
+      // field is excluded by default instead of leaked by default.
       return {
-        ...c,
-        accessToken: undefined,
+        id: c.id,
+        channel: c.channel,
+        handle: c.handle,
+        status: c.status,
         label: a.label,
         color: a.color,
         capabilities: {

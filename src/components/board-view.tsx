@@ -94,30 +94,52 @@ export function BoardView({ board: initialBoard, cards: initialCards }: { board:
       body: JSON.stringify({ cardId, approval: { state } }),
     });
     const json = await res.json();
-    if (json.ok) setCards((list) => list.map((c) => (c.id === cardId ? json.card : c)));
+    // The server refuses a sign-off from the card's own author. Without this the
+    // button would simply do nothing and look broken.
+    if (!json.ok) return setToast({ text: json.error });
+    setCards((list) => list.map((c) => (c.id === cardId ? json.card : c)));
   }
 
   async function removeCard(cardId: string) {
+    const previous = cards;
     setCards((list) => list.filter((c) => c.id !== cardId));
-    await fetch("/api/board/cards", {
+    const res = await fetch("/api/board/cards", {
       method: "DELETE",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ cardId }),
     });
+    const json = await res.json();
+    // Same rollback the move already does. Dropping the card locally and never
+    // reading the response showed a refused delete as a completed one — the
+    // card comes back on the next load, by which time the operator has moved
+    // on believing the work item is gone.
+    if (!res.ok || !json.ok) {
+      setCards(previous);
+      setToast({ text: json.error ?? "Could not delete that card — it is still on the board." });
+    }
   }
 
   async function addColumn(name: string) {
+    const previous = board;
     const next: BoardColumn[] = [
       ...board.columns,
       { id: `col_${Math.random().toString(36).slice(2, 9)}`, name, color: "#94a3b8", hitl: false },
     ];
     setBoard((b) => ({ ...b, columns: next }));
     setAddingColumn(false);
-    await fetch("/api/board", {
+    const res = await fetch("/api/board", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ boardId: board.id, columns: next }),
     });
+    const json = await res.json();
+    // Without this the new column stays on screen after the server refused to
+    // save it, and cards get dragged into a column that does not exist server
+    // side — every one of those moves then fails for a reason nobody can see.
+    if (!res.ok || !json.ok) {
+      setBoard(previous);
+      setToast({ text: json.error ?? "Could not add that column." });
+    }
   }
 
   const f = board.fields;

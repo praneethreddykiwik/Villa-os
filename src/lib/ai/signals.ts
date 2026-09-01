@@ -1,6 +1,6 @@
 import { adTotals, inRange, lastNDays, previousRange, type Range } from "../metrics/aggregate";
 import { mean, robustZ, trendSlopePct, wilsonLower } from "../metrics/stats";
-import type { AdStat, Database, Suggestion, SuggestionSeverity } from "../types";
+import type { AdStat, Database, RankGridCell, Suggestion, SuggestionSeverity } from "../types";
 import { uid } from "../ids";
 
 /**
@@ -214,8 +214,10 @@ export function boostOrganic(db: Database, brandId: string): Suggestion[] {
     if (alreadyBoosted) continue;
 
     const lift = p.metrics!.engagementRate / (baseline || 1);
-    // Paid reach estimated from the account's own blended CPM, not a guess.
-    const blendedCpm = adTotals(db.adStats.filter((r) => r.brandId === brandId)).cpm || 12;
+    // Paid reach estimated from the account's own blended CPM, not a guess — so
+    // with no ad history there is no honest figure to project from and we say nothing.
+    const blendedCpm = adTotals(db.adStats.filter((r) => r.brandId === brandId)).cpm;
+    if (!blendedCpm) continue;
     const estReach = Math.round((150 / blendedCpm) * 1000);
 
     out.push(
@@ -341,6 +343,11 @@ export function formatMix(db: Database, brandId: string): Suggestion[] {
  * 3s retention against the account's own distribution and flag the systematic
  * case (many weak hooks), because that is a production-process fix, not a
  * one-post fix.
+ *
+ * The rationale deliberately stops at the numbers. PostMetrics carries counts
+ * and retention fractions only — nothing in this codebase watches the footage —
+ * so any sentence describing what is *on screen* in the strong reels would be
+ * invented. We name the measurable gap and let the human look at the reels.
  */
 export function hookQuality(db: Database, brandId: string): Suggestion[] {
   const videos = db.posts.filter(
@@ -369,8 +376,8 @@ export function hookQuality(db: Database, brandId: string): Suggestion[] {
         `Average 3-second retention is ${(avg * 100).toFixed(0)}%. The ${weak.length} weakest reels sit below 45%, and they reach ` +
         `${Math.round(weakReach).toLocaleString()} people on average — versus ${Math.round(strongReach).toLocaleString()} for reels that ` +
         `hold 65%+. That is a ${(strongReach / weakReach).toFixed(1)}x distribution difference decided in the first three seconds. ` +
-        `The pattern in your strong openers: motion or a face in frame 1, and the payoff stated before any branding. ` +
-        `Move logos and slow establishing shots to the end.`,
+        `This reads retention, not the footage — so watch the first three seconds of your strongest reels against the weakest, ` +
+        `rewrite those openers, and judge the change on 3-second retention rather than on likes.`,
       projectedImpact: { metric: "Reach per reel", value: Math.round(strongReach - weakReach), unit: "people" },
       action: { type: "generate_variants", label: "Rewrite the 5 weakest hooks", params: { postIds: weak.slice(0, 5).map((p) => p.id).join(",") } },
       confidence: 0.8,
@@ -502,9 +509,10 @@ export function reviewResponse(db: Database, brandId: string): Suggestion[] {
         rationale:
           `The oldest has been sitting ${ageDays} days. Negative reviews are read disproportionately by people close to booking, ` +
           `and an unanswered one reads as confirmation. Common themes across them: ${topTopics(negatives)}. ` +
-          `Drafts are ready — each one names the specific issue and offers a route off the public thread.`,
+          `Nothing is drafted yet — replies are written on demand from the review's own text, so each one names the ` +
+          `specific issue instead of reading as a template, and moves whatever is unresolved off the public thread.`,
         projectedImpact: { metric: "Response rate", value: Math.round(100 - rate), unit: "% to recover" },
-        action: { type: "reply_review", label: "Review AI drafts", params: { reviewId: oldest.id } },
+        action: { type: "reply_review", label: "Draft a reply", params: { reviewId: oldest.id } },
         entity: { type: "review", id: oldest.id, label: `${oldest.author} · ${oldest.rating}★` },
         confidence: 0.95,
       }),
@@ -549,16 +557,24 @@ function topTopics(rs: { topics: string[] }[]): string {
 export function localVisibility(db: Database, brandId: string): Suggestion[] {
   const cells = db.rankGrid.filter((c) => c.brandId === brandId);
   if (!cells.length) return [];
-  const byKeyword = new Map<string, number[]>();
-  for (const c of cells) byKeyword.set(c.keyword, [...(byKeyword.get(c.keyword) ?? []), c.rank]);
+  // Keep whole cells, not just ranks: where a cell sits in the grid is half the
+  // finding, and averaging the ranks throws that away.
+  const byKeyword = new Map<string, RankGridCell[]>();
+  for (const c of cells) byKeyword.set(c.keyword, [...(byKeyword.get(c.keyword) ?? []), c]);
 
   const out: Suggestion[] = [];
-  for (const [keyword, ranks] of byKeyword) {
+  for (const [keyword, kwCells] of byKeyword) {
+    const ranks = kwCells.map((c) => c.rank);
     const avg = mean(ranks);
     const inTop3 = ranks.filter((r) => r <= 3).length;
     const invisible = ranks.filter((r) => r >= 15).length;
     const coverage = (inTop3 / ranks.length) * 100;
     if (coverage > 60) continue;
+
+    // Dimensions from the actual row/col span rather than sqrt(cell count),
+    // which quietly assumes the grid is square and complete.
+    const rows = new Set(kwCells.map((c) => c.row)).size;
+    const cols = new Set(kwCells.map((c) => c.col)).size;
 
     out.push(
       make(brandId, {
@@ -566,16 +582,65 @@ export function localVisibility(db: Database, brandId: string): Suggestion[] {
         severity: coverage < 25 ? "critical" : "opportunity",
         title: `"${keyword}" only ranks top-3 in ${coverage.toFixed(0)}% of your area`,
         rationale:
-          `Across a ${Math.sqrt(ranks.length).toFixed(0)}x${Math.sqrt(ranks.length).toFixed(0)} grid your average position is ` +
+          `Across a ${rows}x${cols} grid your average position is ` +
           `${avg.toFixed(1)}, top-3 in ${inTop3} of ${ranks.length} points, and outside the top 15 in ${invisible}. ` +
-          `Local rank falls off with distance from the pin, so the weak cells are the edges — the levers that actually move them are ` +
-          `review velocity from those postcodes, a weekly Google post mentioning the area, and services/photos tagged to it.`,
+          `${edgeFalloff(kwCells)} The levers that move a weak cell are review velocity from the area it covers, ` +
+          `a weekly Google post naming that area, and services and photos tagged to it.`,
         projectedImpact: { metric: "Grid points to win", value: ranks.length - inTop3, unit: "cells" },
         confidence: 0.75,
       }),
     );
   }
   return out.slice(0, 2);
+}
+
+/**
+ * Does rank actually decay towards the edge of *this* grid?
+ *
+ * It usually does — proximity to the searcher is the strongest factor in the
+ * local pack — but "usually" is not this account, and telling someone to work
+ * the edges when they are in fact weakest next to their own pin sends them at
+ * the wrong postcodes. So measure it: the outer ring (any cell on the first or
+ * last row or column) against the interior. A grid one cell deep has no
+ * interior and therefore no answer, and we say that rather than guessing.
+ */
+function edgeFalloff(cells: RankGridCell[]): string {
+  const rows = cells.map((c) => c.row);
+  const cols = cells.map((c) => c.col);
+  const minRow = Math.min(...rows);
+  const maxRow = Math.max(...rows);
+  const minCol = Math.min(...cols);
+  const maxCol = Math.max(...cols);
+  const isEdge = (c: RankGridCell) =>
+    c.row === minRow || c.row === maxRow || c.col === minCol || c.col === maxCol;
+
+  const edge = cells.filter(isEdge);
+  const inner = cells.filter((c) => !isEdge(c));
+  if (!edge.length || !inner.length) {
+    return "The grid is too shallow to say whether the weakness sits at its edges or runs through the whole area.";
+  }
+
+  const edgeAvg = mean(edge.map((c) => c.rank));
+  const innerAvg = mean(inner.map((c) => c.rank));
+  // One full position is the smallest gap worth calling a direction; below that
+  // the two halves are the same grid read twice.
+  const gap = edgeAvg - innerAvg;
+  if (gap >= 1) {
+    return (
+      `The outer ring averages position ${edgeAvg.toFixed(1)} against ${innerAvg.toFixed(1)} nearer the pin, ` +
+      `so you are losing at the edge of your radius.`
+    );
+  }
+  if (gap <= -1) {
+    return (
+      `The outer ring averages position ${edgeAvg.toFixed(1)} against ${innerAvg.toFixed(1)} nearer the pin, ` +
+      `so this is not a distance problem — you are weakest closest to home.`
+    );
+  }
+  return (
+    `Edge cells average ${edgeAvg.toFixed(1)} and interior cells ${innerAvg.toFixed(1)}, ` +
+    `so the weakness is spread across the grid rather than concentrated at its edges.`
+  );
 }
 
 /* ------------------------------------------------------------------------- */

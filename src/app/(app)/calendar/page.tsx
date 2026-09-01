@@ -40,6 +40,13 @@ export default async function CalendarPage({
     confidence: s.confidence,
   }));
 
+  // `posts` is the calendar feed, so it only holds posts that carry a scheduled
+  // date. "Published all-time" is a count of everything that ever went out, so
+  // it reads the brand's posts directly — a post published straight from the
+  // composer never gets a scheduledAt and would otherwise be invisible to its
+  // own tile.
+  const publishedAllTime = db.posts.filter((p) => p.brandId === brandId && p.status === "published").length;
+
   const queued = posts.filter((p) => ["scheduled", "approved", "needs_approval"].includes(p.status));
   const failed = posts.filter((p) => p.status === "failed");
   const awaiting = posts.filter((p) => p.status === "needs_approval");
@@ -63,7 +70,7 @@ export default async function CalendarPage({
           <Card><div className="text-[11px] uppercase tracking-wider text-mist-400">Scheduled</div><div className="tnum mt-1 text-2xl font-semibold">{queued.length}</div></Card>
           <Card><div className="text-[11px] uppercase tracking-wider text-mist-400">Awaiting approval</div><div className="tnum mt-1 text-2xl font-semibold text-warn-400">{awaiting.length}</div></Card>
           <Card><div className="text-[11px] uppercase tracking-wider text-mist-400">Failed</div><div className="tnum mt-1 text-2xl font-semibold text-bad-400">{failed.length}</div></Card>
-          <Card><div className="text-[11px] uppercase tracking-wider text-mist-400">Published all-time</div><div className="tnum mt-1 text-2xl font-semibold">{fmt.n(posts.filter((p) => p.status === "published").length)}</div></Card>
+          <Card><div className="text-[11px] uppercase tracking-wider text-mist-400">Published all-time</div><div className="tnum mt-1 text-2xl font-semibold">{fmt.n(publishedAllTime)}</div></Card>
         </div>
 
         {failed.length > 0 && (

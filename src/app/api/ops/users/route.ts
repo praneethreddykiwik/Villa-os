@@ -93,7 +93,14 @@ export async function POST(req: Request) {
       email: email.trim().toLowerCase(),
       password,
       email_confirm: true, // no SMTP is configured; without this they cannot sign in
-      user_metadata: { full_name: fullName.trim(), must_change_password: true },
+      user_metadata: { full_name: fullName.trim() },
+      // The forced-rotation flag goes in app_metadata, not user_metadata. A user
+      // can rewrite their own user_metadata with auth.updateUser() from the
+      // browser, which meant the account handed a temporary password could clear
+      // the flag that forces them to replace it and keep the one an administrator
+      // has seen. app_metadata is writable only with the service role — which is
+      // the client this route already holds.
+      app_metadata: { must_change_password: true },
     });
     if (authErr || !created.user) {
       return NextResponse.json({ ok: false, error: authErr?.message ?? "Could not create the account." }, { status: 422 });

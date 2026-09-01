@@ -1,5 +1,5 @@
 import { pageContext } from "@/lib/page-context";
-import { hasLLM } from "@/lib/ai/provider";
+import { activeProvider, hasLLM } from "@/lib/ai/provider";
 import { hasFfmpeg } from "@/lib/media/render";
 import { DRIVER } from "@/lib/platforms/types";
 import { TopBar } from "@/components/shell";
@@ -16,8 +16,19 @@ export default async function SettingsPage({
   const { db, brand, brandId } = pageContext(sp);
 
   const checks = [
-    { label: "Platform driver", value: DRIVER, ok: true, hint: DRIVER === "live" ? "Publishing for real" : "Simulated — set PLATFORM_DRIVER=live to go live" },
-    { label: "Anthropic API", value: hasLLM() ? "configured" : "not set", ok: hasLLM(), hint: "Optional — engines fall back to the deterministic writer" },
+    // Not "simulated": with the mock driver publishing fails outright rather than
+    // faking a success, so this reads warn — the queue cannot go out in this state.
+    { label: "Platform driver", value: DRIVER, ok: DRIVER === "live", hint: DRIVER === "live" ? "Publishing for real" : "Publishing is off — every post fails until PLATFORM_DRIVER=live and credentials are set" },
+    {
+      label: "AI provider",
+      // Name the provider and model actually in use rather than a fixed vendor:
+      // three are supported and "configured" alone does not say which answered.
+      value: activeProvider() ? `${activeProvider()!.label} · ${activeProvider()!.model}` : "not set",
+      ok: hasLLM(),
+      hint: hasLLM()
+        ? "Set AI_PROVIDER to pin one, or leave it on auto to fall through on an outage"
+        : "Optional — set GROQ_API_KEY or GEMINI_API_KEY; engines fall back to the deterministic writer",
+    },
     { label: "ffmpeg", value: hasFfmpeg() ? "available" : "missing", ok: hasFfmpeg(), hint: "Needed to render edits; the Studio still shows the commands without it" },
     { label: "Worker secret", value: process.env.WORKER_SECRET ? "set" : "unset", ok: Boolean(process.env.WORKER_SECRET), hint: "Protects the publish tick endpoint" },
   ];

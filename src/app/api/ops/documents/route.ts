@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { read } from "@/lib/db";
-import { assertCustomerAccess, authorize, can } from "@/lib/ops/auth";
-import { handleError, ok } from "@/lib/ops/http";
+import { assertCustomerAccess, authorize } from "@/lib/ops/auth";
+import { fail, handleError, ok } from "@/lib/ops/http";
 import { documentsFor, documentTimeline, receiveDocument, recordDownload, reviewDocument } from "@/lib/ops/documents";
 import { notifyDocumentDecision } from "@/lib/ops/agent";
 import { documentStore, signDocumentRef, verifyDocumentRef } from "@/lib/ops/storage";
@@ -10,10 +10,22 @@ import { getCase } from "@/lib/ops/loan";
 /**
  * Document endpoints.
  *
- * Downloads are double-locked: a short-lived signature bound to the requesting
- * member, AND a fresh server-side permission check on every request. Either one
- * alone is insufficient — a signature can leak, and a permission check alone
- * would let any authenticated officer enumerate ids.
+ * Downloads were described here as double-locked: a short-lived signature bound
+ * to the requesting member, AND a second server-side permission check. The
+ * second lock was not real. It tested `document:download`, which the ops
+ * permission map aliased to `documents.read` — the very permission `authorize`
+ * had already required three lines earlier — so it could not deny anybody. A
+ * control that cannot fail is worse than no control: it is trusted, it is cited
+ * when someone asks whether a leaked link is survivable, and it hides the fact
+ * that nothing extra was ever checked.
+ *
+ * So the fake lock is gone and what remains is stated honestly. A download must
+ * still clear the read permission, the org boundary, the per-customer ownership
+ * check, the assigned-officer check on a loan case, and a signature bound to
+ * this member that expires in five minutes. Giving downloads a permission of
+ * their own — the distinct second lock the comment used to promise — needs a
+ * `documents.download` row and role grants in the database, which is a schema
+ * change, not an entry in a translation table.
  */
 export async function GET(req: Request) {
   try {
@@ -27,16 +39,16 @@ export async function GET(req: Request) {
       await assertCustomerAccess(session, customerId);
       return ok({ documents: documentsFor(customerId) });
     }
-    if (!id) return ok({ error: "id or customerId required" }, 400);
+    if (!id) return fail("id or customerId required", 400);
 
     const doc = read().documents.find((d) => d.id === id);
-    if (!doc || doc.orgId !== session.orgId) return ok({ error: "Not found" }, 404);
+    if (!doc || doc.orgId !== session.orgId) return fail("Not found", 404);
     await assertCustomerAccess(session, doc.customerId);
 
     // The officer must own the case; admins may read any.
     if (doc.loanCaseId && session.role === "LOAN_OFFICER") {
       const lc = getCase(doc.loanCaseId);
-      if (lc?.assignedOfficerId !== session.memberId) return ok({ error: "Not your case" }, 403);
+      if (lc?.assignedOfficerId !== session.memberId) return fail("Not your case", 403);
     }
 
     if (!download) {
@@ -48,13 +60,12 @@ export async function GET(req: Request) {
       });
     }
 
-    if (!can(session, "document:download")) return ok({ error: "Missing permission" }, 403);
     if (!verifyDocumentRef(id, session.memberId, download)) {
-      return ok({ error: "Invalid or expired download token" }, 403);
+      return fail("Invalid or expired download token", 403);
     }
 
     const data = await documentStore().get(doc.storageKey);
-    if (!data) return ok({ error: "File missing from storage" }, 404);
+    if (!data) return fail("File missing from storage", 404);
     recordDownload(id, session.memberId, doc.orgId);
 
     return new NextResponse(new Uint8Array(data), {
@@ -79,7 +90,7 @@ export async function POST(req: Request) {
     const file = form.get("file");
     const customerId = String(form.get("customerId") ?? "");
     const checklistItemId = form.get("checklistItemId") ? String(form.get("checklistItemId")) : undefined;
-    if (!(file instanceof File) || !customerId) return ok({ error: "file and customerId are required" }, 400);
+    if (!(file instanceof File) || !customerId) return fail("file and customerId are required", 400);
     await assertCustomerAccess(session, customerId);
 
     const result = await receiveDocument({
@@ -92,7 +103,7 @@ export async function POST(req: Request) {
       uploadedBy: "human",
       uploadedById: session.memberId,
     });
-    if (!result.ok) return ok({ error: result.error }, 422);
+    if (!result.ok) return fail(result.error, 422);
     return ok({ document: result.document, duplicate: result.duplicate });
   } catch (e) {
     return handleError(e);
@@ -106,11 +117,11 @@ export async function PATCH(req: Request) {
     const body = (await req.json()) as { documentId: string; decision: "ACCEPTED" | "REJECTED"; rejectionReason?: string };
 
     const doc = read().documents.find((d) => d.id === body.documentId);
-    if (!doc || doc.orgId !== session.orgId) return ok({ error: "Not found" }, 404);
+    if (!doc || doc.orgId !== session.orgId) return fail("Not found", 404);
     await assertCustomerAccess(session, doc.customerId);
 
     const result = reviewDocument(body.documentId, body.decision, { id: session.memberId, type: "human" }, body.rejectionReason);
-    if (!result.ok) return ok({ error: result.error }, 422);
+    if (!result.ok) return fail(result.error, 422);
 
     // Tell the customer what changed. Never blocks the review if messaging fails.
     let customerNotified: { sent: boolean; reason?: string } = { sent: false, reason: "no linked checklist item" };

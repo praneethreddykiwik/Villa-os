@@ -5,6 +5,7 @@ import { adapterFor } from "@/lib/platforms/registry";
 import { logActivity } from "@/lib/engine/publisher";
 import type { Post, PostFormat, PostTarget } from "@/lib/types";
 import { guard } from "@/lib/auth/guard";
+import { actorLabel, getSession } from "@/lib/auth/session";
 
 /**
  * Create or schedule a post.
@@ -16,6 +17,13 @@ import { guard } from "@/lib/auth/guard";
 export async function POST(req: Request) {
   const denied = await guard("marketing.publish");
   if (denied) return denied;
+
+  // Authorship is read from the session, not sent by the client. guard() has
+  // already resolved it and the lookup is memoised per request, so this is free;
+  // the null branch only narrows the type and fails closed rather than filing
+  // the post under a placeholder name that later reads as a real person.
+  const session = await getSession();
+  if (!session) return NextResponse.json({ ok: false, error: "Sign in to continue." }, { status: 401 });
 
   const body = (await req.json()) as {
     brandId: string;
@@ -78,7 +86,7 @@ export async function POST(req: Request) {
     scheduledAt: body.scheduledAt,
     autoScheduled: false,
     approvals: [],
-    createdBy: "You",
+    createdBy: session.fullName,
     createdAt: now,
     updatedAt: now,
   };
@@ -86,7 +94,7 @@ export async function POST(req: Request) {
   mutate((d) => {
     d.posts.push(post);
   });
-  logActivity(body.brandId, "compose", `Scheduled "${post.caption.slice(0, 40)}" to ${targets.length} channels`, "user");
+  logActivity(body.brandId, "compose", `Scheduled "${post.caption.slice(0, 40)}" to ${targets.length} channels`, actorLabel(session));
   return NextResponse.json({ ok: true, post });
 }
 

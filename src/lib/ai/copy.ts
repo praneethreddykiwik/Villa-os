@@ -152,9 +152,13 @@ Write 5 replacement hooks. Vary the mechanism: curiosity gap, direct benefit, co
   });
   const parsed = extractJson<string[]>(text);
   if (parsed?.length) return parsed;
+  // These are served as ready-to-post copy, so none of them may assert a fact
+  // about the business — we know nothing here beyond the brand brief, and a
+  // hook like "we got this wrong for two years" is a confession we invented.
+  // Each one is a framing the writer can fill, not a claim they have to defend.
   return [
     `Nobody tells you this about ${topic}.`,
-    `We got ${topic} wrong for two years.`,
+    `The part of ${topic} people get wrong.`,
     `Three things ${brand.audience.toLowerCase()} always ask.`,
     `This is what ${topic} actually costs.`,
     `Stop scrolling if you care about ${topic}.`,

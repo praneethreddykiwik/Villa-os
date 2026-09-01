@@ -66,6 +66,12 @@ export interface Connection {
   status: "connected" | "expired" | "error" | "disconnected";
   /** Never render this. Stored server-side only. */
   accessToken?: string;
+  /**
+   * Issued by Google, TikTok and X alongside the access token. Without storing
+   * it, those connections die at the first expiry and have to be re-authorised
+   * by hand instead of refreshed.
+   */
+  refreshToken?: string;
   tokenExpiresAt?: string;
   scopes: string[];
   avatarColor: string;
@@ -380,7 +386,18 @@ export interface Conversation {
   brandId: string;
   channel: ChannelId;
   kind: "comment" | "dm" | "mention" | "review";
+  /**
+   * Display string only — "Name (+number)" for WhatsApp. The name half comes
+   * from the sender's own profile, so nothing may be parsed out of this and
+   * used as an address or an identity. Reply to `authorId`.
+   */
   author: string;
+  /**
+   * The platform's own verified sender id (the WhatsApp `wa_id`), recorded at
+   * ingest from the signature-verified payload. Absent on conversations
+   * imported from channels that do not expose a repliable id.
+   */
+  authorId?: string;
   text: string;
   createdAt: string;
   postId?: string;
@@ -483,10 +500,19 @@ export interface BoardCard {
   assignee?: string;
   /** Set when an automation or the AI agent created/moved the card. */
   automationLabel?: string;
+  /**
+   * Who created the card, taken from the session at creation time. Recorded
+   * because an approval gate that the author can clear themselves is not a
+   * gate — the approval route needs an author to compare the approver against.
+   * Optional only because cards written before this existed have no author.
+   */
+  createdBy?: string;
   approval?: {
     state: "pending" | "approved" | "rejected";
     at?: string;
     by?: string;
+    /** The approver's user id, so the check does not rest on a display name. */
+    byId?: string;
     note?: string;
   };
   /** Links a board card to a scheduled post, so approving here can release it. */

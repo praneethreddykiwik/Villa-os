@@ -136,7 +136,9 @@ async function igPublish(req: PublishRequest): Promise<PublishResult> {
  * is the account's own content_publishing_limit edge.
  */
 async function igRateLimit(connection: PublishRequest["connection"]): Promise<RateLimitStatus> {
-  if (DRIVER === "mock") return { used: 6, quota: 50, windowHours: 24 };
+  // Without a live token there is no usage to report, so it reads zero rather
+  // than a made-up count — the cap is real, the consumption would not be.
+  if (DRIVER === "mock") return { used: 0, quota: 50, windowHours: 24 };
   try {
     const res = await graph(`${connection.externalId}/content_publishing_limit`, {
       token: connection.accessToken!,

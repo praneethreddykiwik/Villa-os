@@ -14,7 +14,8 @@ export default async function BoardPage({
   const sp = await searchParams;
   const { db, brand, brandId } = pageContext(sp);
 
-  // A brand added after the seed still gets a board on first visit.
+  // Boards are created lazily rather than at bootstrap, so a brand added at any
+  // point still gets one on its first visit here.
   let board = db.boards.find((b) => b.brandId === brandId);
   if (!board) {
     const created = makeBoard(brandId, `${brand.name} Board`);

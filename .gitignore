@@ -10,3 +10,5 @@ media/renders
 .private
 .provisioned-credentials.txt
 .DS_Store
+.security-audit/
+.claude/

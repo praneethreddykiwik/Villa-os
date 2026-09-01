@@ -138,8 +138,11 @@ export default async function AdsPage({
                     <Dot color={meta.color} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13px] font-medium text-mist-100">{c.name}</div>
+                      {/* endDate is optional — an evergreen campaign has none, and
+                          `new Date("")` would print the literal "Invalid Date". */}
                       <div className="text-[11px] text-mist-400">
-                        {meta.label} · {c.objective} · {c.adSets.length} ad sets · ends {new Date(c.endDate ?? "").toLocaleDateString()}
+                        {meta.label} · {c.objective} · {c.adSets.length} ad sets ·{" "}
+                        {c.endDate ? `ends ${new Date(c.endDate).toLocaleDateString()}` : "no end date"}
                       </div>
                     </div>
                     <Badge tone={c.status === "active" ? "good" : "neutral"}>{c.status}</Badge>

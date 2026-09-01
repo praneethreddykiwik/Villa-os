@@ -39,7 +39,12 @@ export async function GET(req: Request) {
  */
 async function verifySignature(raw: string, header: string | null): Promise<boolean> {
   const secret = process.env.META_APP_SECRET;
-  if (!secret) return true; // not configured — mock/dev mode
+  // Fail CLOSED. This previously returned true when META_APP_SECRET was unset,
+  // which made an unconfigured deployment accept unsigned webhooks from anyone
+  // who learned the URL — and the path is exempt from the session gate, so the
+  // signature is the only authentication there is. An unconfigured webhook must
+  // reject traffic, not trust it.
+  if (!secret) return false;
   if (!header?.startsWith("sha256=")) return false;
   const { createHmac, timingSafeEqual } = await import("node:crypto");
   const expected = createHmac("sha256", secret).update(raw).digest("hex");
@@ -82,6 +87,11 @@ export async function POST(req: Request) {
         channel: "whatsapp",
         kind: "dm",
         author: m.name ? `${m.name} (${m.from})` : m.from,
+        // `author` mixes the sender's self-chosen profile name into the same
+        // string as the number, so it is a label and nothing more. The wa_id
+        // Meta put in this signed payload is kept separately, because that is
+        // the only value a reply may be addressed to.
+        authorId: m.from,
         text: m.text,
         createdAt: m.timestamp,
         status: "open",

@@ -12,7 +12,9 @@ export const MAP_FOR_TEST: Record<string, string> = {
   "loan:read": "loans.read",
   "loan:write": "loans.write",
   "document:read": "documents.read",
-  "document:download": "documents.read",
+  // No `document:download` — it aliased `documents.read`, which made the
+  // download handler's second permission check incapable of failing. See the
+  // note on MAP in src/lib/ops/auth.ts.
   "document:review": "documents.verify",
   "admin:read": "analytics.view",
   "admin:write": "users.manage",

@@ -5,6 +5,7 @@ import { scoreLead } from "@/lib/crm/rules";
 import { logActivity } from "@/lib/engine/publisher";
 import type { Lead, LeadStatus } from "@/lib/crm/types";
 import { guard } from "@/lib/auth/guard";
+import { actorLabel, getSession } from "@/lib/auth/session";
 
 /**
  * Move a lead, reassign it, or update KYC.
@@ -15,8 +16,13 @@ import { guard } from "@/lib/auth/guard";
  * step for a person to forget.
  */
 export async function PATCH(req: Request) {
-  const denied = await guard("customers.read");
+  // Writes a lead. Was customers.read, which front_desk holds.
+  const denied = await guard("customers.write");
   if (denied) return denied;
+
+  // Stage changes decide commissions and site visits, so the log has to name
+  // the person who made them. guard() already resolved the session.
+  const actor = actorLabel(await getSession());
 
   const body = (await req.json()) as {
     leadId: string;
@@ -54,14 +60,16 @@ export async function PATCH(req: Request) {
   });
 
   if (!result) return NextResponse.json({ ok: false, error: "lead not found" }, { status: 404 });
-  logActivity(result.brandId, "crm", `Lead "${result.name}" → ${result.status.replace(/_/g, " ")}`, "user");
+  logActivity(result.brandId, "crm", `Lead "${result.name}" → ${result.status.replace(/_/g, " ")}`, actor);
   return NextResponse.json({ ok: true, lead: result });
 }
 
 /** Create a lead — used by the manual add form and by inbound lead capture. */
 export async function POST(req: Request) {
-  const denied = await guard("customers.read");
+  const denied = await guard("customers.write");
   if (denied) return denied;
+
+  const actor = actorLabel(await getSession());
 
   const body = (await req.json()) as Partial<Lead> & { brandId: string; name: string; phone: string };
   const now = new Date().toISOString();
@@ -72,10 +80,10 @@ export async function POST(req: Request) {
     name: body.name,
     phone: body.phone,
     email: body.email,
-    city: body.city ?? "Mumbai",
+    city: body.city ?? "",
     status: body.status ?? "new",
-    budgetMin: body.budgetMin ?? 1.2e7,
-    budgetMax: body.budgetMax ?? 3e7,
+    budgetMin: body.budgetMin ?? 0,
+    budgetMax: body.budgetMax ?? 0,
     source: body.source ?? "website",
     brokerId: body.brokerId,
     projectInterest: body.projectInterest ?? "",
@@ -92,7 +100,7 @@ export async function POST(req: Request) {
   lead.score = scoreLead(lead);
 
   mutate((db) => void db.leads.push(lead));
-  logActivity(lead.brandId, "crm", `New lead captured: ${lead.name}`, "user");
+  logActivity(lead.brandId, "crm", `New lead captured: ${lead.name}`, actor);
   return NextResponse.json({ ok: true, lead });
 }
 

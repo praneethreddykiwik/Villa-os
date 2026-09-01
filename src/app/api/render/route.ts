@@ -10,7 +10,9 @@ import { guard } from "@/lib/auth/guard";
  * (and debuggable) rather than a black box.
  */
 export async function POST(req: Request) {
-  const denied = await guard("marketing.read");
+  // Writes render output into the media library — same store as media/upload,
+  // which requires marketing.publish. Read permission is not enough to write.
+  const denied = await guard("marketing.publish");
   if (denied) return denied;
 
   const { assetId, edit, formats } = (await req.json()) as {

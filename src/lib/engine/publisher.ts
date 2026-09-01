@@ -19,6 +19,29 @@ import type { Post, PostTarget } from "../types";
  *    the account's remaining quota and defer rather than burn an API error.
  */
 
+/**
+ * Absolute, fetchable media URL.
+ *
+ * Every live adapter hands the platform a URL and the *platform* fetches it —
+ * Instagram's container creation, TikTok's PULL_FROM_URL, LinkedIn's and X's
+ * upload steps all work that way. The render pipeline stores renders as
+ * app-relative paths (`/renders/<hash>.mp4`, src/lib/media/render.ts), so
+ * passing them through unchanged asks Instagram to resolve a path against its
+ * own host. The publish then fails at the platform with an opaque media error,
+ * long after the point where the real problem — no public base URL configured —
+ * could have been reported.
+ *
+ * So: pass absolute URLs through untouched, and resolve relative ones against
+ * PUBLIC_BASE_URL. When a relative path cannot be resolved the caller reports a
+ * permanent, actionable failure rather than letting the platform reject it.
+ */
+export function publicMediaUrl(pathOrUrl: string): string | null {
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  const base = process.env.PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
+  if (!base || !/^https?:\/\//i.test(base)) return null;
+  return `${base}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
+}
+
 const MAX_ATTEMPTS = 4;
 const BACKOFF_MINUTES = [0, 2, 10, 45];
 
@@ -83,7 +106,7 @@ export async function runTick(now = new Date()): Promise<TickResult> {
         continue;
       }
 
-      const media = post.mediaIds
+      const rawMedia = post.mediaIds
         .map((id) => db.media.find((m) => m.id === id))
         .filter(Boolean)
         .map((m) => {
@@ -91,6 +114,30 @@ export async function runTick(now = new Date()): Promise<TickResult> {
           const wanted = adapter.capabilities.aspectRatios[target.format]?.[0];
           return (wanted && m!.renders[wanted]) || m!.src;
         });
+
+      // Resolve before dispatch so an unreachable file is reported here, with a
+      // fixable message, instead of as a platform-side media error.
+      const media: string[] = [];
+      let unresolvable: string | null = null;
+      for (const raw of rawMedia) {
+        const abs = publicMediaUrl(raw);
+        if (!abs) {
+          unresolvable = raw;
+          break;
+        }
+        media.push(abs);
+      }
+      if (unresolvable) {
+        recordFailure(
+          post.id,
+          target.connectionId,
+          `Cannot publish: "${unresolvable}" is a local path and PUBLIC_BASE_URL is not set to a public https address. ${adapter.label} fetches media by URL, so it must be reachable from the internet.`,
+          false,
+        );
+        result.failed += 1;
+        result.details.push({ postId: post.id, channel: target.channel, ok: false, message: "media not publicly reachable" });
+        continue;
+      }
 
       const res = await adapter.publish({
         connection: {

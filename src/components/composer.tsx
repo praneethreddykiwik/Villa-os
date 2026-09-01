@@ -20,7 +20,20 @@ import { Badge, Card, SectionTitle } from "./ui";
 
 interface Props {
   brand: Brand;
-  connections: Array<Connection & { label: string; color: string; capabilities: Caps }>;
+  /**
+   * Deliberately NOT `Connection & {...}`.
+   *
+   * Requiring the full Connection here forced the server page to hand over
+   * every field on the record — including accessToken and refreshToken — and
+   * left the page stripping secrets by hand. Naming only the fields this
+   * component renders makes a credential in client props a type error rather
+   * than a leak nobody notices.
+   */
+  connections: Array<Pick<Connection, "id" | "channel" | "handle" | "status"> & {
+    label: string;
+    color: string;
+    capabilities: Caps;
+  }>;
   media: MediaAsset[];
   slots: Array<{ isoTime: string; reason: string }>;
 }
@@ -152,10 +165,11 @@ export function Composer({ brand, connections, media, slots }: Props) {
       <div className="space-y-5">
         <Card>
           <SectionTitle title="What is this post about?" hint="One line is enough — the AI writes the variants" />
+          {/* A brand with no offerings recorded yet would interpolate "undefined". */}
           <input
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder={`e.g. ${brand.offerings[0]} — what makes it different`}
+            placeholder={brand.offerings[0] ? `e.g. ${brand.offerings[0]} — what makes it different` : "What makes this worth posting about"}
             className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2.5 text-[13px] outline-none placeholder:text-mist-500 focus:border-brand-500"
           />
 
@@ -182,7 +196,7 @@ export function Composer({ brand, connections, media, slots }: Props) {
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-mist-400">Call to action</label>
-              <input value={cta} onChange={(e) => setCta(e.target.value)} placeholder="Book a stay" className="w-full rounded-lg border border-ink-700 bg-ink-850 px-2 py-1.5 text-[12px] outline-none placeholder:text-mist-500" />
+              <input value={cta} onChange={(e) => setCta(e.target.value)} placeholder="e.g. Learn more" className="w-full rounded-lg border border-ink-700 bg-ink-850 px-2 py-1.5 text-[12px] outline-none placeholder:text-mist-500" />
             </div>
           </div>
 
@@ -297,10 +311,12 @@ export function Composer({ brand, connections, media, slots }: Props) {
 
           <div className="mt-3">
             <label className="mb-1 block text-[11px] font-medium text-mist-400">Hashtags</label>
+            {/* States the input format rather than showing sample tags: any example
+                we hard-code belongs to one industry and misleads every other brand. */}
             <input
               value={hashtags.join(" ")}
               onChange={(e) => setHashtags(e.target.value.split(/[\s,]+/).map((h) => h.replace(/^#/, "")).filter(Boolean))}
-              placeholder="boutiquehotel sunset villalife"
+              placeholder="Space or comma separated, no # needed"
               className="w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-[12px] outline-none placeholder:text-mist-500"
             />
           </div>

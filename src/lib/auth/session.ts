@@ -66,6 +66,31 @@ export class AuthError extends Error {
   }
 }
 
+/**
+ * Read the forced-rotation flag off a Supabase user.
+ *
+ * The flag lives in `app_metadata` because `user_metadata` is client-writable:
+ * the account holder can call `auth.updateUser({ data: { must_change_password:
+ * false } })` against their own session and clear the very flag that is supposed
+ * to stop them going on using an administrator-issued temporary password. That
+ * made the lock advisory. `app_metadata` can only be written with the service
+ * role, so it is the authoritative location.
+ *
+ * `user_metadata` is still read, but only when `app_metadata` says nothing at
+ * all, so accounts provisioned before the move are not locked out of their own
+ * rotation. Because the fallback only applies when the authoritative key is
+ * absent, a `false` a user wrote for themselves can never override an
+ * `app_metadata` `true`.
+ */
+export function readMustChangePassword(user: {
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
+}): boolean {
+  const authoritative = user.app_metadata?.must_change_password;
+  if (authoritative !== undefined && authoritative !== null) return authoritative === true;
+  return user.user_metadata?.must_change_password === true;
+}
+
 /** Reads the Supabase session from request cookies. Never trusts a header. */
 async function supabaseFromCookies() {
   if (!isSupabaseConfigured()) return null;
@@ -108,7 +133,7 @@ export const resolveSession = cache(async (): Promise<SessionResult> => {
   if (error || !data.user) return { status: "anonymous" };
 
   const email = data.user.email ?? "";
-  const mustChangePassword = data.user.user_metadata?.must_change_password === true;
+  const mustChangePassword = readMustChangePassword(data.user);
 
   // Independent lookups, both keyed on the same id, so they run concurrently
   // rather than one after the other. Saves a full round trip on every render.
@@ -161,6 +186,25 @@ export function hasPermission(session: Session | null, permission: Permission): 
 }
 
 /**
+ * Who to record against an activity entry.
+ *
+ * Every write route logged the literal string "user", which says that a human
+ * did it and nothing else. A 500-entry ring buffer of anonymous entries is not
+ * an audit trail: it cannot answer who disconnected a channel, who moved ad
+ * budget, or which of seven accounts published the post — the questions the log
+ * exists for. The address is the identifier the profiles table is keyed on for
+ * humans, so it is what an investigation can actually join against; the display
+ * name is not unique and changes when somebody marries.
+ *
+ * "unknown" rather than "system" for a missing session, because attributing a
+ * person's action to the machine is a worse record than admitting the gap. In
+ * practice these call sites sit behind `guard()`, so it does not arise.
+ */
+export function actorLabel(session: Session | null): string {
+  return session?.email || session?.userId || "unknown";
+}
+
+/**
  * The single guard. Throws rather than returning a boolean, so a forgotten
  * `if` cannot silently grant access.
  */
@@ -170,6 +214,19 @@ export async function requirePermission(...required: Permission[]): Promise<Sess
   }
   const session = await getSession();
   if (!session) throw new AuthError("Sign in to continue.", 401);
+  // A session still carrying an administrator-issued temporary password may not
+  // act. This used to be enforced by the app layout alone, and a layout only
+  // runs for pages: every API route accepted the locked session, so the lock
+  // stopped nobody who could call fetch(). It belongs here because this is the
+  // one function every guarded route and page already goes through.
+  //
+  // The two paths out of the lock deliberately do not call it: the sign-in
+  // screen resolves the session directly and `rotatePassword` talks to Supabase
+  // with its own client, so gating here cannot trap someone with no way to
+  // replace the password.
+  if (session.mustChangePassword) {
+    throw new AuthError("Set a new password before continuing.", 403);
+  }
   for (const p of required) {
     if (!session.permissions.has(p)) {
       throw new AuthError(`Your role does not include ${p}.`, 403);

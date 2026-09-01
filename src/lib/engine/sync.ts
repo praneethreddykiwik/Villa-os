@@ -99,39 +99,18 @@ async function fetchGoogleReviews(account: string, location: string, token: stri
   return (json.reviews ?? []).map((r) => ({
     id: r.reviewId,
     source: "google" as const,
-    author: r.reviewer?.displayName ?? "Google user",
-    rating: STARS[r.starRating ?? "FIVE"] ?? 5,
+    // Google allows a reviewer with no display name, so the absence is real and
+    // gets said plainly rather than dressed up as a name we do not have.
+    author: r.reviewer?.displayName ?? "Unknown reviewer",
+    // No star rating (missing, or STAR_RATING_UNSPECIFIED) leaves this undefined
+    // on purpose. The old `?? FIVE` turned every unrated review into a five-star
+    // one, which silently pushed the brand's headline average up; the caller
+    // decides what to do with a review it cannot score.
+    rating: r.starRating ? STARS[r.starRating] : undefined,
     text: r.comment ?? "",
     createdAt: r.createTime ?? new Date().toISOString(),
     replied: Boolean(r.reviewReply),
     reply: r.reviewReply?.comment,
-  }));
-}
-
-/* -------------------------------------------------------------------------- */
-/* Mock generation                                                            */
-/* -------------------------------------------------------------------------- */
-
-const MOCK_MESSAGES: Array<[ChannelId, Conversation["kind"], string, string, boolean]> = [
-  ["whatsapp", "dm", "+351 912 004 118", "Hi — is the villa free the weekend of the 14th? Two adults.", true],
-  ["whatsapp", "dm", "+44 7700 900412", "Do you have a shuttle from the airport?", true],
-  ["instagram", "comment", "@sara.travels", "How much is a night in October? 😍", true],
-  ["instagram", "mention", "@weekend.escapes", "Tagged you in a story", false],
-  ["facebook", "comment", "Daniel R.", "Is the pool heated in winter?", true],
-  ["tiktok", "comment", "@foodie.lis", "That terrace shot is unreal", false],
-  ["google_business", "review", "Marta S.", "Lovely stay, though check-in was slow.", false],
-];
-
-function mockInbound(brandId: string, channels: ChannelId[], seedOffset: number): Partial<Conversation>[] {
-  return MOCK_MESSAGES.filter(([channel]) => channels.includes(channel)).map(([channel, kind, author, text, isLead], i) => ({
-    // Stable synthetic id so repeated syncs are idempotent, exactly like real ids.
-    id: `mock_${brandId}_${channel}_${(seedOffset + i) % 7}`,
-    channel,
-    kind,
-    author,
-    text,
-    createdAt: new Date(Date.now() - i * 37 * 60_000).toISOString(),
-    isLead,
   }));
 }
 
@@ -165,7 +144,19 @@ export async function retrieveAll(brandId: string): Promise<SyncResult> {
         // Remaining channels: see RETRIEVAL_ENDPOINTS. Each is a self-contained
         // fetcher following the same shape as the two above.
       } else {
-        fetched = mockInbound(brandId, [conn.channel], connections.indexOf(conn));
+        // No live credentials for this channel. Previously this fabricated a
+        // handful of plausible comments and DMs so the inbox looked alive; that
+        // put invented phone numbers and review text in front of operators with
+        // nothing marking them as unreal. An unconfigured channel now retrieves
+        // nothing and says so, which is the truth.
+        fetched = [];
+        sources.push({
+          channel: conn.channel,
+          fetched: 0,
+          created: 0,
+          error: "Channel not connected to a live API — add credentials to retrieve real messages.",
+        });
+        continue;
       }
 
       inbound.push(...fetched);
@@ -179,6 +170,7 @@ export async function retrieveAll(brandId: string): Promise<SyncResult> {
   const created = mutate((d) => {
     let convCount = 0;
     let revCount = 0;
+    let skippedRev = 0;
     const seenConv = new Set(d.conversations.map((c) => c.id));
     const seenRev = new Set(d.reviews.map((r) => r.id));
 
@@ -206,15 +198,23 @@ export async function retrieveAll(brandId: string): Promise<SyncResult> {
     for (const r of inboundReviews) {
       const id = r.id ?? uid("rev");
       if (seenRev.has(id)) continue;
+      // A review with no star rating cannot be stored: `rating` drives the
+      // average, the star distribution and the sentiment call, so any default we
+      // picked would be a number the reviewer never gave. Skip it and report the
+      // skip instead of quietly inventing five stars.
+      if (typeof r.rating !== "number") {
+        skippedRev += 1;
+        continue;
+      }
       seenRev.add(id);
       revCount += 1;
-      const { sentiment, topics } = analyseReview(r.text ?? "", r.rating ?? 5);
+      const { sentiment, topics } = analyseReview(r.text ?? "", r.rating);
       d.reviews.unshift({
         id,
         brandId,
         source: r.source ?? "google",
-        author: r.author ?? "Google user",
-        rating: r.rating ?? 5,
+        author: r.author ?? "Unknown reviewer",
+        rating: r.rating,
         text: r.text ?? "",
         createdAt: r.createdAt ?? new Date().toISOString(),
         replied: r.replied ?? false,
@@ -235,7 +235,9 @@ export async function retrieveAll(brandId: string): Promise<SyncResult> {
       at: new Date().toISOString(),
       actor: "system",
       kind: "sync",
-      message: `Retrieved ${convCount} new message(s) and ${revCount} review(s) across ${sources.length} channels`,
+      message:
+        `Retrieved ${convCount} new message(s) and ${revCount} review(s) across ${sources.length} channels` +
+        (skippedRev > 0 ? ` · ${skippedRev} review(s) skipped: no star rating returned by the platform` : ""),
     });
 
     return { conversations: convCount, reviews: revCount };

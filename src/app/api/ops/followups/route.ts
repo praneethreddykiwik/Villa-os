@@ -1,9 +1,10 @@
 import { read } from "@/lib/db";
 import { authorize } from "@/lib/ops/auth";
-import { handleError, ok } from "@/lib/ops/http";
+import { fail, handleError, ok } from "@/lib/ops/http";
 import { runFollowUpTick } from "@/lib/ops/agent";
 import { cancelFollowUps, dueFollowUps, resolveEscalation } from "@/lib/ops/followups";
 import { defaultOrgId } from "@/lib/ops/seed";
+import { requireWorkerSecret } from "@/lib/auth/session";
 
 /**
  * Follow-up worker. Point a cron here.
@@ -15,10 +16,19 @@ import { defaultOrgId } from "@/lib/ops/seed";
 export async function POST(req: Request) {
   try {
     const url = new URL(req.url);
-    const secret = req.headers.get("x-worker-secret") ?? url.searchParams.get("secret");
-    const viaSecret = Boolean(process.env.WORKER_SECRET) && secret === process.env.WORKER_SECRET;
+    // Constant-time, and fails closed on a missing secret.
+    let viaSecret = false;
+    try {
+      await requireWorkerSecret(req);
+      viaSecret = true;
+    } catch {
+      viaSecret = false;
+    }
 
-    let orgId = url.searchParams.get("orgId") ?? defaultOrgId();
+    // The worker runs for its own org only. Taking orgId from the query string
+    // let anyone holding the shared secret drive follow-ups — real WhatsApp
+    // messages to real customers — against any tenant they named.
+    let orgId = defaultOrgId();
     if (!viaSecret) {
       const session = await authorize(req, "admin:read");
       orgId = session.orgId;
@@ -65,7 +75,7 @@ export async function PATCH(req: Request) {
     if (body.cancelCustomerId) {
       return ok({ cancelled: cancelFollowUps({ customerId: body.cancelCustomerId }, body.reason ?? "Cancelled by a human") });
     }
-    return ok({ error: "Nothing to do" }, 400);
+    return fail("Nothing to do", 400);
   } catch (e) {
     return handleError(e);
   }

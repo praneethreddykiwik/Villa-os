@@ -267,7 +267,7 @@ Stories use `media_type=STORIES` and carry no caption. Facebook uses `published=
 
 **Run it:**
 ```bash
-curl -X POST "http://localhost:4321/api/publish/tick?secret=dev-secret"
+curl -X POST "http://localhost:4321/api/publish/tick?secret=$WORKER_SECRET"
 ```
 or the **Run queue now** button in the calendar. Point a 5-minute cron at that endpoint in production.
 

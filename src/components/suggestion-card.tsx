@@ -15,7 +15,7 @@ export function SuggestionCard({ s, compact = false }: { s: Suggestion; compact?
   const [open, setOpen] = useState(!compact);
   const [state, setState] = useState<Suggestion["state"]>(s.state);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   async function act(decision: "accepted" | "dismissed") {
     setBusy(true);
@@ -26,10 +26,19 @@ export function SuggestionCard({ s, compact = false }: { s: Suggestion; compact?
         body: JSON.stringify({ suggestionId: s.id, brandId: s.brandId, decision, action: s.action }),
       });
       const json = await res.json();
+      // Only claim the action ran if the server carried it out. This endpoint
+      // pauses live ads and moves Meta budget; reading the body without the
+      // status reported a 403 from the permission gate as a green "Applied"
+      // and greyed the card out, so a spend change nobody was allowed to make
+      // looked done and would never be retried.
+      if (!res.ok || !json.ok) {
+        setResult({ ok: false, message: json.error ?? "Could not apply — the server refused it" });
+        return;
+      }
       setState(decision);
-      setResult(json.message ?? (decision === "accepted" ? "Applied" : "Dismissed"));
+      setResult({ ok: true, message: json.message ?? (decision === "accepted" ? "Applied" : "Dismissed") });
     } catch {
-      setResult("Could not apply — check the connection");
+      setResult({ ok: false, message: "Could not apply — check the connection" });
     } finally {
       setBusy(false);
     }
@@ -95,7 +104,9 @@ export function SuggestionCard({ s, compact = false }: { s: Suggestion; compact?
               >
                 <X size={12} /> Dismiss
               </button>
-              {result && <span className="text-[11px] text-good-400">{result}</span>}
+              {result && (
+                <span className={clsx("text-[11px]", result.ok ? "text-good-400" : "text-bad-400")}>{result.message}</span>
+              )}
             </div>
           )}
         </div>

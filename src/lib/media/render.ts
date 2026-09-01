@@ -65,7 +65,12 @@ export function buildFilterGraph(edit: MediaEdit, aspect: keyof typeof ASPECTS, 
 
   for (const o of edit.overlays) {
     if (o.type !== "text" && o.type !== "cta") continue;
-    const text = (o.text ?? "").replace(/[':\\]/g, "\\$&");
+    // An overlay the user has not written into yet is skipped rather than drawn:
+    // drawtext with an empty string still paints its background box, so a blank
+    // overlay would burn a black rectangle into the export.
+    const raw = (o.text ?? "").trim();
+    if (!raw) continue;
+    const text = raw.replace(/[':\\]/g, "\\$&");
     filters.push(
       `drawtext=text='${text}':fontsize=${Math.round(o.size * (w / 1080))}:fontcolor=${o.color}:` +
         `x=(w*${o.x.toFixed(3)})-text_w/2:y=(h*${o.y.toFixed(3)})-text_h/2:` +

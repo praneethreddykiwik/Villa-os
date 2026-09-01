@@ -3,7 +3,9 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@supabase/ssr";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { adminClient, hasServiceRole, isSupabaseConfigured } from "@/lib/supabase/client";
+import { readMustChangePassword } from "@/lib/auth/session";
+import { logAuthEvent, stampLastLogin } from "@/lib/auth/audit";
 import { clientKey, rateLimit, resetLimit } from "@/lib/ops/ratelimit";
 
 /**
@@ -51,7 +53,15 @@ async function serverClient() {
 /** Only ever an internal path. "//evil.example" is a URL, not a path. */
 function safeNext(value: FormDataEntryValue | null): string {
   const raw = typeof value === "string" ? value : "";
-  return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/ops";
+  // "//evil.example" was rejected but "/\evil.example" was not — browsers treat
+  // a backslash as a slash when resolving, so it is the same protocol-relative
+  // redirect wearing a different hat. Accept a single leading slash followed by
+  // something that cannot begin an authority, and nothing else.
+  if (!raw.startsWith("/")) return "/ops";
+  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/ops";
+  // Reject control characters and whitespace, which browsers strip before parsing.
+  if (/[\x00-\x1f\x7f\s]/.test(raw)) return "/ops";
+  return raw;
 }
 
 async function requestIp(): Promise<string> {
@@ -60,24 +70,51 @@ async function requestIp(): Promise<string> {
 }
 
 /**
- * Two buckets with different shapes, on purpose.
+ * Three buckets with different shapes, on purpose.
  *
- * The per-account bucket is tight, because eight wrong passwords for one
- * address is already an attack. The per-source bucket is loose, because a whole
- * office behind one office router shares a single address, and a tight limit
- * there locks out everybody to slow down one person.
+ * The tight lock used to hang on the account alone, and that made it a denial
+ * of service anybody could aim. Eight wrong passwords against a named staff
+ * address — no session, no account, just an address off an email signature —
+ * put that person into a fifteen-minute lockout, and eight more every fifteen
+ * minutes kept them locked out for as long as the attacker cared to keep
+ * typing. The limiter was doing exactly what it was written to do, to whoever
+ * the attacker chose.
+ *
+ * So the tight lock now hangs on the (account, source) pair. That is the pair a
+ * guessing run actually occupies: it still stops after eight tries, but it is
+ * scoped to the attacker's own network rather than to the victim's account, and
+ * a colleague signing in from anywhere else never feels it.
+ *
+ * The account-wide bucket stays, because the pair bucket on its own would let
+ * someone with many source addresses spread a password list thin across them.
+ * Two things keep it from becoming the old weapon. It is wide enough that a
+ * single source can never reach it — the pair bucket caps that source at eight
+ * per lockout first — so tripping it takes coordinated traffic from several
+ * networks, which is a real distributed attack. And its lockout is sixty
+ * seconds rather than fifteen minutes: it is a ceiling on how fast an account
+ * can be guessed at, not a door that can be held shut. Raising `max` until
+ * nobody trips it would be the same as deleting it, so the cost is paid in
+ * lockout length instead, where the victim's worst case is a minute.
+ *
+ * The per-source bucket is loose, because a whole office behind one router
+ * shares a single address and a tight limit there locks out everybody to slow
+ * down one person.
  */
-async function throttle(email: string): Promise<string | null> {
-  const ip = await requestIp();
-  const bySource = rateLimit(`signin:src:${ip}`, { max: 60, windowSeconds: 300, lockoutSeconds: 300 });
+async function throttle(email: string): Promise<{ source: string; error: string | null }> {
+  const source = await requestIp();
+  const bySource = rateLimit(`signin:src:${source}`, { max: 60, windowSeconds: 300, lockoutSeconds: 300 });
   if (!bySource.allowed) {
-    return `Too many attempts from this network. Try again in ${bySource.retryAfterSeconds ?? 300} seconds.`;
+    return { source, error: `Too many attempts from this network. Try again in ${bySource.retryAfterSeconds ?? 300} seconds.` };
   }
-  const byAccount = rateLimit(`signin:acct:${email}`, { max: 8, windowSeconds: 300, lockoutSeconds: 900 });
+  const byPair = rateLimit(`signin:pair:${source}:${email}`, { max: 8, windowSeconds: 300, lockoutSeconds: 900 });
+  if (!byPair.allowed) {
+    return { source, error: `Too many attempts for this account. Try again in ${byPair.retryAfterSeconds ?? 900} seconds.` };
+  }
+  const byAccount = rateLimit(`signin:acct:${email}`, { max: 40, windowSeconds: 3600, lockoutSeconds: 60 });
   if (!byAccount.allowed) {
-    return `Too many attempts for this account. Try again in ${byAccount.retryAfterSeconds ?? 900} seconds.`;
+    return { source, error: `Too many attempts for this account. Try again in ${byAccount.retryAfterSeconds ?? 60} seconds.` };
   }
-  return null;
+  return { source, error: null };
 }
 
 export async function signInWithPassword(_prev: AuthState, form: FormData): Promise<AuthState> {
@@ -88,20 +125,37 @@ export async function signInWithPassword(_prev: AuthState, form: FormData): Prom
   const next = safeNext(form.get("next"));
   if (!email || !password) return { error: GENERIC };
 
-  const throttled = await throttle(email);
-  if (throttled) return { error: throttled };
+  const { source, error: throttled } = await throttle(email);
+  if (throttled) {
+    logAuthEvent({ method: "password", outcome: "throttled", email, source });
+    return { error: throttled };
+  }
 
   const sb = await serverClient();
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if (error || !data.session) return { error: GENERIC };
+  if (error || !data.session) {
+    // Outcome only. The provider's reason distinguishes "no such user" from
+    // "wrong password", and writing that down rebuilds the enumeration oracle
+    // the generic on-screen message closes.
+    logAuthEvent({ method: "password", outcome: "failure", email, source });
+    return { error: GENERIC };
+  }
 
-  // A correct password clears the counter, so an honest typo streak does not
-  // leave someone locked out after they finally get it right.
+  logAuthEvent({ method: "password", outcome: "success", email, source });
+
+  // A correct password clears both counters, so an honest typo streak does not
+  // leave someone locked out after they finally get it right — and a spraying
+  // run aimed at this address leaves no residue that throttles its real owner.
+  resetLimit(`signin:pair:${source}:${email}`);
   resetLimit(`signin:acct:${email}`);
+
+  // Must happen before the redirect below, which throws by design: anything
+  // placed after it never runs, which is how the column ended up never written.
+  await stampLastLogin(data.user.id);
 
   // Redirect throws, so it must sit outside the try/catch above rather than be
   // swallowed as a failure.
-  redirect(data.user.user_metadata?.must_change_password === true ? "/signin" : next);
+  redirect(readMustChangePassword(data.user) ? "/signin" : next);
 }
 
 export async function sendMagicLink(_prev: AuthState, form: FormData): Promise<AuthState> {
@@ -111,8 +165,11 @@ export async function sendMagicLink(_prev: AuthState, form: FormData): Promise<A
   const next = safeNext(form.get("next"));
   if (!email) return { notice: LINK_SENT };
 
-  const throttled = await throttle(email);
-  if (throttled) return { error: throttled };
+  const { source, error: throttled } = await throttle(email);
+  if (throttled) {
+    logAuthEvent({ method: "magic_link", outcome: "throttled", email, source });
+    return { error: throttled };
+  }
 
   const h = await headers();
   const origin = h.get("origin") ?? `https://${h.get("host") ?? ""}`;
@@ -127,6 +184,13 @@ export async function sendMagicLink(_prev: AuthState, form: FormData): Promise<A
       emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });
+
+  // Recorded as a request rather than a sign-in: whether the link is used is
+  // decided later, at the callback. The screen still says the same thing
+  // whether or not the address exists, for the same reason the password error
+  // is generic — the log is where the difference is allowed to be visible, and
+  // even there only as "somebody asked for a link to this address".
+  logAuthEvent({ method: "magic_link", outcome: "requested", email, source });
 
   // The same confirmation whether or not the address exists, for the same
   // reason the password error is generic.
@@ -144,11 +208,30 @@ export async function rotatePassword(_prev: AuthState, form: FormData): Promise<
   }
 
   const sb = await serverClient();
-  const { error } = await sb.auth.updateUser({
+  const { data, error } = await sb.auth.updateUser({
     password,
+    // Clears the legacy copy of the flag. Accounts created before it moved still
+    // carry it here and it is still read as a fallback, so leaving it behind
+    // would keep an older account bouncing back to this screen forever.
     data: { must_change_password: false },
   });
   if (error) return { error: error.message };
+
+  // The authoritative flag lives in app_metadata precisely because this session
+  // cannot write it — so clearing it takes the service role. Report the failure
+  // instead of redirecting: the next request would bounce straight back here and
+  // the form would look like it silently did nothing.
+  if (data.user?.app_metadata?.must_change_password === true) {
+    if (!hasServiceRole()) {
+      return { error: "Your password was changed, but this deployment cannot lift the password-change requirement. Ask an administrator." };
+    }
+    const { error: clearError } = await adminClient().auth.admin.updateUserById(data.user.id, {
+      app_metadata: { must_change_password: false },
+    });
+    if (clearError) {
+      return { error: "Your password was changed, but the password-change requirement could not be lifted. Ask an administrator." };
+    }
+  }
 
   redirect(next);
 }

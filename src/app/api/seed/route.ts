@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { resetToSeed } from "@/lib/db";
+import { resetToBootstrap } from "@/lib/db";
 import { guard } from "@/lib/auth/guard";
 
 /**
- * Destroys and regenerates the local demo dataset.
+ * Clears every business record, returning the store to the tenant shell.
  *
  * Previously this was an unauthenticated POST that wiped every record —
  * anyone who found the URL could destroy the workspace. It now requires the
@@ -20,6 +20,6 @@ export async function POST() {
   const denied = await guard("workflows.manage");
   if (denied) return denied;
 
-  const db = resetToSeed();
+  const db = resetToBootstrap();
   return NextResponse.json({ ok: true, brands: db.brands.length, posts: db.posts.length });
 }

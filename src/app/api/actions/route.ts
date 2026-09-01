@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { mutate } from "@/lib/db";
+import { mutate, read } from "@/lib/db";
+import { draftReply } from "@/lib/ai/reviews";
 import { logActivity } from "@/lib/engine/publisher";
 import { setAdStatus, setMetaBudget } from "@/lib/platforms/ads";
 import type { SuggestionAction } from "@/lib/types";
 import { uid } from "@/lib/ids";
 import { guard } from "@/lib/auth/guard";
+import { actorLabel, getSession } from "@/lib/auth/session";
 
 /**
  * The one-click execution endpoint behind every suggestion card.
@@ -14,8 +16,16 @@ import { guard } from "@/lib/auth/guard";
  * exercisable end to end without spending money.
  */
 export async function POST(req: Request) {
-  const denied = await guard("analytics.view");
+  // Was analytics.view — a READ permission — on a handler that pauses live ads,
+  // moves Meta ad budget, boosts posts and replies to reviews. Auditors and
+  // read-only roles could spend money. These are marketing writes.
+  const denied = await guard("marketing.publish");
   if (denied) return denied;
+
+  // Named so the activity entries below say who paused the ad or moved the
+  // budget. guard() has already resolved the session and the lookup is
+  // memoised per request, so this costs nothing.
+  const actor = actorLabel(await getSession());
 
   const body = (await req.json()) as {
     suggestionId: string;
@@ -25,7 +35,7 @@ export async function POST(req: Request) {
   };
 
   if (body.decision === "dismissed") {
-    logActivity(body.brandId, "suggestion", `Dismissed suggestion ${body.suggestionId}`, "user");
+    logActivity(body.brandId, "suggestion", `Dismissed suggestion ${body.suggestionId}`, actor);
     return NextResponse.json({ ok: true, message: "Dismissed" });
   }
 
@@ -114,16 +124,35 @@ export async function POST(req: Request) {
     }
 
     case "reply_review": {
-      mutate((db) => {
-        const min = Number(action.params.minRating ?? 0);
-        for (const r of db.reviews) {
-          if (r.brandId !== body.brandId || r.replied) continue;
-          if (action.params.reviewId && r.id !== action.params.reviewId) continue;
-          if (min && r.rating < min) continue;
-          r.draftReply = r.draftReply ?? "Draft ready for approval.";
+      // These drafts land on real customer reviews under the business's name, so
+      // they go through the same drafting path as the Reviews screen — never a
+      // placeholder sentence. draftReply() falls back to review-specific copy
+      // when no model key is set, so this works with or without an LLM.
+      const db = read();
+      const brand = db.brands.find((b) => b.id === body.brandId);
+      const min = Number(action.params.minRating ?? 0);
+      const targets = brand
+        ? db.reviews.filter(
+            (r) =>
+              r.brandId === body.brandId &&
+              !r.replied &&
+              // An existing draft is someone's edit in progress; never overwrite it.
+              !r.draftReply &&
+              (!action.params.reviewId || r.id === action.params.reviewId) &&
+              (!min || r.rating >= min),
+          )
+        : [];
+
+      const drafts = await Promise.all(targets.map(async (r) => ({ id: r.id, text: await draftReply(brand!, r) })));
+      mutate((d) => {
+        for (const { id, text } of drafts) {
+          const r = d.reviews.find((x) => x.id === id);
+          if (r) r.draftReply = text;
         }
       });
-      message = "Drafts queued in Reviews";
+      message = drafts.length
+        ? `${drafts.length} repl${drafts.length === 1 ? "y" : "ies"} drafted in Reviews`
+        : "No unanswered reviews to draft";
       break;
     }
 
@@ -131,6 +160,6 @@ export async function POST(req: Request) {
       message = "Queued";
   }
 
-  logActivity(body.brandId, "suggestion", `${action.label} — ${message}`, "user");
+  logActivity(body.brandId, "suggestion", `${action.label} — ${message}`, actor);
   return NextResponse.json({ ok: true, message });
 }

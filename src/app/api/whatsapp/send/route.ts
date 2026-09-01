@@ -23,7 +23,26 @@ export async function POST(req: Request) {
   if (!conv) return NextResponse.json({ ok: false, error: "conversation not found" }, { status: 404 });
 
   const conn = db.connections.find((c) => c.brandId === conv.brandId && c.channel === "whatsapp");
-  const to = conv.author.match(/\+?[\d\s]{7,}/)?.[0]?.replace(/\s/g, "") ?? conv.author;
+
+  // The recipient is read from the stored sender id, never scraped out of
+  // `conv.author`. That string is "profile name (wa_id)", and the profile name
+  // half is whatever the customer typed into WhatsApp. Setting it to another
+  // phone number put the attacker's digits *first*, so the old
+  // /\+?[\d\s]{7,}/ scan matched them instead of the real wa_id and every staff
+  // reply — loan status, document chases, anything already drafted about that
+  // customer — was delivered to a number the customer's counterparty chose.
+  // `authorId` is recorded at ingest from the signature-verified webhook body,
+  // which the sender cannot influence.
+  const to = (conv.authorId ?? "").replace(/[^\d+]/g, "");
+  if (!/^\+?\d{7,20}$/.test(to)) {
+    // Fail closed rather than falling back to the display string: a
+    // conversation with no verified sender id (a pre-existing row, or a channel
+    // that never carried one) has no address we are willing to trust.
+    return NextResponse.json(
+      { ok: false, error: "conversation has no verified sender id to reply to" },
+      { status: 409 },
+    );
+  }
 
   const result = await sendWhatsApp({
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? conn?.externalId ?? "",

@@ -5,7 +5,7 @@ import { ArrowUpDown, Filter, Phone, Search, Star, X } from "lucide-react";
 import clsx from "clsx";
 import type { Broker, Lead, LeadSource, LeadStatus } from "@/lib/crm/types";
 import { BUDGET_BANDS, KYC_LABELS, LEAD_STATUSES, SOURCE_LABELS } from "@/lib/crm/types";
-import { initials, inrRange, relativeDay, shortDate } from "@/lib/crm/format";
+import { initials, inr, inrRange, relativeDay, shortDate } from "@/lib/crm/format";
 import { Badge, Card } from "../ui";
 
 /**
@@ -18,6 +18,22 @@ import { Badge, Card } from "../ui";
  */
 
 type SortKey = "score" | "budget" | "created" | "lastContacted";
+
+/**
+ * Budget as the lead actually stated it. The intake API defaults budgetMin and
+ * budgetMax to 0 independently, so all four combinations reach the grid and only
+ * one of them means "not known": a floor with no ceiling ("₹5 Cr and up") and a
+ * ceiling with no floor ("up to ₹5 Cr") are both real qualifying information, and
+ * keying the cell on budgetMax alone threw the first of those away. Returns null
+ * only when neither figure was given — inrRange(0, 0) would print a confident
+ * "₹0" nobody said.
+ */
+function budgetLabel(min: number, max: number): string | null {
+  if (min > 0 && max > 0) return inrRange(min, max);
+  if (min > 0) return `${inr(min)}+`;
+  if (max > 0) return `up to ${inr(max)}`;
+  return null;
+}
 
 export function LeadsGrid({ leads, brokers }: { leads: Lead[]; brokers: Broker[] }) {
   const [rows, setRows] = useState(leads);
@@ -211,7 +227,10 @@ export function LeadsGrid({ leads, brokers }: { leads: Lead[]; brokers: Broker[]
                           {l.isHNWI && <Star size={10} className="shrink-0 fill-warn-400 text-warn-400" />}
                         </span>
                         <span className="flex items-center gap-1 text-[10.5px] text-mist-400">
-                          <Phone size={9} /> {l.phone} · {l.city}
+                          {/* City is optional on a captured lead — join it in rather
+                              than hard-coding the separator, or an unknown city
+                              leaves a dangling " · " after the phone number. */}
+                          <Phone size={9} /> {[l.phone, l.city].filter(Boolean).join(" · ")}
                         </span>
                       </span>
                     </div>
@@ -228,7 +247,9 @@ export function LeadsGrid({ leads, brokers }: { leads: Lead[]; brokers: Broker[]
                       ))}
                     </select>
                   </td>
-                  <td className="tnum px-3 py-2.5 font-medium text-mist-200">{inrRange(l.budgetMin, l.budgetMax)}</td>
+                  <td className="tnum px-3 py-2.5 font-medium text-mist-200">
+                    {budgetLabel(l.budgetMin, l.budgetMax) ?? <span className="text-mist-500">—</span>}
+                  </td>
                   <td className="px-3 py-2.5">
                     <div className="text-mist-200">{l.projectInterest}</div>
                     <div className="text-[10.5px] text-mist-400">{l.unitType}</div>

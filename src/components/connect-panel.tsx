@@ -62,6 +62,7 @@ export function ConnectPanel({ rows, brandId }: { rows: ConnectRow[]; brandId: s
   async function sync() {
     setSyncing(true);
     setSyncResult(null);
+    setError(null);
     try {
       const res = await fetch("/api/sync", {
         method: "POST",
@@ -69,6 +70,13 @@ export function ConnectPanel({ rows, brandId }: { rows: ConnectRow[]; brandId: s
         body: JSON.stringify({ brandId }),
       });
       const json = await res.json();
+      // Without the status check a refusal fell through to the summary line
+      // below and read as "0 new message(s) across 0 channel(s)" — a clean
+      // sync that never happened, rather than "you were not allowed to run it".
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Could not retrieve — nothing was fetched.");
+        return;
+      }
       const failed = (json.sources ?? []).filter((s: { error?: string }) => s.error);
       setSyncResult(
         `${json.totals.conversations} new message(s), ${json.totals.reviews} review(s) across ${json.sources.length} channel(s)` +

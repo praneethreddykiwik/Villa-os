@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test, { after, before, describe } from "node:test";
-import { cleanup, isolate, samplePdf } from "./helpers";
+import { cleanup, isolate, samplePdf, seedTeam } from "./helpers";
 
 const dir = isolate("workflow");
 after(() => cleanup(dir));
 
 /* Imports must follow isolate() so the store points at the temp directory. */
-const { read, resetToSeed } = require("../src/lib/db") as typeof import("../src/lib/db");
+const { read, resetToBootstrap } = require("../src/lib/db") as typeof import("../src/lib/db");
 const { ensureOpsSeed, defaultOrgId } = require("../src/lib/ops/seed") as typeof import("../src/lib/ops/seed");
 const { upsertCustomer, getCustomer, setControl, updateCustomer, normalisePhone } =
   require("../src/lib/ops/customers") as typeof import("../src/lib/ops/customers");
@@ -29,9 +29,10 @@ const { rateLimit, resetLimit } = require("../src/lib/ops/ratelimit") as typeof 
 
 let ORG = "";
 before(() => {
-  resetToSeed();
+  resetToBootstrap();
   ORG = defaultOrgId();
   ensureOpsSeed(ORG);
+  seedTeam(ORG);
 });
 
 const members = () => read().teamMembers.filter((m) => m.orgId === ORG);

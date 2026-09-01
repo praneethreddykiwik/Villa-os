@@ -1,6 +1,6 @@
 import { read } from "@/lib/db";
 import { assertCustomerAccess, authorize } from "@/lib/ops/auth";
-import { handleError, ok } from "@/lib/ops/http";
+import { fail, handleError, ok } from "@/lib/ops/http";
 import { assign } from "@/lib/ops/assignment";
 import { salesWorkspace, updateSalesTask } from "@/lib/ops/sales";
 import { setStage, updateCustomer } from "@/lib/ops/customers";
@@ -11,7 +11,13 @@ export async function GET(req: Request) {
   try {
     const session = await authorize(req, "sales:read");
     const url = new URL(req.url);
-    const memberId = url.searchParams.get("memberId") ?? (session.role === "ADMIN" ? undefined : session.memberId);
+    // The query parameter is honoured for an ADMIN only. It used to be read
+    // first for everyone, so a non-admin could name a colleague's id and read
+    // their whole workspace — the fallback to their own id never ran, because
+    // ?? only fires when the parameter is absent. Scoping is decided by the
+    // session, and the parameter can only narrow within what the session allows.
+    const memberId =
+      session.role === "ADMIN" ? (url.searchParams.get("memberId") ?? undefined) : session.memberId;
     return ok({ workspace: salesWorkspace(session.orgId, memberId ?? undefined) });
   } catch (e) {
     return handleError(e);
@@ -51,12 +57,12 @@ export async function POST(req: Request) {
 
     switch (body.action) {
       case "updateTask": {
-        if (!body.taskId) return ok({ error: "taskId required" }, 400);
+        if (!body.taskId) return fail("taskId required", 400);
         return ok({ task: updateSalesTask(body.taskId, { status: body.status, note: body.note }, actor) });
       }
 
       case "logCall": {
-        if (!body.customerId) return ok({ error: "customerId required" }, 400);
+        if (!body.customerId) return fail("customerId required", 400);
         const open = read().salesTasks.find(
           (t) => t.customerId === body.customerId && ["OPEN", "IN_PROGRESS"].includes(t.status),
         );
@@ -77,17 +83,17 @@ export async function POST(req: Request) {
       }
 
       case "markQualified":
-        if (!body.customerId) return ok({ error: "customerId required" }, 400);
+        if (!body.customerId) return fail("customerId required", 400);
         return ok({ customer: setStage(body.customerId, "QUALIFIED", actor, body.note) });
 
       case "markNotInterested": {
-        if (!body.customerId) return ok({ error: "customerId required" }, 400);
+        if (!body.customerId) return fail("customerId required", 400);
         updateCustomer(body.customerId, { intent: "NOT_INTERESTED", leadStatus: "lost" }, actor);
         return ok({ customer: setStage(body.customerId, "LOST", actor, body.note) });
       }
 
       case "markFinancingRequired": {
-        if (!body.customerId) return ok({ error: "customerId required" }, 400);
+        if (!body.customerId) return fail("customerId required", 400);
         setStage(body.customerId, "FINANCING_REQUIRED", actor, "Sales confirmed financing is required");
         const { loanCase, created } = createLoanCase({
           orgId: session.orgId,
@@ -102,7 +108,7 @@ export async function POST(req: Request) {
       }
 
       case "reassign": {
-        if (!body.customerId) return ok({ error: "customerId required" }, 400);
+        if (!body.customerId) return fail("customerId required", 400);
         const result = assign({
           orgId: session.orgId,
           customerId: body.customerId,
@@ -116,7 +122,7 @@ export async function POST(req: Request) {
       }
 
       default:
-        return ok({ error: "Unknown action" }, 400);
+        return fail("Unknown action", 400);
     }
   } catch (e) {
     return handleError(e);

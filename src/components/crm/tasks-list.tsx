@@ -90,6 +90,13 @@ export function TasksList({
         body: JSON.stringify({ brandId }),
       });
       const json = await res.json();
+      // A 403 has no counts, so the "nothing new" branch below rendered
+      // "all undefined rule matches already have a task" — a reassuring
+      // sentence about work the server refused to do.
+      if (!res.ok || !json.ok) {
+        setNote(json.error ?? "Could not generate follow-ups — nothing was created.");
+        return;
+      }
       setNote(
         json.created > 0
           ? `${json.created} new reminder(s) created from ${json.evaluated} rule matches.`

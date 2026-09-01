@@ -17,7 +17,22 @@ import {
 export type { CoreSession as Session };
 export const AuthError = CoreAuthError;
 
-/** Old name → the permission actually granted in the database. */
+/**
+ * Old name → the permission actually granted in the database.
+ *
+ * `document:download` used to sit here mapped to `documents.read`, the same
+ * target as `document:read`. The download handler authorised on `document:read`
+ * and then re-checked `document:download` as a deliberate "second lock", so the
+ * second check tested a condition the first had already proved: it could not
+ * fail, for anybody, ever. That is worse than having no second lock, because
+ * the comment above the handler said there was one and everybody downstream
+ * believed it — including whoever decided a leaked download link was survivable.
+ *
+ * Making it a genuine distinct check needs a `documents.download` permission
+ * row and role grants in the database, not an alias in this table; adding the
+ * name here without the grants would deny every download instead. So the alias
+ * is gone and the handler now claims only the locks it really has.
+ */
 const MAP: Record<string, CorePermission> = {
   "customer:read": "customers.read",
   "customer:write": "customers.write",
@@ -26,7 +41,6 @@ const MAP: Record<string, CorePermission> = {
   "loan:read": "loans.read",
   "loan:write": "loans.write",
   "document:read": "documents.read",
-  "document:download": "documents.read",
   "document:review": "documents.verify",
   "admin:read": "analytics.view",
   "admin:write": "users.manage",

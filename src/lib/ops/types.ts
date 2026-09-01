@@ -140,7 +140,10 @@ export const PERMISSIONS = [
   "loan:read",
   "loan:write",
   "document:read",
-  "document:download",
+  // `document:download` was removed rather than left listed: it translated to
+  // the same database permission as `document:read`, so every check on it
+  // passed automatically. A capability name that cannot deny anything invites
+  // the next handler to "gate" on it too.
   "document:review",
   "admin:read",
   "admin:write",

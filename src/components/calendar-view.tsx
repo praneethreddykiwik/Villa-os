@@ -58,6 +58,7 @@ export function CalendarView({
   const [dragging, setDragging] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [tickResult, setTickResult] = useState<string | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
   const [local, setLocal] = useState(posts);
 
   const days = useMemo(() => buildDays(cursor, view), [cursor, view]);
@@ -81,6 +82,19 @@ export function CalendarView({
     return map;
   }, [slots]);
 
+  // Mirrors the ghost-cell condition in the grid below: a slot only shows on a
+  // day that has no posts. The timing engine returns nothing until the account
+  // has published history, so on a fresh workspace this is 0 and the legend
+  // explaining dashed cells must not claim there are any.
+  const ghostDays = useMemo(
+    () =>
+      days.filter((d) => {
+        const key = d.toDateString();
+        return !(byDay.get(key)?.length) && Boolean(slotsByDay.get(key)?.length);
+      }).length,
+    [days, byDay, slotsByDay],
+  );
+
   async function drop(dayKey: string) {
     if (!dragging) return;
     const post = local.find((p) => p.id === dragging);
@@ -90,12 +104,23 @@ export function CalendarView({
     const target = new Date(dayKey);
     target.setHours(old.getHours(), old.getMinutes(), 0, 0);
     const iso = target.toISOString();
+    const previous = local;
     setLocal((list) => list.map((p) => (p.id === post.id ? { ...p, scheduledAt: iso } : p)));
-    await fetch("/api/posts", {
+    setDropError(null);
+    const res = await fetch("/api/posts", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ postId: post.id, scheduledAt: iso }),
     });
+    const json = await res.json();
+    // The optimistic move has to be rolled back when the server refuses it.
+    // Leaving the card on the new day after a 403 from the permission gate
+    // showed a schedule the publisher will never act on: the post still goes
+    // out at its old time, and the calendar is the only place anyone looks.
+    if (!res.ok || !json.ok) {
+      setLocal(previous);
+      setDropError(json.error ?? "Could not reschedule that post — it stays where it was.");
+    }
   }
 
   async function runQueue() {
@@ -166,6 +191,10 @@ export function CalendarView({
           </div>
         </div>
       </div>
+
+      {dropError && (
+        <p className="rounded-lg border border-bad-500/40 bg-bad-500/[0.06] px-3 py-2 text-[11.5px] text-bad-400">{dropError}</p>
+      )}
 
       <div className={clsx("grid gap-px overflow-hidden rounded-xl border border-ink-700 bg-ink-700", view === "day" ? "grid-cols-1" : "grid-cols-7")}>
         {view !== "day" &&
@@ -254,9 +283,17 @@ export function CalendarView({
         })}
       </div>
 
+      {/* The second sentence is a legend, so it only belongs here when there is
+          something on screen to read it against. */}
       <p className="text-[11px] text-mist-400">
-        Drag any post to another day to reschedule every channel with it. Dashed cells are the timing engine&apos;s
-        recommended slots, computed from this account&apos;s own history.
+        Drag any post to another day to reschedule every channel with it.
+        {ghostDays > 0 && (
+          <>
+            {" "}
+            Dashed cells are the timing engine&apos;s recommended slots, computed from this
+            account&apos;s own history.
+          </>
+        )}
       </p>
     </div>
   );

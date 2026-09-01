@@ -27,13 +27,39 @@ const STAGE_PROBABILITY: Record<LeadStatus, number> = {
   lost: 0,
 };
 
-export function Pipeline({ leads }: { leads: Lead[] }) {
+/**
+ * What a pipeline card actually draws.
+ *
+ * Named fields, not `Lead`, for the same reason the composer names its
+ * connection fields: a board that renders no contact details was being handed
+ * every lead's phone, email and private notes, and all of it was serialised
+ * into the page for anyone with the HTML. Asking for the columns this screen
+ * draws means a field added to Lead later is excluded by default.
+ */
+export type PipelineLead = Pick<
+  Lead,
+  | "id"
+  | "name"
+  | "status"
+  | "score"
+  | "source"
+  | "budgetMin"
+  | "budgetMax"
+  | "projectInterest"
+  | "assignedTo"
+  | "isHNWI"
+  | "kycStatus"
+  | "lastContactedAt"
+  | "siteVisitAt"
+>;
+
+export function Pipeline({ leads }: { leads: PipelineLead[] }) {
   const [rows, setRows] = useState(leads);
   const [drag, setDrag] = useState<string | null>(null);
   const [over, setOver] = useState<LeadStatus | null>(null);
 
   const byStage = useMemo(() => {
-    const map = new Map<LeadStatus, Lead[]>();
+    const map = new Map<LeadStatus, PipelineLead[]>();
     for (const s of LEAD_STATUSES) {
       map.set(
         s.id,

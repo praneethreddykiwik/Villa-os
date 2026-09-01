@@ -4,6 +4,7 @@ import { makeBoard, templateColumns } from "@/lib/board/templates";
 import { logActivity } from "@/lib/engine/publisher";
 import type { Board, BoardColumn, BoardFieldKey } from "@/lib/types";
 import { guard } from "@/lib/auth/guard";
+import { actorLabel, getSession } from "@/lib/auth/session";
 
 /** Fetch (creating on first use) the board for a brand. */
 export async function GET(req: Request) {
@@ -32,8 +33,13 @@ export async function GET(req: Request) {
  * make silently.
  */
 export async function PATCH(req: Request) {
-  const denied = await guard("customers.read");
+  // Mutates board configuration; matches board/cards which already uses write.
+  const denied = await guard("customers.write");
   if (denied) return denied;
+
+  // The board is shared, so "somebody changed the columns" is not an answer.
+  // guard() has already resolved the session; the lookup is memoised per request.
+  const actor = actorLabel(await getSession());
 
   const body = (await req.json()) as {
     boardId: string;
@@ -81,6 +87,6 @@ export async function PATCH(req: Request) {
     (c) => c.boardId === result.id && !result.columns.some((col) => col.id === c.columnId),
   ).length;
 
-  logActivity(result.brandId, "board", `Board settings updated${body.applyTemplate ? ` — template "${body.applyTemplate}"` : ""}`, "user");
+  logActivity(result.brandId, "board", `Board settings updated${body.applyTemplate ? ` — template "${body.applyTemplate}"` : ""}`, actor);
   return NextResponse.json({ ok: true, board: result, orphans });
 }

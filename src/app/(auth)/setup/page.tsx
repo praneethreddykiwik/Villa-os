@@ -2,6 +2,7 @@ import fs from "node:fs";
 import Link from "next/link";
 import path from "node:path";
 import { AlertTriangle, ArrowLeft, Check, Circle, X } from "lucide-react";
+import { activeProvider } from "@/lib/ai/provider";
 import { checkSupabase, hasServiceRole, isSupabaseConfigured, supabaseUrl } from "@/lib/supabase/client";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 
@@ -21,6 +22,26 @@ interface Row {
   state: "ok" | "missing" | "partial";
   detail: string;
   action?: string;
+}
+
+/**
+ * The AI row is "any of these", not "all of these".
+ *
+ * `envRow` reports partial when some keys are missing, which is right for a
+ * provider that needs both an id and a secret. Three interchangeable LLM
+ * providers are the opposite case: one key is a complete configuration and
+ * demanding all three would report a healthy install as broken.
+ */
+function aiRow(): Row {
+  const active = activeProvider();
+  return {
+    label: "AI provider (copy, replies, extraction)",
+    state: active ? "ok" : "missing",
+    detail: active ? `${active.label} · ${active.model}` : "no GROQ_API_KEY, GEMINI_API_KEY or ANTHROPIC_API_KEY set",
+    action: active
+      ? "AI_PROVIDER pins one; auto falls through to the next on an outage"
+      : "console.groq.com or aistudio.google.com — optional; engines fall back to deterministic",
+  };
 }
 
 function envRow(label: string, keys: string[], action: string): Row {
@@ -72,7 +93,7 @@ export default async function SetupPage() {
     envRow("Meta (Instagram + Facebook)", ["META_APP_ID", "META_APP_SECRET"], "developers.facebook.com → App → Settings"),
     envRow("Google (YouTube / Business Profile)", ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"], "Google Cloud → Credentials → OAuth client"),
     envRow("LinkedIn", ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"], "linkedin.com/developers → App → Auth"),
-    envRow("Anthropic (AI copy & extraction)", ["ANTHROPIC_API_KEY"], "console.anthropic.com — optional; engines fall back to deterministic"),
+    aiRow(),
   ];
 
   const blocking = rows.filter((r) => r.state !== "ok");

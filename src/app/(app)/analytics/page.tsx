@@ -24,6 +24,8 @@ export default async function AnalyticsPage({
   const channels = rollupByChannel(stats, range);
   const series = timeseries(stats, range);
 
+  // The heatmap comes back empty when this brand has no published post with
+  // metrics — there is no history to shrink towards, so there is nothing to plot.
   const heat = buildHeatmap(db, brandId);
   const maxHeat = Math.max(...heat.map((c) => c.score), 0.001);
 
@@ -81,130 +83,158 @@ export default async function AnalyticsPage({
               title="When your audience actually responds"
               hint="Engagement rate by day and hour, shrunk toward the account mean so a single post cannot create a false hotspot"
             />
-            <div className="overflow-x-auto">
-              <div className="min-w-[560px]">
-                <div className="mb-1 grid grid-cols-[34px_repeat(24,1fr)] gap-[2px]">
-                  <span />
-                  {Array.from({ length: 24 }).map((_, h) => (
-                    <span key={h} className="tnum text-center text-[8px] text-mist-500">{h % 3 === 0 ? h : ""}</span>
-                  ))}
-                </div>
-                {[1, 2, 3, 4, 5, 6, 0].map((day) => (
-                  <div key={day} className="mb-[2px] grid grid-cols-[34px_repeat(24,1fr)] gap-[2px]">
-                    <span className="text-[9.5px] leading-4 text-mist-400">{DAY_NAMES[day]}</span>
-                    {Array.from({ length: 24 }).map((_, hour) => {
-                      const c = heat.find((x) => x.day === day && x.hour === hour)!;
-                      const intensity = c.score / maxHeat;
-                      return (
-                        <span
-                          key={hour}
-                          title={`${DAY_NAMES[day]} ${hour}:00 — ${c.raw.toFixed(1)}% from ${c.samples} post(s)`}
-                          className="h-4 rounded-[2px]"
-                          style={{
-                            background: `rgba(91,108,255,${(0.08 + intensity * 0.92).toFixed(2)})`,
-                            outline: c.samples >= 3 ? "1px solid rgba(255,255,255,0.22)" : "none",
-                          }}
-                        />
-                      );
-                    })}
+            {heat.length === 0 ? (
+              <p className="py-10 text-center text-[12.5px] text-mist-400">
+                No timing signal yet. This grid is built only from {brand.name}&apos;s own published posts,
+                so it stays empty until the first ones go out and report their metrics.
+              </p>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <div className="min-w-[560px]">
+                    <div className="mb-1 grid grid-cols-[34px_repeat(24,1fr)] gap-[2px]">
+                      <span />
+                      {Array.from({ length: 24 }).map((_, h) => (
+                        <span key={h} className="tnum text-center text-[8px] text-mist-500">{h % 3 === 0 ? h : ""}</span>
+                      ))}
+                    </div>
+                    {[1, 2, 3, 4, 5, 6, 0].map((day) => (
+                      <div key={day} className="mb-[2px] grid grid-cols-[34px_repeat(24,1fr)] gap-[2px]">
+                        <span className="text-[9.5px] leading-4 text-mist-400">{DAY_NAMES[day]}</span>
+                        {Array.from({ length: 24 }).map((_, hour) => {
+                          const c = heat.find((x) => x.day === day && x.hour === hour)!;
+                          const intensity = c.score / maxHeat;
+                          return (
+                            <span
+                              key={hour}
+                              title={`${DAY_NAMES[day]} ${hour}:00 — ${c.raw.toFixed(1)}% from ${c.samples} post(s)`}
+                              className="h-4 rounded-[2px]"
+                              style={{
+                                background: `rgba(91,108,255,${(0.08 + intensity * 0.92).toFixed(2)})`,
+                                outline: c.samples >= 3 ? "1px solid rgba(255,255,255,0.22)" : "none",
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-            <p className="mt-2 text-[10.5px] text-mist-400">
-              Outlined cells have 3+ posts behind them — those are evidence. The rest are extrapolated from the account average.
-            </p>
+                </div>
+                <p className="mt-2 text-[10.5px] text-mist-400">
+                  Outlined cells have 3+ posts behind them — those are evidence. The rest are extrapolated from the account average.
+                </p>
+              </>
+            )}
           </Card>
 
           <Card>
             <SectionTitle title="Format performance" hint="Average per post, this period" />
-            <div className="space-y-3">
-              {formats.map((f) => (
-                <div key={f.format}>
-                  <div className="mb-1 flex items-center gap-2 text-[11.5px]">
-                    <span className="w-16 capitalize text-mist-300">{f.format}</span>
-                    <span className="tnum text-mist-400">{f.n} posts</span>
-                    <span className="tnum ml-auto text-mist-100">{fmt.n(f.reach)} reach</span>
-                    <span className="tnum w-12 text-right text-mist-400">{fmt.pct(f.er, 1)}</span>
+            {formats.length === 0 ? (
+              <p className="py-6 text-center text-[12.5px] text-mist-400">
+                Nothing published in the last {days} days, so there is no format to compare.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {formats.map((f) => (
+                  <div key={f.format}>
+                    <div className="mb-1 flex items-center gap-2 text-[11.5px]">
+                      <span className="w-16 capitalize text-mist-300">{f.format}</span>
+                      <span className="tnum text-mist-400">{f.n} posts</span>
+                      <span className="tnum ml-auto text-mist-100">{fmt.n(f.reach)} reach</span>
+                      <span className="tnum w-12 text-right text-mist-400">{fmt.pct(f.er, 1)}</span>
+                    </div>
+                    <Bar value={f.reach} max={maxFormatReach} />
                   </div>
-                  <Bar value={f.reach} max={maxFormatReach} />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             <div className="mt-5">
               <SectionTitle title="Channel table" />
-              <table className="w-full text-[11.5px]">
-                <thead>
-                  <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-mist-400">
-                    <th className="py-1.5 font-medium">Channel</th>
-                    <th className="py-1.5 text-right font-medium">Followers</th>
-                    <th className="py-1.5 text-right font-medium">Net</th>
-                    <th className="py-1.5 text-right font-medium">Impr.</th>
-                    <th className="py-1.5 text-right font-medium">Eng. rate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {channels.map((c) => (
-                    <tr key={c.channel} className="border-b border-ink-800/60 last:border-0">
-                      <td className="py-1.5">
-                        <span className="flex items-center gap-1.5">
-                          <Dot color={channelMeta(c.channel).color} />
-                          {channelMeta(c.channel).label}
-                        </span>
-                      </td>
-                      <td className="tnum py-1.5 text-right">{fmt.n(c.followers)}</td>
-                      <td className={`tnum py-1.5 text-right ${c.followerDelta >= 0 ? "text-good-400" : "text-bad-400"}`}>
-                        {c.followerDelta >= 0 ? "+" : ""}{fmt.n(c.followerDelta)}
-                      </td>
-                      <td className="tnum py-1.5 text-right">{fmt.n(c.impressions)}</td>
-                      <td className="tnum py-1.5 text-right">{fmt.pct(c.engagementRate, 2)}</td>
+              {channels.length === 0 ? (
+                <p className="py-6 text-center text-[12.5px] text-mist-400">
+                  No channel reported any activity in this period.
+                </p>
+              ) : (
+                <table className="w-full text-[11.5px]">
+                  <thead>
+                    <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-mist-400">
+                      <th className="py-1.5 font-medium">Channel</th>
+                      <th className="py-1.5 text-right font-medium">Followers</th>
+                      <th className="py-1.5 text-right font-medium">Net</th>
+                      <th className="py-1.5 text-right font-medium">Impr.</th>
+                      <th className="py-1.5 text-right font-medium">Eng. rate</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {channels.map((c) => (
+                      <tr key={c.channel} className="border-b border-ink-800/60 last:border-0">
+                        <td className="py-1.5">
+                          <span className="flex items-center gap-1.5">
+                            <Dot color={channelMeta(c.channel).color} />
+                            {channelMeta(c.channel).label}
+                          </span>
+                        </td>
+                        <td className="tnum py-1.5 text-right">{fmt.n(c.followers)}</td>
+                        <td className={`tnum py-1.5 text-right ${c.followerDelta >= 0 ? "text-good-400" : "text-bad-400"}`}>
+                          {c.followerDelta >= 0 ? "+" : ""}{fmt.n(c.followerDelta)}
+                        </td>
+                        <td className="tnum py-1.5 text-right">{fmt.n(c.impressions)}</td>
+                        <td className="tnum py-1.5 text-right">{fmt.pct(c.engagementRate, 2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </Card>
         </div>
 
         <Card>
           <SectionTitle title="Top content" hint="Ranked by reach, with the 3-second hook score that drove it" />
-          <table className="w-full text-[12px]">
-            <thead>
-              <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-mist-400">
-                <th className="py-2 font-medium">Post</th>
-                <th className="py-2 font-medium">Channels</th>
-                <th className="py-2 text-right font-medium">Reach</th>
-                <th className="py-2 text-right font-medium">Eng.</th>
-                <th className="py-2 text-right font-medium">Rate</th>
-                <th className="py-2 text-right font-medium">3s hook</th>
-                <th className="py-2 text-right font-medium">Saves</th>
-              </tr>
-            </thead>
-            <tbody>
-              {published.slice(0, 10).map((p) => (
-                <tr key={p.id} className="border-b border-ink-800/60 last:border-0 hover:bg-ink-850/40">
-                  <td className="max-w-[320px] truncate py-2 text-mist-200">{p.caption}</td>
-                  <td className="py-2">
-                    <span className="flex gap-1">
-                      {p.targets.map((tg) => (
-                        <span key={tg.connectionId} className="h-2 w-2 rounded-full" style={{ background: channelMeta(tg.channel).color }} title={channelMeta(tg.channel).label} />
-                      ))}
-                    </span>
-                  </td>
-                  <td className="tnum py-2 text-right">{fmt.n(p.metrics!.reach)}</td>
-                  <td className="tnum py-2 text-right text-mist-300">{fmt.n(p.metrics!.likes + p.metrics!.comments + p.metrics!.shares + p.metrics!.saves)}</td>
-                  <td className="tnum py-2 text-right">{fmt.pct(p.metrics!.engagementRate, 1)}</td>
-                  <td className="py-2 text-right">
-                    <Badge tone={p.metrics!.retention3s >= 0.65 ? "good" : p.metrics!.retention3s >= 0.45 ? "warn" : "bad"}>
-                      {fmt.pct(p.metrics!.retention3s * 100, 0)}
-                    </Badge>
-                  </td>
-                  <td className="tnum py-2 text-right text-mist-300">{fmt.n(p.metrics!.saves)}</td>
+          {published.length === 0 ? (
+            <p className="py-10 text-center text-[12.5px] text-mist-400">
+              No posts have been published for {brand.name} in the last {days} days. Publish from the
+              composer and results land here once each channel reports back.
+            </p>
+          ) : (
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-mist-400">
+                  <th className="py-2 font-medium">Post</th>
+                  <th className="py-2 font-medium">Channels</th>
+                  <th className="py-2 text-right font-medium">Reach</th>
+                  <th className="py-2 text-right font-medium">Eng.</th>
+                  <th className="py-2 text-right font-medium">Rate</th>
+                  <th className="py-2 text-right font-medium">3s hook</th>
+                  <th className="py-2 text-right font-medium">Saves</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {published.slice(0, 10).map((p) => (
+                  <tr key={p.id} className="border-b border-ink-800/60 last:border-0 hover:bg-ink-850/40">
+                    <td className="max-w-[320px] truncate py-2 text-mist-200">{p.caption}</td>
+                    <td className="py-2">
+                      <span className="flex gap-1">
+                        {p.targets.map((tg) => (
+                          <span key={tg.connectionId} className="h-2 w-2 rounded-full" style={{ background: channelMeta(tg.channel).color }} title={channelMeta(tg.channel).label} />
+                        ))}
+                      </span>
+                    </td>
+                    <td className="tnum py-2 text-right">{fmt.n(p.metrics!.reach)}</td>
+                    <td className="tnum py-2 text-right text-mist-300">{fmt.n(p.metrics!.likes + p.metrics!.comments + p.metrics!.shares + p.metrics!.saves)}</td>
+                    <td className="tnum py-2 text-right">{fmt.pct(p.metrics!.engagementRate, 1)}</td>
+                    <td className="py-2 text-right">
+                      <Badge tone={p.metrics!.retention3s >= 0.65 ? "good" : p.metrics!.retention3s >= 0.45 ? "warn" : "bad"}>
+                        {fmt.pct(p.metrics!.retention3s * 100, 0)}
+                      </Badge>
+                    </td>
+                    <td className="tnum py-2 text-right text-mist-300">{fmt.n(p.metrics!.saves)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </Card>
       </div>
     </>

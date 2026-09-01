@@ -20,9 +20,11 @@ export function pageContext(searchParams: Record<string, string | string[] | und
   const db = read();
   const brandId = resolveBrandId(db, typeof searchParams.brand === "string" ? searchParams.brand : undefined);
   const days = Number(typeof searchParams.range === "string" ? searchParams.range : 30) || 30;
-  // "Today" is the newest day present in the data, so demo data never looks stale.
-  const latest = db.dailyStats.reduce((a, s) => (s.date > a ? s.date : a), "2026-01-01");
-  const range = lastNDays(days, new Date(`${latest}T12:00:00Z`));
+  // "Today" is today. This used to anchor to the newest day present in
+  // `dailyStats` so the generated dataset never looked stale — with real data
+  // that is a bug, because it silently freezes every range on the last day a
+  // sync happened and reports a fortnight-old week as "the last 7 days".
+  const range = lastNDays(days, new Date());
   return {
     db,
     brandId,

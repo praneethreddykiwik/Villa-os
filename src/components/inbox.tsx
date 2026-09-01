@@ -47,6 +47,13 @@ export function Inbox({
         body: JSON.stringify({ brandId }),
       });
       const json = await res.json();
+      // A refusal carries no totals. Reporting on the body without the status
+      // turned a 403 from the permission gate into a note about a retrieval
+      // that never ran — and the operator concludes the channels are quiet.
+      if (!res.ok || !json.ok) {
+        setNote(json.error ?? "Could not retrieve — nothing was fetched.");
+        return;
+      }
       setNote(`Retrieved ${json.totals.conversations} new message(s) from ${json.sources.length} channel(s).`);
       if (json.totals.conversations > 0) window.location.reload();
     } finally {
@@ -67,8 +74,8 @@ export function Inbox({
           body: JSON.stringify({ conversationId: c.id, text }),
         });
         const json = await res.json();
-        if (!json.ok) {
-          setNote(json.error);
+        if (!res.ok || !json.ok) {
+          setNote(json.error ?? "The message was not sent.");
           return;
         }
       }

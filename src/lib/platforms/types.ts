@@ -64,7 +64,22 @@ export interface PlatformAdapter {
   validate(req: Omit<PublishRequest, "connection">): string[];
 }
 
-export const DRIVER = (process.env.PLATFORM_DRIVER ?? "mock") as "mock" | "live";
+/**
+ * The driver, resolved once and fail-closed.
+ *
+ * This was an unchecked cast of the raw env var, and every call site then asked
+ * `DRIVER === "mock" ? mock : live`. Those two facts together meant anything
+ * that was not exactly the string "mock" selected the LIVE path — including the
+ * empty string, which `?? "mock"` does not catch because it is not nullish, and
+ * including "Live", "LIVE" and any typo. A blank or misspelled PLATFORM_DRIVER
+ * therefore published real posts to real accounts.
+ *
+ * Live is now opt-in by exact match and everything else degrades to mock, so the
+ * failure mode of a misconfiguration is "nothing was published" rather than
+ * "something was published that nobody intended".
+ */
+export const DRIVER: "mock" | "live" =
+  process.env.PLATFORM_DRIVER?.trim().toLowerCase() === "live" ? "live" : "mock";
 
 export function graphVersion(): string {
   return process.env.META_GRAPH_VERSION ?? "v23.0";
@@ -100,22 +115,29 @@ export function baseValidate(
 }
 
 /**
- * Deterministic simulated publish. Fails ~4% of the time (retryable) so the
- * retry/backoff path in the publisher is exercised in demo mode instead of only
- * in production at 3am.
+ * The not-live publish path. Every adapter falls back to it, and it always fails.
+ *
+ * Nothing leaves the process here, so returning success would mean inventing the
+ * external id and permalink that a real publish returns — and that invention does
+ * not stay local. The target is recorded as published, the calendar shows the post
+ * as out, analytics counts it, and the permalink leads nowhere. A failure is the
+ * only result that matches what actually happened.
+ *
+ * The failure is permanent by construction: no number of attempts turns a missing
+ * credential or a missing adapter into a published post. Marking it retryable would
+ * only spend the publisher's backoff budget and bury the real cause under four
+ * identical errors, so `retryable` is false and the message names the one thing an
+ * operator has to change.
  */
 export function mockPublish(channel: string, req: PublishRequest): PublishResult {
-  const hash = [...`${channel}:${req.caption}:${req.mediaUrls.join(",")}`].reduce(
-    (a, c) => (a * 31 + c.charCodeAt(0)) % 100000,
-    7,
-  );
-  if (hash % 25 === 0) {
-    return { ok: false, error: `${channel}: media container processing timed out`, retryable: true };
-  }
-  const externalId = `${channel}_${hash.toString(36)}${Date.now().toString(36).slice(-4)}`;
+  const account = req.connection.handle ? ` as ${req.connection.handle}` : "";
+  const reason =
+    DRIVER === "live"
+      ? `this build has no live ${channel} API integration, so it cannot publish even with PLATFORM_DRIVER=live`
+      : `publishing is running with PLATFORM_DRIVER="${DRIVER}" — set PLATFORM_DRIVER=live and configure ${channel} API credentials, then re-queue this post`;
   return {
-    ok: true,
-    externalId,
-    permalink: `https://example.invalid/${channel}/${externalId}`,
+    ok: false,
+    error: `Nothing was sent to ${channel}${account}: ${reason}.`,
+    retryable: false,
   };
 }

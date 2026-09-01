@@ -61,6 +61,12 @@ export function Studio({ brand, media, defaultEdit }: { brand: Brand; media: Med
   }
 
   async function suggestHooks() {
+    // The generator rewrites an *existing* opening line — it is given the current
+    // hook as the one that is underperforming. With no overlay written yet there
+    // is nothing to rewrite, and feeding it a made-up line would return five
+    // replacements for words the user never wrote. Stay disabled instead.
+    const currentHook = edit.overlays[0]?.text?.trim();
+    if (!currentHook) return;
     setHooksBusy(true);
     try {
       const res = await fetch("/api/ai/copy", {
@@ -71,7 +77,7 @@ export function Studio({ brand, media, defaultEdit }: { brand: Brand; media: Med
           topic: asset?.tags.join(" ") ?? "this video",
           format: "reel",
           channels: ["instagram"],
-          hooksFor: edit.overlays[0]?.text ?? "Welcome to our place",
+          hooksFor: currentHook,
         }),
       });
       const json = await res.json();
@@ -145,7 +151,10 @@ export function Studio({ brand, media, defaultEdit }: { brand: Brand; media: Med
                 className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/70"
                 style={{ left: `${edit.focalX * 100}%`, top: `${edit.focalY * 100}%` }}
               />
-              {edit.overlays.map((o) => (
+              {/* An overlay with no text yet draws nothing, matching the render:
+                  ffmpeg is handed the same empty list, so the preview does not
+                  show a box the exported video will not have. */}
+              {edit.overlays.filter((o) => o.text?.trim()).map((o) => (
                 <span
                   key={o.id}
                   className="absolute -translate-x-1/2 -translate-y-1/2 rounded bg-black/40 px-2 py-0.5 text-center font-bold leading-tight"
@@ -310,7 +319,12 @@ export function Studio({ brand, media, defaultEdit }: { brand: Brand; media: Med
             title="Hook overlay"
             hint="The first 3 seconds decide the reach"
             action={
-              <button onClick={suggestHooks} disabled={hooksBusy} className="flex items-center gap-1 rounded-lg border border-ink-700 px-2 py-1 text-[11px] text-mist-200 hover:border-ink-600">
+              <button
+                onClick={suggestHooks}
+                disabled={hooksBusy || !edit.overlays[0]?.text?.trim()}
+                title={edit.overlays[0]?.text?.trim() ? "Rewrite the current hook" : "Write a hook in the text overlay first — hooks are rewritten from the line you have"}
+                className="flex items-center gap-1 rounded-lg border border-ink-700 px-2 py-1 text-[11px] text-mist-200 hover:border-ink-600 disabled:opacity-40"
+              >
                 {hooksBusy ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} AI hooks
               </button>
             }
@@ -332,7 +346,8 @@ export function Studio({ brand, media, defaultEdit }: { brand: Brand; media: Med
                   <input
                     value={o.text ?? ""}
                     onChange={(e) => set("overlays", edit.overlays.map((x) => (x.id === o.id ? { ...x, text: e.target.value } : x)))}
-                    className="min-w-0 flex-1 bg-transparent text-[11.5px] text-mist-100 outline-none"
+                    placeholder="Type the overlay text…"
+                    className="min-w-0 flex-1 bg-transparent text-[11.5px] text-mist-100 outline-none placeholder:text-mist-500"
                   />
                   <button onClick={() => set("overlays", edit.overlays.filter((x) => x.id !== o.id))} className="text-mist-400 hover:text-bad-400">
                     <Trash2 size={11} />
@@ -344,7 +359,10 @@ export function Studio({ brand, media, defaultEdit }: { brand: Brand; media: Med
                 </div>
               </div>
             ))}
-            <button onClick={() => addOverlay("Your hook here")} className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-ink-600 py-1.5 text-[11.5px] text-mist-400 hover:border-ink-500 hover:text-mist-200">
+            {/* Starts empty. A placeholder string here is not a prompt — it is
+                the overlay's real text, and "Your hook here" burns into the
+                rendered video for anyone who does not notice the field. */}
+            <button onClick={() => addOverlay("")} className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-ink-600 py-1.5 text-[11.5px] text-mist-400 hover:border-ink-500 hover:text-mist-200">
               <Plus size={12} /> Add text overlay
             </button>
           </div>

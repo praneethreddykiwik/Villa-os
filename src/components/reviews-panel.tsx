@@ -19,6 +19,7 @@ export function ReviewsPanel({ reviews, brandId }: { reviews: Review[]; brandId:
   const [bulkBusy, setBulkBusy] = useState(false);
   const [filter, setFilter] = useState<"all" | "unanswered" | "negative">("unanswered");
   const [autoReply, setAutoReply] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const shown = list.filter((r) =>
     filter === "all" ? true : filter === "unanswered" ? !r.replied : r.rating <= 3,
@@ -26,6 +27,7 @@ export function ReviewsPanel({ reviews, brandId }: { reviews: Review[]; brandId:
 
   async function draft(id: string) {
     setBusy(id);
+    setError(null);
     try {
       const res = await fetch("/api/ai/reply", {
         method: "POST",
@@ -33,6 +35,10 @@ export function ReviewsPanel({ reviews, brandId }: { reviews: Review[]; brandId:
         body: JSON.stringify({ reviewId: id }),
       });
       const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Could not draft a reply.");
+        return;
+      }
       setList((l) => l.map((r) => (r.id === id ? { ...r, draftReply: json.draft } : r)));
     } finally {
       setBusy(null);
@@ -41,12 +47,23 @@ export function ReviewsPanel({ reviews, brandId }: { reviews: Review[]; brandId:
 
   async function publish(id: string, text: string) {
     setBusy(id);
+    setError(null);
     try {
-      await fetch("/api/ai/reply", {
+      const res = await fetch("/api/ai/reply", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ reviewId: id, publish: true, text }),
       });
+      const json = await res.json();
+      // The row is only marked replied once the server says the reply was
+      // stored. Mutating on the bare promise painted the green "Replied" badge
+      // over a 403 from the permission gate: the operator saw an answered
+      // review, the guest was never answered, and nothing here ever said
+      // otherwise — the failure was invisible until someone re-read the page.
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Could not publish that reply — it has not been sent.");
+        return;
+      }
       setList((l) => l.map((r) => (r.id === id ? { ...r, replied: true, reply: text, draftReply: undefined } : r)));
     } finally {
       setBusy(null);
@@ -55,12 +72,18 @@ export function ReviewsPanel({ reviews, brandId }: { reviews: Review[]; brandId:
 
   async function bulkDraft() {
     setBulkBusy(true);
+    setError(null);
     try {
-      await fetch("/api/ai/reply", {
+      const res = await fetch("/api/ai/reply", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ brandId, minRating: 4 }),
       });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Could not draft the positive replies.");
+        return;
+      }
       // Re-draft locally so the UI reflects the server without a full reload.
       const positives = list.filter((r) => !r.replied && r.rating >= 4);
       await Promise.all(positives.map((r) => draft(r.id)));
@@ -105,6 +128,12 @@ export function ReviewsPanel({ reviews, brandId }: { reviews: Review[]; brandId:
           {bulkBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} Draft all positives
         </button>
       </div>
+
+      {error && (
+        <p className="mb-3 rounded-lg border border-bad-500/40 bg-bad-500/[0.06] px-3 py-2 text-[11.5px] text-bad-400">
+          {error}
+        </p>
+      )}
 
       <div className="space-y-3">
         {shown.map((r) => (

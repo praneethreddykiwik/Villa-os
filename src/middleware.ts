@@ -19,7 +19,11 @@ import { NextResponse, type NextRequest } from "next/server";
 /** Reachable without a session. Everything else is denied by default. */
 const PUBLIC_PATHS = [
   "/signin",           // sign-in surface — its own layout, no app navigation
-  "/setup",            // connection status; must work when auth itself is misconfigured
+  // "/setup" was here so it would work when auth itself is misconfigured. The
+  // cost was an anonymous inventory of exactly which secrets are unset — which
+  // is a target list, and it announced that the WhatsApp webhook signature was
+  // unverifiable. An operator who cannot sign in can read the same information
+  // from .env.local on the host; a stranger should not read it over HTTP.
 ];
 
 /** Authenticate by their own mechanism (signature / shared secret), not a session. */
@@ -65,7 +69,10 @@ function securityHeaders(nonce: string, isDev: boolean): Record<string, string> 
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https:",
     "font-src 'self' data:",
-    `connect-src 'self' ${supabase} ${supabaseWs} https://api.anthropic.com https://graph.facebook.com`.trim(),
+    // LLM and Graph calls are made server-side, never from the page, so the
+    // browser needs no egress to those hosts and listing them only widens the
+    // policy for an injected script.
+    `connect-src 'self' ${supabase} ${supabaseWs}`.trim(),
     "frame-ancestors 'none'",
     "base-uri 'none'",
     "object-src 'none'",

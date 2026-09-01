@@ -32,10 +32,18 @@ export default async function DashboardPage({
   const channels = rollupByChannel(stats, range);
   const suggestions = generateSuggestions(db, brandId, range);
 
-  const summary = deterministicSummary({
-    brand, period: `the last ${days} days`, totals: t, previousTotals: tPrev,
-    ads, previousAds: adsPrev, suggestions,
-  });
+  // The summary only rewrites the totals — it never adds facts. With nothing
+  // measured yet every number in it is a zero, and "reached 0 people, up 0.0% on
+  // the previous period" is a fluent sentence about nothing. Gate on whether any
+  // organic or paid activity was actually recorded, and say so plainly when not.
+  const hasReportableData =
+    t.impressions > 0 || t.engagements > 0 || t.posts > 0 || ads.spend > 0 || ads.impressions > 0;
+  const summary = hasReportableData
+    ? deterministicSummary({
+        brand, period: `the last ${days} days`, totals: t, previousTotals: tPrev,
+        ads, previousAds: adsPrev, suggestions,
+      })
+    : null;
 
   // Daily paid spend vs. ROAS — the single chart most clients ask for first.
   const adDaily = new Map<string, { date: string; spend: number; revenue: number; roas: number }>();
@@ -79,9 +87,18 @@ export default async function DashboardPage({
             <div className="min-w-0">
               <div className="mb-1 flex items-center gap-2">
                 <h2 className="text-[13px] font-semibold">What happened, and what to do next</h2>
-                <Badge tone="brand">AI summary</Badge>
+                {/* Badge the state honestly: nothing was summarised, so nothing claims to be a summary. */}
+                <Badge tone={summary ? "brand" : "neutral"}>{summary ? "AI summary" : "No data yet"}</Badge>
               </div>
-              <p className="text-[13px] leading-relaxed text-mist-300">{summary}</p>
+              {summary ? (
+                <p className="text-[13px] leading-relaxed text-mist-300">{summary}</p>
+              ) : (
+                <p className="text-[13px] leading-relaxed text-mist-400">
+                  Nothing has been measured for {brand.name} yet — no posts published, no ad spend, no
+                  channel reporting in the last {days} days. Connect a channel and publish, and the
+                  read-out of what happened and what to do next appears here.
+                </p>
+              )}
             </div>
           </div>
         </Card>
