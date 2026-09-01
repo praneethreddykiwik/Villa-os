@@ -14,31 +14,22 @@ export type ThemeChoice = "light" | "dark" | "system";
  * value is written to <html data-theme>, which is the only thing the CSS reads.
  */
 export function applyTheme(choice: ThemeChoice): void {
-  const resolved =
-    choice === "system"
-      ? window.matchMedia("(prefers-color-scheme: light)").matches
-        ? "light"
-        : "dark"
-      : choice;
-  document.documentElement.dataset.theme = resolved;
-  localStorage.setItem("orbit-theme", choice);
+  // "system" removes the attribute entirely and lets the media query decide,
+  // which keeps the server-rendered markup and the client in agreement.
+  if (choice === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = choice;
+
+  // A cookie, not localStorage, so the server can render the correct theme on
+  // the first response instead of flashing the wrong one.
+  document.cookie = `orbit-theme=${choice}; path=/; max-age=31536000; samesite=lax`;
 }
 
 export function ThemeToggle() {
   const [choice, setChoice] = useState<ThemeChoice>("dark");
 
   useEffect(() => {
-    const saved = (localStorage.getItem("orbit-theme") as ThemeChoice | null) ?? "dark";
+    const saved = (document.cookie.match(/(?:^|;\s*)orbit-theme=([^;]+)/)?.[1] as ThemeChoice | null) ?? "system";
     setChoice(saved);
-    applyTheme(saved);
-
-    // Keep following the OS while the user is on "system".
-    const mq = window.matchMedia("(prefers-color-scheme: light)");
-    const onChange = () => {
-      if ((localStorage.getItem("orbit-theme") as ThemeChoice) === "system") applyTheme("system");
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
   }, []);
 
   const options: Array<{ value: ThemeChoice; icon: typeof Sun; label: string }> = [

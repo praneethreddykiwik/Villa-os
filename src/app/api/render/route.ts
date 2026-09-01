@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { mutate, read } from "@/lib/db";
 import { renderForFormats } from "@/lib/media/render";
 import type { MediaEdit, PostFormat } from "@/lib/types";
+import { guard } from "@/lib/auth/guard";
 
 /**
  * Render a Studio edit into one file per required aspect ratio.
@@ -9,6 +10,9 @@ import type { MediaEdit, PostFormat } from "@/lib/types";
  * (and debuggable) rather than a black box.
  */
 export async function POST(req: Request) {
+  const denied = await guard("marketing.read");
+  if (denied) return denied;
+
   const { assetId, edit, formats } = (await req.json()) as {
     assetId: string;
     edit: MediaEdit;

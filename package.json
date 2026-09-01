@@ -4,29 +4,37 @@
   "private": true,
   "description": "Universal social media, ads and local-presence command center",
   "scripts": {
-    "dev": "next dev -p 4321",
+    "dev": "next dev --turbopack -p 4321",
     "build": "next build",
     "start": "next start -p 4321",
     "typecheck": "tsc --noEmit",
+    "provision-users": "node scripts/provision-users.mjs",
+    "test": "rm -rf .test-build && tsc -p tsconfig.test.json && node --test \"./.test-build/tests/**/*.test.js\"",
     "tick": "curl -s -X POST \"http://localhost:4321/api/publish/tick?secret=${WORKER_SECRET:-dev-secret}\"",
-    "reseed": "rm -f .data/db.json && echo 'database reset - it rebuilds on the next request'"
+    "reseed": "rm -f .data/db.json && echo 'database reset - it rebuilds on the next request'",
+    "dev:webpack": "next dev -p 4321"
   },
   "dependencies": {
-    "next": "15.5.4",
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.112.4",
+    "clsx": "2.1.1",
+    "date-fns": "4.1.0",
+    "lucide-react": "0.544.0",
+    "motion": "^12.43.0",
+    "next": "^15.5.25",
+    "postcss": "^8.5.26",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "recharts": "3.2.1",
-    "lucide-react": "0.544.0",
-    "date-fns": "4.1.0",
-    "clsx": "2.1.1",
+    "sharp": "^0.35.4",
     "zod": "4.1.11"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "4.1.13",
     "@types/node": "22.18.6",
     "@types/react": "19.1.13",
     "@types/react-dom": "19.1.9",
-    "typescript": "5.9.2",
     "tailwindcss": "4.1.13",
-    "@tailwindcss/postcss": "4.1.13"
+    "typescript": "5.9.2"
   }
 }

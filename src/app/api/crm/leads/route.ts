@@ -4,6 +4,7 @@ import { uid } from "@/lib/ids";
 import { scoreLead } from "@/lib/crm/rules";
 import { logActivity } from "@/lib/engine/publisher";
 import type { Lead, LeadStatus } from "@/lib/crm/types";
+import { guard } from "@/lib/auth/guard";
 
 /**
  * Move a lead, reassign it, or update KYC.
@@ -14,6 +15,9 @@ import type { Lead, LeadStatus } from "@/lib/crm/types";
  * step for a person to forget.
  */
 export async function PATCH(req: Request) {
+  const denied = await guard("customers.read");
+  if (denied) return denied;
+
   const body = (await req.json()) as {
     leadId: string;
     status?: LeadStatus;
@@ -56,6 +60,9 @@ export async function PATCH(req: Request) {
 
 /** Create a lead — used by the manual add form and by inbound lead capture. */
 export async function POST(req: Request) {
+  const denied = await guard("customers.read");
+  if (denied) return denied;
+
   const body = (await req.json()) as Partial<Lead> & { brandId: string; name: string; phone: string };
   const now = new Date().toISOString();
 
@@ -90,6 +97,9 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
+  const denied = await guard("customers.read");
+  if (denied) return denied;
+
   const url = new URL(req.url);
   const db = read();
   const brandId = url.searchParams.get("brand") ?? db.brands[0]?.id;

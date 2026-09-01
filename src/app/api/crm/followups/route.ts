@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { mutate, read, resolveBrandId } from "@/lib/db";
 import { diff, evaluate } from "@/lib/crm/rules";
+import { guard } from "@/lib/auth/guard";
 
 /**
  * Materialise the follow-ups the rules engine says should exist.
@@ -10,6 +11,9 @@ import { diff, evaluate } from "@/lib/crm/rules";
  * same set. Nothing a person completed comes back.
  */
 export async function POST(req: Request) {
+  const denied = await guard("customers.write");
+  if (denied) return denied;
+
   let brandId: string | undefined = new URL(req.url).searchParams.get("brand") ?? undefined;
   try {
     const body = (await req.json()) as { brandId?: string };

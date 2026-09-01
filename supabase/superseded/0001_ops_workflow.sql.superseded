@@ -1,0 +1,539 @@
+-- ============================================================================
+-- OPS WORKFLOW SCHEMA
+--
+-- The application currently persists through a repository interface backed by a
+-- JSON document (src/lib/db.ts). This migration is the Postgres/Supabase target
+-- for that same model: identical entities, real foreign keys, indexes, and the
+-- row-level security policies that the application-layer guard in
+-- src/lib/ops/auth.ts mirrors today.
+--
+-- Applying this file and reimplementing read()/mutate() against Postgres moves
+-- the system onto real RLS without any change to engines, routes or UI.
+-- ============================================================================
+
+create extension if not exists "pgcrypto";
+
+-- ---------------------------------------------------------------------------
+-- Enums — workflow state is typed, never free text.
+-- ---------------------------------------------------------------------------
+do $$ begin
+  create type ops_role            as enum ('ADMIN','SALES_MANAGER','LOAN_OFFICER');
+  create type ops_sentiment       as enum ('VERY_POSITIVE','POSITIVE','NEUTRAL','UNCERTAIN','NEGATIVE','VERY_NEGATIVE');
+  create type ops_intent          as enum ('INFORMATIONAL','EXPLORING','INTERESTED','HIGH_INTENT','READY_TO_PROCEED','PRICE_CONCERN','FINANCING_CONCERN','DOCUMENT_DELAY','HUMAN_HELP_REQUIRED','NOT_INTERESTED');
+  create type ops_lead_stage      as enum ('NEW','QUALIFYING','QUALIFIED','SALES_CALL','FINANCING_REQUIRED','LOAN_CASE','DOCUMENT_COLLECTION','DOCUMENT_REVIEW','READY_FOR_ANALYSIS','DECISION','COMPLETED','LOST');
+  create type ops_loan_status     as enum ('NOT_STARTED','INFORMATION_REQUIRED','DOCUMENT_COLLECTION','UNDER_REVIEW','DOCUMENTS_INCOMPLETE','READY_FOR_ANALYSIS','APPROVED','CONDITIONALLY_APPROVED','REJECTED','COMPLETED','ON_HOLD');
+  create type ops_item_status     as enum ('NOT_REQUESTED','REQUESTED','UPLOADED','UNDER_REVIEW','ACCEPTED','REJECTED','NOT_REQUIRED');
+  create type ops_control         as enum ('AI_ACTIVE','HUMAN_CONTROL');
+  create type ops_loan_required   as enum ('YES','NO','UNKNOWN');
+  create type ops_actor_type      as enum ('ai','human','customer','system');
+exception when duplicate_object then null; end $$;
+
+-- ---------------------------------------------------------------------------
+-- Team
+-- ---------------------------------------------------------------------------
+create table if not exists team_members (
+  id           uuid primary key default gen_random_uuid(),
+  org_id       uuid not null,
+  auth_user_id uuid unique,                 -- links to auth.users when an IdP exists
+  name         text not null,
+  email        citext not null,
+  role         ops_role not null,
+  active       boolean not null default true,
+  capacity     int not null default 20 check (capacity > 0),
+  created_at   timestamptz not null default now(),
+  disabled_at  timestamptz,
+  unique (org_id, email)
+);
+create index if not exists team_members_org_role_idx on team_members (org_id, role) where active;
+
+-- ---------------------------------------------------------------------------
+-- Customer — single source of truth, unique per phone within an org.
+-- ---------------------------------------------------------------------------
+create table if not exists customers (
+  id                        uuid primary key default gen_random_uuid(),
+  org_id                    uuid not null,
+  name                      text not null default 'Unknown',
+  phone                     text not null,
+  email                     citext,
+  source                    text not null default 'whatsapp',
+  lead_status               text not null default 'new',
+  lead_stage                ops_lead_stage not null default 'NEW',
+  assigned_sales_manager_id uuid references team_members(id) on delete set null,
+  assigned_loan_officer_id  uuid references team_members(id) on delete set null,
+  loan_required             ops_loan_required not null default 'UNKNOWN',
+  intent                    ops_intent not null default 'INFORMATIONAL',
+  sentiment                 ops_sentiment not null default 'NEUTRAL',
+  sentiment_confidence      numeric(3,2) not null default 0.5 check (sentiment_confidence between 0 and 1),
+  lead_score                int not null default 0 check (lead_score between 0 and 100),
+  last_interaction_at       timestamptz,
+  next_follow_up_at         timestamptz,
+  preferred_channel         text not null default 'whatsapp',
+  preferences               jsonb not null default '{}'::jsonb,   -- flexible metadata only
+  budget_min                numeric,
+  budget_max                numeric,
+  purchase_info             text,
+  financing_info            text,
+  notes                     text not null default '',
+  tags                      text[] not null default '{}',
+  sales_control             ops_control not null default 'AI_ACTIVE',
+  loan_control              ops_control not null default 'AI_ACTIVE',
+  opted_out                 boolean not null default false,
+  created_at                timestamptz not null default now(),
+  updated_at                timestamptz not null default now(),
+  -- Phone is the WhatsApp identity; two rows for one number forks the workflow.
+  constraint customers_org_phone_key unique (org_id, phone)
+);
+create index if not exists customers_org_stage_idx on customers (org_id, lead_stage);
+create index if not exists customers_sales_owner_idx on customers (assigned_sales_manager_id) where assigned_sales_manager_id is not null;
+create index if not exists customers_loan_owner_idx  on customers (assigned_loan_officer_id)  where assigned_loan_officer_id  is not null;
+
+-- ---------------------------------------------------------------------------
+-- Conversation
+-- ---------------------------------------------------------------------------
+create table if not exists ops_messages (
+  id          uuid primary key default gen_random_uuid(),
+  org_id      uuid not null,
+  customer_id uuid not null references customers(id) on delete cascade,
+  channel     text not null default 'whatsapp',
+  direction   text not null check (direction in ('inbound','outbound')),
+  body        text not null,
+  document_id uuid,
+  author_type ops_actor_type not null,
+  author_id   uuid references team_members(id) on delete set null,
+  external_id text,
+  created_at  timestamptz not null default now(),
+  -- Webhook idempotency: the platform redelivers on any non-2xx.
+  constraint ops_messages_external_key unique (org_id, external_id)
+);
+create index if not exists ops_messages_customer_idx on ops_messages (customer_id, created_at desc);
+
+create table if not exists sentiment_events (
+  id                uuid primary key default gen_random_uuid(),
+  org_id            uuid not null,
+  customer_id       uuid not null references customers(id) on delete cascade,
+  sentiment         ops_sentiment not null,
+  confidence        numeric(3,2) not null check (confidence between 0 and 1),
+  intent            ops_intent not null,
+  urgency           text not null default 'NONE',
+  engagement        text not null default 'LOW',
+  buying_readiness  text not null default 'UNKNOWN',
+  objections        text[] not null default '{}',
+  concerns          text[] not null default '{}',
+  positive_signals  text[] not null default '{}',
+  negative_signals  text[] not null default '{}',
+  source_message_id uuid references ops_messages(id) on delete set null,
+  reason            text not null,
+  created_at        timestamptz not null default now()
+);
+create index if not exists sentiment_events_customer_idx on sentiment_events (customer_id, created_at);
+
+create table if not exists conversation_insights (
+  id                 uuid primary key default gen_random_uuid(),
+  org_id             uuid not null,
+  customer_id        uuid not null references customers(id) on delete cascade,
+  intent             ops_intent not null,
+  sentiment          ops_sentiment not null,
+  buying_signals     text[] not null default '{}',
+  objections         text[] not null default '{}',
+  questions          text[] not null default '{}',
+  financing_interest boolean not null default false,
+  requested_human    boolean not null default false,
+  required_follow_up text,
+  facts              jsonb not null default '{}'::jsonb,
+  summary            text not null default '',
+  deterministic      boolean not null default true,
+  created_at         timestamptz not null default now()
+);
+create index if not exists conversation_insights_customer_idx on conversation_insights (customer_id, created_at desc);
+
+create table if not exists lead_scores (
+  id             uuid primary key default gen_random_uuid(),
+  org_id         uuid not null,
+  customer_id    uuid not null references customers(id) on delete cascade,
+  score          int not null check (score between 0 and 100),
+  previous_score int not null default 0,
+  band           text not null,
+  contributions  jsonb not null default '[]'::jsonb,  -- every point is traceable
+  created_at     timestamptz not null default now()
+);
+create index if not exists lead_scores_customer_idx on lead_scores (customer_id, created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- Sales
+-- ---------------------------------------------------------------------------
+create table if not exists sales_tasks (
+  id                   uuid primary key default gen_random_uuid(),
+  org_id               uuid not null,
+  customer_id          uuid not null references customers(id) on delete cascade,
+  assigned_to_id       uuid references team_members(id) on delete set null,
+  priority             text not null default 'NORMAL' check (priority in ('LOW','NORMAL','HIGH','URGENT')),
+  reason               text not null,
+  trigger_id           text not null,
+  ai_summary           text not null default '',
+  sentiment            ops_sentiment not null default 'NEUTRAL',
+  lead_score           int not null default 0,
+  objections           text[] not null default '{}',
+  requirements         text[] not null default '{}',
+  conversation_summary text not null default '',
+  status               text not null default 'OPEN' check (status in ('OPEN','IN_PROGRESS','COMPLETED','CANCELLED')),
+  due_at               timestamptz not null,
+  created_at           timestamptz not null default now(),
+  completed_at         timestamptz,
+  notes                text[] not null default '{}'
+);
+create index if not exists sales_tasks_open_idx on sales_tasks (org_id, assigned_to_id, due_at) where status in ('OPEN','IN_PROGRESS');
+-- At most one live task per customer: a chatty conversation must not create ten.
+create unique index if not exists sales_tasks_one_open_per_customer
+  on sales_tasks (customer_id) where status in ('OPEN','IN_PROGRESS');
+
+create table if not exists sales_assignments (
+  id                    uuid primary key default gen_random_uuid(),
+  org_id                uuid not null,
+  customer_id           uuid not null references customers(id) on delete cascade,
+  queue                 text not null check (queue in ('SALES','LOAN')),
+  assignee_id           uuid references team_members(id) on delete set null,
+  previous_assignee_id  uuid references team_members(id) on delete set null,
+  strategy              text not null,
+  reason                text not null,
+  actor_id              uuid references team_members(id) on delete set null,
+  created_at            timestamptz not null default now()
+);
+create index if not exists sales_assignments_customer_idx on sales_assignments (customer_id, created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- Loan
+-- ---------------------------------------------------------------------------
+create table if not exists loan_cases (
+  id                  uuid primary key default gen_random_uuid(),
+  org_id              uuid not null,
+  customer_id         uuid not null references customers(id) on delete cascade,
+  assigned_officer_id uuid references team_members(id) on delete set null,
+  status              ops_loan_status not null default 'NOT_STARTED',
+  loan_type           text not null default 'standard',
+  requested_amount    numeric,
+  customer_income     numeric,
+  employment_info     text,
+  financial_info      text,
+  property_info       text,
+  officer_notes       text[] not null default '{}',
+  ready_for_review_at timestamptz,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now(),
+  closed_at           timestamptz
+);
+-- One open case per customer.
+create unique index if not exists loan_cases_one_active_per_customer
+  on loan_cases (customer_id) where status not in ('COMPLETED','REJECTED');
+create index if not exists loan_cases_officer_idx on loan_cases (assigned_officer_id, status);
+
+create table if not exists loan_checklist_items (
+  id               uuid primary key default gen_random_uuid(),
+  org_id           uuid not null,
+  loan_case_id     uuid not null references loan_cases(id) on delete cascade,
+  document_type    text not null,
+  customer_label   text not null,
+  description      text not null default '',
+  required         boolean not null default true,
+  status           ops_item_status not null default 'NOT_REQUESTED',
+  accepted_formats text[] not null default '{}',
+  current_document_id uuid,
+  rejection_reason text,
+  due_at           timestamptz,
+  notes            text,
+  sort_order       int not null default 0,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  -- The same requirement twice is a mistake, not two requirements.
+  unique (loan_case_id, document_type)
+);
+create index if not exists checklist_case_idx on loan_checklist_items (loan_case_id, sort_order);
+
+create table if not exists documents (
+  id                uuid primary key default gen_random_uuid(),
+  org_id            uuid not null,
+  customer_id       uuid not null references customers(id) on delete cascade,
+  loan_case_id      uuid references loan_cases(id) on delete set null,
+  checklist_item_id uuid references loan_checklist_items(id) on delete set null,
+  filename          text not null,
+  mime_type         text not null,
+  size_bytes        bigint not null check (size_bytes > 0),
+  storage_key       text not null,               -- private bucket key, never a URL
+  sha256            text not null,
+  uploaded_by       text not null check (uploaded_by in ('customer','human','system')),
+  uploaded_by_id    uuid references team_members(id) on delete set null,
+  status            text not null default 'RECEIVED' check (status in ('RECEIVED','UNDER_REVIEW','ACCEPTED','REJECTED')),
+  reviewed_by_id    uuid references team_members(id) on delete set null,
+  reviewed_at       timestamptz,
+  rejection_reason  text,
+  created_at        timestamptz not null default now(),
+  -- Content-hash dedupe: WhatsApp redelivers media on webhook retries.
+  unique (customer_id, sha256),
+  -- A rejection without a reason is unactionable for the customer.
+  constraint documents_rejection_reason_required
+    check (status <> 'REJECTED' or (rejection_reason is not null and length(trim(rejection_reason)) > 0))
+);
+create index if not exists documents_case_idx on documents (loan_case_id, created_at desc);
+alter table loan_checklist_items
+  drop constraint if exists loan_checklist_items_current_document_fk;
+alter table loan_checklist_items
+  add constraint loan_checklist_items_current_document_fk
+  foreign key (current_document_id) references documents(id) on delete set null;
+
+create table if not exists document_events (
+  id          uuid primary key default gen_random_uuid(),
+  org_id      uuid not null,
+  document_id uuid not null references documents(id) on delete cascade,
+  event       text not null,
+  actor_id    uuid references team_members(id) on delete set null,
+  actor_type  ops_actor_type not null,
+  detail      text,
+  created_at  timestamptz not null default now()
+);
+create index if not exists document_events_doc_idx on document_events (document_id, created_at);
+
+-- ---------------------------------------------------------------------------
+-- Follow-ups, escalations, notifications
+-- ---------------------------------------------------------------------------
+create table if not exists followups (
+  id                uuid primary key default gen_random_uuid(),
+  org_id            uuid not null,
+  customer_id       uuid not null references customers(id) on delete cascade,
+  loan_case_id      uuid references loan_cases(id) on delete cascade,
+  checklist_item_id uuid references loan_checklist_items(id) on delete cascade,
+  kind              text not null,
+  lane              text not null check (lane in ('SALES','LOAN')),
+  scheduled_at      timestamptz not null,
+  attempts          int not null default 0,
+  max_attempts      int not null default 3,
+  status            text not null default 'SCHEDULED' check (status in ('SCHEDULED','SENT','COMPLETED','CANCELLED','ESCALATED','PAUSED')),
+  last_sent_at      timestamptz,
+  message           text,
+  reason            text not null,
+  cancelled_reason  text,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+create index if not exists followups_due_idx on followups (org_id, scheduled_at) where status = 'SCHEDULED';
+-- Never chase the same item twice concurrently.
+create unique index if not exists followups_one_live_per_item
+  on followups (customer_id, kind, coalesce(checklist_item_id, '00000000-0000-0000-0000-000000000000'::uuid))
+  where status in ('SCHEDULED','SENT','PAUSED');
+
+create table if not exists escalations (
+  id             uuid primary key default gen_random_uuid(),
+  org_id         uuid not null,
+  customer_id    uuid not null references customers(id) on delete cascade,
+  rule_id        text not null,
+  lane           text not null check (lane in ('SALES','LOAN')),
+  severity       text not null check (severity in ('LOW','MEDIUM','HIGH')),
+  reason         text not null,
+  detail         text not null default '',
+  assigned_to_id uuid references team_members(id) on delete set null,
+  status         text not null default 'OPEN' check (status in ('OPEN','ACKNOWLEDGED','RESOLVED')),
+  created_at     timestamptz not null default now(),
+  resolved_at    timestamptz,
+  resolved_by_id uuid references team_members(id) on delete set null
+);
+create unique index if not exists escalations_one_open_per_rule
+  on escalations (customer_id, rule_id) where status = 'OPEN';
+
+create table if not exists notifications (
+  id             uuid primary key default gen_random_uuid(),
+  org_id         uuid not null,
+  recipient_id   uuid references team_members(id) on delete cascade,
+  recipient_role ops_role,
+  category       text not null check (category in ('SALES','LOAN','ADMIN')),
+  event          text not null,
+  title          text not null,
+  body           text not null default '',
+  customer_id    uuid references customers(id) on delete cascade,
+  severity       text not null default 'INFO' check (severity in ('INFO','WARNING','CRITICAL')),
+  read           boolean not null default false,
+  created_at     timestamptz not null default now(),
+  read_at        timestamptz,
+  check (recipient_id is not null or recipient_role is not null)
+);
+create index if not exists notifications_inbox_idx on notifications (recipient_id, read, created_at desc);
+
+-- ---------------------------------------------------------------------------
+-- Audit — append-only.
+-- ---------------------------------------------------------------------------
+create table if not exists audit_logs (
+  id          uuid primary key default gen_random_uuid(),
+  org_id      uuid not null,
+  actor_id    uuid references team_members(id) on delete set null,
+  actor_type  ops_actor_type not null,
+  action      text not null,
+  entity      text not null,
+  entity_id   uuid not null,
+  customer_id uuid references customers(id) on delete set null,
+  metadata    jsonb not null default '{}'::jsonb,
+  created_at  timestamptz not null default now()
+);
+create index if not exists audit_logs_customer_idx on audit_logs (customer_id, created_at desc);
+create index if not exists audit_logs_entity_idx   on audit_logs (entity, entity_id, created_at desc);
+
+-- Enforce append-only at the database, not merely by convention.
+create or replace function ops_block_mutation() returns trigger
+  language plpgsql as $$ begin
+    raise exception 'audit_logs is append-only';
+  end $$;
+drop trigger if exists audit_logs_no_update on audit_logs;
+create trigger audit_logs_no_update before update or delete on audit_logs
+  for each row execute function ops_block_mutation();
+
+-- ---------------------------------------------------------------------------
+-- Configuration
+-- ---------------------------------------------------------------------------
+create table if not exists workflow_config (
+  org_id     uuid primary key,
+  config     jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists loan_rules (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null,
+  label      text not null,
+  kind       text not null,
+  operator   text not null check (operator in ('gte','lte','eq','in','exists')),
+  value      text not null,
+  loan_type  text,
+  severity   text not null check (severity in ('BLOCKING','WARNING','INFO')),
+  enabled    boolean not null default false,
+  notes      text,
+  created_at timestamptz not null default now()
+);
+
+-- ============================================================================
+-- ROW LEVEL SECURITY
+--
+-- Mirrors src/lib/ops/auth.ts exactly, so behaviour does not change when the
+-- store moves to Postgres. The decisive policy is on `documents`: sales roles
+-- are not granted access to a customer's financial paperwork.
+-- ============================================================================
+
+create or replace function ops_member() returns team_members
+  language sql stable security definer set search_path = public as $$
+    select * from team_members where auth_user_id = auth.uid() and active limit 1;
+  $$;
+
+create or replace function ops_org() returns uuid
+  language sql stable as $$ select (ops_member()).org_id $$;
+
+create or replace function ops_role_of() returns ops_role
+  language sql stable as $$ select (ops_member()).role $$;
+
+create or replace function ops_member_id() returns uuid
+  language sql stable as $$ select (ops_member()).id $$;
+
+alter table team_members          enable row level security;
+alter table customers             enable row level security;
+alter table ops_messages          enable row level security;
+alter table sentiment_events      enable row level security;
+alter table conversation_insights enable row level security;
+alter table lead_scores           enable row level security;
+alter table sales_tasks           enable row level security;
+alter table sales_assignments     enable row level security;
+alter table loan_cases            enable row level security;
+alter table loan_checklist_items  enable row level security;
+alter table documents             enable row level security;
+alter table document_events       enable row level security;
+alter table followups             enable row level security;
+alter table escalations           enable row level security;
+alter table notifications         enable row level security;
+alter table audit_logs            enable row level security;
+alter table workflow_config       enable row level security;
+alter table loan_rules            enable row level security;
+
+-- Customers: admins see the org; others see only what they own.
+drop policy if exists customers_select on customers;
+create policy customers_select on customers for select using (
+  org_id = ops_org() and (
+    ops_role_of() = 'ADMIN'
+    or (ops_role_of() = 'SALES_MANAGER' and assigned_sales_manager_id = ops_member_id())
+    or (ops_role_of() = 'LOAN_OFFICER'  and assigned_loan_officer_id  = ops_member_id())
+  )
+);
+drop policy if exists customers_update on customers;
+create policy customers_update on customers for update using (
+  org_id = ops_org() and (
+    ops_role_of() = 'ADMIN'
+    or assigned_sales_manager_id = ops_member_id()
+    or assigned_loan_officer_id  = ops_member_id()
+  )
+);
+
+-- Documents: loan officers and admins only. This is the department boundary.
+drop policy if exists documents_select on documents;
+create policy documents_select on documents for select using (
+  org_id = ops_org()
+  and ops_role_of() in ('ADMIN','LOAN_OFFICER')
+  and (
+    ops_role_of() = 'ADMIN'
+    or exists (
+      select 1 from loan_cases lc
+      where lc.id = documents.loan_case_id and lc.assigned_officer_id = ops_member_id()
+    )
+  )
+);
+drop policy if exists documents_write on documents;
+create policy documents_write on documents for all using (
+  org_id = ops_org() and ops_role_of() in ('ADMIN','LOAN_OFFICER')
+) with check (org_id = ops_org() and ops_role_of() in ('ADMIN','LOAN_OFFICER'));
+
+drop policy if exists checklist_rw on loan_checklist_items;
+create policy checklist_rw on loan_checklist_items for all using (
+  org_id = ops_org() and ops_role_of() in ('ADMIN','LOAN_OFFICER')
+) with check (org_id = ops_org() and ops_role_of() in ('ADMIN','LOAN_OFFICER'));
+
+-- Sales roles may read case status (to answer "where is my application?")
+-- but never the underlying documents.
+drop policy if exists loan_cases_select on loan_cases;
+create policy loan_cases_select on loan_cases for select using (org_id = ops_org());
+drop policy if exists loan_cases_write on loan_cases;
+create policy loan_cases_write on loan_cases for all using (
+  org_id = ops_org() and ops_role_of() in ('ADMIN','LOAN_OFFICER')
+) with check (org_id = ops_org() and ops_role_of() in ('ADMIN','LOAN_OFFICER'));
+
+drop policy if exists audit_select on audit_logs;
+create policy audit_select on audit_logs for select using (org_id = ops_org() and ops_role_of() = 'ADMIN');
+drop policy if exists audit_insert on audit_logs;
+create policy audit_insert on audit_logs for insert with check (org_id = ops_org());
+
+drop policy if exists config_admin on workflow_config;
+create policy config_admin on workflow_config for all using (
+  org_id = ops_org() and ops_role_of() = 'ADMIN'
+) with check (org_id = ops_org() and ops_role_of() = 'ADMIN');
+
+drop policy if exists notifications_own on notifications;
+create policy notifications_own on notifications for all using (
+  org_id = ops_org() and (recipient_id = ops_member_id() or recipient_role = ops_role_of())
+) with check (org_id = ops_org());
+
+-- Generic org-scoped read for the remaining conversation/workflow tables.
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'ops_messages','sentiment_events','conversation_insights','lead_scores',
+    'sales_tasks','sales_assignments','followups','escalations','document_events','loan_rules'
+  ] loop
+    execute format('drop policy if exists %I_org on %I', t, t);
+    execute format(
+      'create policy %I_org on %I for all using (org_id = ops_org()) with check (org_id = ops_org())', t, t);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Private storage bucket. Documents are never public; access is by signed URL
+-- issued after a server-side permission check.
+-- ---------------------------------------------------------------------------
+insert into storage.buckets (id, name, public)
+values ('loan-documents', 'loan-documents', false)
+on conflict (id) do nothing;
+
+drop policy if exists loan_documents_read on storage.objects;
+create policy loan_documents_read on storage.objects for select using (
+  bucket_id = 'loan-documents' and ops_role_of() in ('ADMIN','LOAN_OFFICER')
+);

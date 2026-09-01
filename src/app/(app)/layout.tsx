@@ -1,27 +1,46 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { read } from "@/lib/db";
+import { getSession, hasPermission } from "@/lib/auth/session";
+import { requiredPermissionFor } from "@/lib/auth/page-access";
 import { Sidebar } from "@/components/shell";
+import { NoAccess } from "@/components/ops/no-access";
 
 /**
- * App shell. The sidebar badge counts are computed server-side across *all*
- * brands' open items for the active brand, so the nav tells you where work is
- * waiting without opening every page.
+ * App shell and the single page-level authorization gate.
+ *
+ * Enforcing here rather than per-page means a newly added screen is protected
+ * by default: an unmapped path is denied, so forgetting to add a rule fails
+ * closed instead of exposing data.
  */
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const db = read();
-  const brandId = db.brands[0]?.id ?? "";
-  const counts = {
-    inbox: db.conversations.filter((c) => c.brandId === brandId && c.status === "open").length,
-    reviews: db.reviews.filter((r) => r.brandId === brandId && !r.replied).length,
-    suggestions: 0,
-  };
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = (await headers()).get("x-pathname") ?? "/";
+  const required = requiredPermissionFor(pathname);
+  const session = await getSession();
+
+  if (!session) redirect(`/signin?next=${encodeURIComponent(pathname)}`);
+
+  // A temporary password is a credential an administrator has seen. Enforcing
+  // the change here rather than only on the sign-in screen closes the gap where
+  // someone signs in with it and then simply navigates somewhere else.
+  if (session.mustChangePassword) redirect(`/signin?next=${encodeURIComponent(pathname)}`);
+
+  let allowed = true;
+  if (required === null) allowed = false;
+  else if (required !== "allow") allowed = hasPermission(session, required);
+
+  // The navigation only offers what this person can actually open, so nobody is
+  // invited into a door that is locked.
+  const permissions = [...session.permissions];
 
   return (
     <div className="flex min-h-screen">
       <Suspense fallback={<div className="w-[228px] shrink-0 border-r border-ink-800" />}>
-        <Sidebar counts={counts} />
+        <Sidebar counts={{}} permissions={permissions} />
       </Suspense>
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="min-w-0 flex-1">
+        {allowed ? children : <NoAccess pathname={pathname} required={required} roles={session.roles} />}
+      </main>
     </div>
   );
 }

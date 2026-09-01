@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { mutate } from "@/lib/db";
 import { uid } from "@/lib/ids";
 import type { CrmTask } from "@/lib/crm/types";
+import { guard } from "@/lib/auth/guard";
 
 export async function POST(req: Request) {
+  const denied = await guard("customers.write");
+  if (denied) return denied;
+
   const body = (await req.json()) as Partial<CrmTask> & { brandId: string; title: string; dueAt: string };
   const task: CrmTask = {
     id: uid("task"),
@@ -29,6 +33,9 @@ export async function POST(req: Request) {
  * what stops the rules engine from resurrecting something a person closed.
  */
 export async function PATCH(req: Request) {
+  const denied = await guard("customers.write");
+  if (denied) return denied;
+
   const body = (await req.json()) as { taskId: string; status?: CrmTask["status"]; dueAt?: string };
   const task = mutate((db) => {
     const t = db.crmTasks.find((x) => x.id === body.taskId);

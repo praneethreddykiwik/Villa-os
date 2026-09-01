@@ -4,6 +4,7 @@ import { uid } from "@/lib/ids";
 import { adapterFor } from "@/lib/platforms/registry";
 import { logActivity } from "@/lib/engine/publisher";
 import type { Post, PostFormat, PostTarget } from "@/lib/types";
+import { guard } from "@/lib/auth/guard";
 
 /**
  * Create or schedule a post.
@@ -13,6 +14,9 @@ import type { Post, PostFormat, PostTarget } from "@/lib/types";
  * rejected in the composer rather than silently failing at publish time.
  */
 export async function POST(req: Request) {
+  const denied = await guard("marketing.publish");
+  if (denied) return denied;
+
   const body = (await req.json()) as {
     brandId: string;
     caption: string;
@@ -88,6 +92,9 @@ export async function POST(req: Request) {
 
 /** Move a post to a new time (calendar drag, or the reschedule action). */
 export async function PATCH(req: Request) {
+  const denied = await guard("marketing.publish");
+  if (denied) return denied;
+
   const { postId, scheduledAt, status } = (await req.json()) as {
     postId: string;
     scheduledAt?: string;
@@ -107,6 +114,9 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const denied = await guard("marketing.publish");
+  if (denied) return denied;
+
   const { postId } = (await req.json()) as { postId: string };
   mutate((db) => {
     db.posts = db.posts.filter((p) => p.id !== postId);

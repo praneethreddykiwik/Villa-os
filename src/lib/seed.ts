@@ -3,6 +3,7 @@ import { analyseReview } from "./ai/reviews";
 import { DEFAULT_EDIT } from "./media/render";
 import { makeBoard } from "./board/templates";
 import { buildCrm } from "./crm/seed";
+import { EMPTY_OPS } from "./ops/types";
 import type {
   Ad,
   Board,
@@ -202,6 +203,7 @@ export function buildSeed(): Database {
     brokers: [],
     crmContacts: [],
     crmTasks: [],
+    ...EMPTY_OPS,
   };
 
   for (const bp of BRAND_BLUEPRINTS) {

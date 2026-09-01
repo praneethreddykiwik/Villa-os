@@ -4,6 +4,7 @@ import { logActivity } from "@/lib/engine/publisher";
 import { setAdStatus, setMetaBudget } from "@/lib/platforms/ads";
 import type { SuggestionAction } from "@/lib/types";
 import { uid } from "@/lib/ids";
+import { guard } from "@/lib/auth/guard";
 
 /**
  * The one-click execution endpoint behind every suggestion card.
@@ -13,6 +14,9 @@ import { uid } from "@/lib/ids";
  * exercisable end to end without spending money.
  */
 export async function POST(req: Request) {
+  const denied = await guard("analytics.view");
+  if (denied) return denied;
+
   const body = (await req.json()) as {
     suggestionId: string;
     brandId: string;

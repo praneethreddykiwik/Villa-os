@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { read, resolveBrandId } from "@/lib/db";
 import { generateCopy, generateHooks } from "@/lib/ai/copy";
 import type { ChannelId, PostFormat } from "@/lib/types";
+import { guard } from "@/lib/auth/guard";
 
 export async function POST(req: Request) {
+  const denied = await guard("marketing.read");
+  if (denied) return denied;
+
   const body = (await req.json()) as {
     brandId?: string;
     topic: string;

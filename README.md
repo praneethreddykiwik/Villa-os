@@ -15,6 +15,7 @@ No API keys, no database, no Docker. It boots with a fully populated 3-brand dem
 
 1. [What it does](#1-what-it-does)
 2. [The 22 screens](#2-the-22-screens)
+2d. [Sign-in](#2d-sign-in)
 3. [Architecture](#3-architecture)
 4. [Publishing engine — how it actually works](#4-publishing-engine)
 5. [The AI insight engine — all 12 analysers](#5-the-ai-insight-engine)
@@ -135,8 +136,55 @@ Tailwind v4 emits every `@theme` entry as a real CSS variable, so the whole them
 
 - Three states: **light**, **dark**, **system** (keeps following the OS after you pick it).
 - The accent is **monochrome**: near-black in light mode, inverting to near-white in dark. A black accent on a black background is an invisible button, so `--a-on` carries the label colour with it — same token, both themes, always legible. Chart series 1 is graphite to match; the remaining series keep hue, because separating five series without it is not possible.
-- An inline, synchronous boot script sets `data-theme` before first paint, so a light-mode user never sees a dark flash.
+- The choice is stored in a cookie and stamped onto `<html>` **on the server**, so there is no flash of the wrong theme and no inline script. The earlier boot script had to be dropped when the Content-Security-Policy moved to a nonce — React strips the nonce attribute on the client, which produced a hydration mismatch. Reading a cookie server-side removed the script, the mismatch and the flash together, and let the policy stay strict. "System" is the *absence* of the attribute, resolved by a `prefers-color-scheme` media query with no JavaScript at all.
 - Status colours (`good`/`warn`/`bad`) are theme-driven too, and darkened in light mode — a green tuned for near-black is unreadable on white, and status text is exactly where poor contrast costs someone real information.
+
+---
+
+## 2d. Sign-in
+
+`/signin` is the only screen a signed-out visitor can reach, and it lives in its own
+route group with **no navigation, no sidebar and no app chrome**. That is a security
+property before it is a design one: the form used to render inside the application
+layout, which showed every module and route name in the product to people who had
+not yet proved who they were.
+
+**The whole submission runs on the server.** `<form action={serverAction}>` posts to
+`src/app/(auth)/signin/actions.ts`. Three things follow, and all three are the reason:
+
+| | Before | Now |
+|---|---|---|
+| Rate limiting | Browser called Supabase directly, so this app's limiter never saw an attempt | 8 per account / 5 min with a 15-minute lockout, 60 per source address |
+| JS on the page | Supabase client shipped to the browser — ~70 kB | None. First load **220 kB → 151 kB** |
+| No JavaScript | Dead button | Works — a plain form POST is the fallback, not an error |
+
+**Two real ways in, and no third.** Password, and a one-time email link that sets
+`shouldCreateUser: false` so a link request can never mint an account. There is no
+"Create account" tab: anyone who can register themselves can read customer records,
+so accounts are created by an administrator. A door that will never open is worse
+than no door, so it is absent rather than present-and-disabled. The Google button
+renders only when `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true`, so it is never decorative.
+
+**Every failure says the same sentence.** "Incorrect email or password", whether the
+address exists, the password is wrong, or the account is disabled — distinct errors
+let anyone assemble a list of real accounts by trying addresses. The magic-link
+confirmation is identical for the same reason. The one case that *does* get its own
+message is signing in successfully to an account with no role here yet, because that
+person did nothing wrong and needs to be told to ask an administrator.
+
+**The motion is deliberate about what it costs.** The drifting aurora, the dot grid,
+the sliding method pill and the button sheen are pure CSS on `transform` and
+`opacity`, so the compositor runs them on the GPU without touching the main thread —
+zero JavaScript on the page where someone is waiting to get in. Framer Motion covers
+only what CSS cannot do well: the entrance stagger and the crossfade between the two
+methods. It is loaded through `LazyMotion` with the feature bundle in a deferred
+chunk, so the form is on screen and usable before the animation engine arrives.
+Everything is disabled under `prefers-reduced-motion`.
+
+**Small things that prevent support calls:** a Caps Lock warning in the password
+label row (in the label, so nothing moves on screen while you are typing), a
+show/hide toggle, autofocus on the first field, and a focus *ring* rather than a
+colour change, because a colour change alone is invisible to a lot of people.
 
 ---
 
@@ -340,12 +388,15 @@ Settings → System status shows exactly what is wired up on the current install
 ## 10. File map
 
 ```
-src/app/(app)/        15 pages
+src/app/(app)/        15 pages — signed in; the sidebar and the page-permission guard
+src/app/(auth)/       signin · setup — signed out; no navigation, no guard to loop on
+src/app/auth/callback code exchange for magic links and OAuth
 src/app/api/          actions · ai/copy · ai/reply · board · board/cards · connections
                       crm/leads · crm/tasks · crm/followups
                       posts · publish/tick · render · seed · slots · sync
                       webhooks/whatsapp · whatsapp/send
-src/components/       shell · ui · charts · theme-toggle · composer · studio · calendar-view
+src/components/       auth/ (sign-in form · brand panel · mark) · messaging/
+                      shell · ui · charts · theme-toggle · composer · studio · calendar-view
                       board-view · board-settings · connect-panel · inbox
                       crm/leads-grid · crm/pipeline · crm/tasks-list
                       reviews-panel · suggestion-card
@@ -354,7 +405,8 @@ src/lib/              types · db · seed · page-context · platforms/ · engin
 
 **Commands**
 ```bash
-npm run dev         # dev server on :4321
+npm run dev         # dev server on :4321 (Turbopack)
+npm run dev:webpack # same, on webpack — fallback if Turbopack misbehaves
 npm run build       # production build
 npm run typecheck   # tsc --noEmit
 npm run tick        # run the publish queue once

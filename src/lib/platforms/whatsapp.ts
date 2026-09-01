@@ -22,6 +22,9 @@ export interface WhatsAppMessage {
   text: string;
   timestamp: string;
   type: "text" | "image" | "audio" | "document" | "interactive";
+  /** Media messages carry an id that must be downloaded separately. */
+  mediaId?: string;
+  filename?: string;
 }
 
 export function isWithinServiceWindow(lastInboundAt?: string): boolean {
@@ -110,6 +113,9 @@ export function parseWebhook(payload: unknown): WhatsAppMessage[] {
             type: string;
             text?: { body: string };
             interactive?: { button_reply?: { title: string }; list_reply?: { title: string } };
+            image?: { id: string };
+            document?: { id: string; filename?: string };
+            audio?: { id: string };
           }>;
         };
       }>;
@@ -133,6 +139,8 @@ export function parseWebhook(payload: unknown): WhatsAppMessage[] {
             `[${m.type}]`,
           timestamp: new Date(Number(m.timestamp) * 1000).toISOString(),
           type: (m.type as WhatsAppMessage["type"]) ?? "text",
+          mediaId: m.image?.id ?? m.document?.id ?? m.audio?.id,
+          filename: m.document?.filename,
         });
       }
     }

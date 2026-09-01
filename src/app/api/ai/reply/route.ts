@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { mutate, read } from "@/lib/db";
 import { draftReply } from "@/lib/ai/reviews";
+import { guard } from "@/lib/auth/guard";
 
 /** Draft (or publish) a review reply. Drafting never posts — a human clicks send. */
 export async function POST(req: Request) {
+  const denied = await guard("customers.write");
+  if (denied) return denied;
+
   const body = (await req.json()) as { reviewId: string; publish?: boolean; text?: string };
   const db = read();
   const review = db.reviews.find((r) => r.id === body.reviewId);
@@ -32,6 +36,9 @@ export async function POST(req: Request) {
 
 /** Bulk-draft every unanswered review at or above a rating threshold. */
 export async function PUT(req: Request) {
+  const denied = await guard("customers.write");
+  if (denied) return denied;
+
   const { brandId, minRating = 4 } = (await req.json()) as { brandId: string; minRating?: number };
   const db = read();
   const brand = db.brands.find((b) => b.id === brandId)!;

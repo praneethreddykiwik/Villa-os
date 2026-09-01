@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { mutate, read } from "@/lib/db";
 import { sendWhatsApp } from "@/lib/platforms/whatsapp";
+import { guard } from "@/lib/auth/guard";
 
 /**
  * Reply on WhatsApp. The 24-hour service window is enforced before the call, so
@@ -8,6 +9,9 @@ import { sendWhatsApp } from "@/lib/platforms/whatsapp";
  * surfacing an opaque Meta error code.
  */
 export async function POST(req: Request) {
+  const denied = await guard("customers.write");
+  if (denied) return denied;
+
   const body = (await req.json()) as {
     conversationId: string;
     text?: string;

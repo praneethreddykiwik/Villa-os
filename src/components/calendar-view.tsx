@@ -102,7 +102,9 @@ export function CalendarView({
     setRunning(true);
     setTickResult(null);
     try {
-      const res = await fetch("/api/publish/tick?secret=dev-secret", { method: "POST" });
+      // The worker secret must never reach the browser. This calls the tick as
+      // the signed-in user; the route accepts either a session or the secret.
+      const res = await fetch("/api/publish/tick", { method: "POST" });
       const json = await res.json();
       setTickResult(
         json.ok

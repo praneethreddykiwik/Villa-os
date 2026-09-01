@@ -85,6 +85,40 @@
   color-scheme: dark;
 }
 
+/* "System" is the absence of an explicit choice: no data-theme attribute, so
+   the OS preference decides with no JavaScript involved at all. That is what
+   lets us drop the inline theme script and keep a stricter CSP. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    --s-bg: #f7f7f8;
+    --s-surface: #ffffff;
+    --s-input: #ffffff;
+    --s-raised: #f0f0f2;
+    --s-border: #e4e4e7;
+    --s-border-strong: #d1d1d6;
+    --s-faint: #a1a1aa;
+    --t-muted: #71717a;
+    --t-secondary: #52525b;
+    --t-strong: #3f3f46;
+    --t-primary: #09090b;
+    --a-400: #27272a;
+    --a-500: #18181b;
+    --a-600: #000000;
+    --a-on: #ffffff;
+    --c-good: #047a55;
+    --c-good-strong: #059669;
+    --c-warn: #9a6300;
+    --c-warn-strong: #b45309;
+    --c-bad: #c02a48;
+    --c-bad-strong: #d1274a;
+    --card-bg: #ffffff;
+    --card-bg-hover: #fafafa;
+    --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.04);
+    --scrim: rgba(16, 24, 40, 0.35);
+    color-scheme: light;
+  }
+}
+
 :root[data-theme="light"] {
   --s-bg: #f7f7f8;
   --s-surface: #ffffff;
@@ -220,4 +254,268 @@ body {
     background: #fff;
     color: #000;
   }
+}
+
+/* ==========================================================================
+   AUTH SURFACE
+
+   The sign-in screen is the first thing anyone sees, and it is the only screen
+   a signed-out visitor can reach, so it gets its own full-bleed treatment
+   rather than the app chrome.
+
+   Everything below is pure CSS. The ambient motion is three blurred radial
+   blobs animated on `transform` only, which the compositor handles on the GPU
+   without laying out or painting a single frame on the main thread. That keeps
+   the page interactive while it animates, and costs zero JavaScript — which
+   matters most here, because this is the one route where nothing is cached and
+   the visitor is waiting to get in.
+   ========================================================================== */
+
+.auth-stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--s-bg);
+}
+
+/* Ambient colour. Kept at very low opacity behind a heavy blur so it reads as
+   depth in the black rather than as a colour theme — the palette stays
+   monochrome, the background just stops looking flat. */
+.auth-aurora {
+  position: absolute;
+  inset: -25%;
+  z-index: -2;
+  pointer-events: none;
+  filter: blur(90px);
+  opacity: 0.55;
+}
+.auth-aurora::before,
+.auth-aurora::after,
+.auth-aurora > i {
+  content: "";
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  /* transform/opacity only — never width/height/top/left, which would force
+     layout on every frame. */
+  will-change: transform;
+}
+.auth-aurora::before {
+  width: 46vw;
+  height: 46vw;
+  left: 6%;
+  top: 8%;
+  background: radial-gradient(circle, rgba(139, 122, 255, 0.5), transparent 68%);
+  animation: auth-drift-a 26s ease-in-out infinite;
+}
+.auth-aurora::after {
+  width: 40vw;
+  height: 40vw;
+  right: 4%;
+  top: 22%;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.34), transparent 68%);
+  animation: auth-drift-b 32s ease-in-out infinite;
+}
+.auth-aurora > i {
+  width: 38vw;
+  height: 38vw;
+  left: 34%;
+  bottom: 2%;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.24), transparent 68%);
+  animation: auth-drift-c 38s ease-in-out infinite;
+}
+
+@keyframes auth-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(8vw, 6vh, 0) scale(1.18); }
+}
+@keyframes auth-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.1); }
+  50%      { transform: translate3d(-7vw, 8vh, 0) scale(0.92); }
+}
+@keyframes auth-drift-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); }
+  50%      { transform: translate3d(5vw, -7vh, 0) scale(1.15); }
+}
+
+/* Dot grid, faded out towards the edges so it never draws a hard rectangle. */
+.auth-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 1px 1px, var(--s-border-strong) 1px, transparent 0);
+  background-size: 34px 34px;
+  opacity: 0.5;
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 40%, #000 20%, transparent 78%);
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 40%, #000 20%, transparent 78%);
+}
+
+/* A hairline that catches the light along the top of the card — the detail that
+   separates a flat rectangle from something that looks lit. */
+.auth-card {
+  position: relative;
+  border-radius: 20px;
+  background:
+    linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
+    linear-gradient(160deg, var(--s-border-strong), var(--s-border) 38%, var(--s-border)) border-box;
+  border: 1px solid transparent;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 60px -24px rgba(0, 0, 0, 0.7),
+    0 2px 8px -2px rgba(0, 0, 0, 0.4);
+}
+:root[data-theme="light"] .auth-card,
+:root:not([data-theme="dark"]) .auth-card {
+  box-shadow: 0 24px 60px -28px rgba(16, 24, 40, 0.28), 0 2px 6px -2px rgba(16, 24, 40, 0.08);
+}
+
+/* Inputs. The focus ring is a real ring, not a colour change, because a colour
+   change alone is invisible to a lot of people. */
+.auth-field {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--s-border);
+  background: var(--s-input);
+  padding: 0.72rem 0.9rem;
+  font-size: 13.5px;
+  color: var(--t-primary);
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+.auth-field::placeholder { color: var(--s-faint); }
+.auth-field:hover:not(:focus) { border-color: var(--s-border-strong); }
+.auth-field:focus {
+  border-color: var(--a-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--a-500) 18%, transparent);
+}
+.auth-field[aria-invalid="true"] {
+  border-color: var(--c-bad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-bad) 16%, transparent);
+}
+
+/* Primary action. The sheen sweeps once on hover rather than looping, so it
+   reads as a response to the pointer instead of decoration demanding attention. */
+.auth-submit {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--a-500);
+  color: var(--a-on);
+  font-weight: 600;
+  transition: transform 0.12s ease, background 0.16s ease, opacity 0.16s ease;
+}
+.auth-submit:hover:not(:disabled) { background: var(--a-600); }
+.auth-submit:active:not(:disabled) { transform: translateY(1px); }
+.auth-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+.auth-submit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-120%);
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.28) 50%, transparent 80%);
+}
+.auth-submit:hover:not(:disabled)::after {
+  animation: auth-sheen 0.85s cubic-bezier(0.3, 0.7, 0.4, 1) 1;
+}
+@keyframes auth-sheen {
+  to { transform: translateX(120%); }
+}
+
+/* The orbiting brand mark: a ring with a satellite. One element, one transform. */
+.auth-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(150deg, var(--s-raised), var(--s-input));
+  border: 1px solid var(--s-border-strong);
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.7);
+}
+.auth-mark-orbit {
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--t-muted) 55%, transparent);
+  animation: auth-spin 14s linear infinite;
+}
+.auth-mark-orbit::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--a-500);
+  box-shadow: 0 0 10px 1px color-mix(in srgb, var(--a-500) 60%, transparent);
+}
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Motion is decoration here; content must never depend on it. */
+@media (prefers-reduced-motion: reduce) {
+  .auth-aurora::before,
+  .auth-aurora::after,
+  .auth-aurora > i,
+  .auth-mark-orbit,
+  .auth-submit:hover::after {
+    animation: none !important;
+  }
+}
+
+/* Method switcher. One pill, two positions, animated with a transform the
+   compositor handles — no measuring, no layout, no JavaScript. */
+.auth-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--s-border);
+  background: color-mix(in srgb, var(--s-input) 60%, transparent);
+}
+.auth-tab-pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 6px);
+  border-radius: 8px;
+  background: var(--s-raised);
+  border: 1px solid var(--s-border);
+  transition: transform 0.28s cubic-bezier(0.22, 0.7, 0.25, 1);
+}
+.auth-tab-pill[data-index="1"] {
+  transform: translateX(calc(100% + 4px));
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-tab-pill { transition: none; }
+}
+
+/* Entrance.
+   Deliberately CSS and not a JavaScript animation. A motion library that starts
+   an element at `opacity: 0` leaves it invisible until its bundle arrives — so a
+   slow network or a single failed chunk turns the sign-in form into a blank
+   card. A CSS animation runs on first paint whatever happens to the JavaScript,
+   which is the only acceptable behaviour for the one screen a person must get
+   through to use the product at all. */
+@keyframes auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.auth-enter {
+  animation: auth-enter 0.45s cubic-bezier(0.22, 0.7, 0.25, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-enter { animation: none; }
 }

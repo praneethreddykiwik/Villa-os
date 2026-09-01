@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { read, resolveBrandId } from "@/lib/db";
 import { suggestSlots } from "@/lib/engine/besttime";
 import type { ChannelId } from "@/lib/types";
+import { guard } from "@/lib/auth/guard";
 
 export async function GET(req: Request) {
+  const denied = await guard("customers.read");
+  if (denied) return denied;
+
   const url = new URL(req.url);
   const db = read();
   const brandId = resolveBrandId(db, url.searchParams.get("brand"));

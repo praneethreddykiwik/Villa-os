@@ -435,7 +435,9 @@ export interface ReportBlock {
 }
 
 import type { Broker, CrmContact, CrmTask, Lead } from "./crm/types";
+import type { OpsDatabase } from "./ops/types";
 export type * from "./crm/types";
+export type * from "./ops/types";
 
 /* -------------------------------------------------------------------------- */
 /* Boards — the fully customisable Monday/Trello-style work surface             */
@@ -532,6 +534,9 @@ export interface Database {
   crmContacts: CrmContact[];
   crmTasks: CrmTask[];
 }
+
+/** The ops slice is merged into Database so there is one store, one mutate(). */
+export interface Database extends OpsDatabase {}
 
 export interface ActivityEntry {
   id: string;

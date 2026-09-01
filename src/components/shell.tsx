@@ -5,13 +5,25 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Activity, BarChart3, CalendarDays, Film, Gauge, Inbox, KanbanSquare, Lightbulb, MapPin,
   Megaphone, PenSquare, PlugZap, Sparkles, Star, FileText, Settings,
-  Users, GitBranch, Contact, UserCheck, ListTodo, BellRing,
+  Users, GitBranch, Contact, UserCheck, ListTodo, BellRing, Building2, Wallet, ShieldCheck, MessageSquare,
 } from "lucide-react";
 import clsx from "clsx";
 import type { Brand } from "@/lib/types";
+import { requiredPermissionFor } from "@/lib/auth/page-access";
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof Users;
+  badgeKey?: "suggestions" | "inbox" | "reviews";
+}
+interface NavSection {
+  group: string;
+  items: NavItem[];
+}
 import { ThemeToggle } from "./theme-toggle";
 
-const NAV = [
+const NAV: NavSection[] = [
   { group: "Overview", items: [
     { href: "/dashboard", label: "Dashboard", icon: Gauge },
     { href: "/insights", label: "AI Insights", icon: Sparkles, badgeKey: "suggestions" as const },
@@ -38,6 +50,13 @@ const NAV = [
     { href: "/reviews", label: "Reviews", icon: Star, badgeKey: "reviews" as const },
     { href: "/local", label: "Local visibility", icon: MapPin },
   ]},
+  { group: "Operations", items: [
+    { href: "/ops", label: "Workspace", icon: Building2 },
+    { href: "/ops/messages", label: "Messages", icon: MessageSquare },
+    { href: "/ops/sales", label: "Sales queue", icon: Users },
+    { href: "/ops/loans", label: "Loan cases", icon: Wallet },
+    { href: "/ops/admin", label: "Control centre", icon: ShieldCheck },
+  ]},
   { group: "Deliver", items: [
     { href: "/reports", label: "Reports", icon: FileText },
     { href: "/activity", label: "Activity", icon: Activity },
@@ -46,7 +65,29 @@ const NAV = [
   ]},
 ];
 
-export function Sidebar({ counts }: { counts: Record<string, number> }) {
+/**
+ * Navigation is filtered by permission, using the same map the page guard uses.
+ * Showing a link that leads to a locked door is a worse experience than not
+ * showing it, and it leaks what exists.
+ */
+export function Sidebar({
+  counts,
+  permissions = [],
+}: {
+  counts: Record<string, number>;
+  permissions?: string[];
+}) {
+  const allowed = new Set(permissions);
+  const visible = NAV.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => {
+      const required = requiredPermissionFor(item.href);
+      if (required === "allow") return true;
+      if (required === null) return false;
+      return allowed.has(required);
+    }),
+  })).filter((section) => section.items.length > 0);
+
   const pathname = usePathname();
   const params = useSearchParams();
   const qs = params.get("brand") ? `?brand=${params.get("brand")}` : "";
@@ -64,7 +105,7 @@ export function Sidebar({ counts }: { counts: Record<string, number> }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 pb-6">
-        {NAV.map((section) => (
+        {visible.map((section) => (
           <div key={section.group} className="mb-5">
             <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-mist-400/70">
               {section.group}

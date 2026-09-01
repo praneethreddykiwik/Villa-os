@@ -3,9 +3,13 @@ import { mutate, read } from "@/lib/db";
 import { uid } from "@/lib/ids";
 import { logActivity } from "@/lib/engine/publisher";
 import type { BoardCard } from "@/lib/types";
+import { guard } from "@/lib/auth/guard";
 
 /** Create a card. Landing in a HITL column starts it as pending approval. */
 export async function POST(req: Request) {
+  const denied = await guard("customers.write");
+  if (denied) return denied;
+
   const body = (await req.json()) as Partial<BoardCard> & { boardId: string; columnId: string; title: string };
   const db = read();
   const board = db.boards.find((b) => b.id === body.boardId);
@@ -46,6 +50,9 @@ export async function POST(req: Request) {
  * the column human-in-the-loop.
  */
 export async function PATCH(req: Request) {
+  const denied = await guard("customers.write");
+  if (denied) return denied;
+
   const body = (await req.json()) as {
     cardId: string;
     columnId?: string;
@@ -102,6 +109,9 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const denied = await guard("customers.write");
+  if (denied) return denied;
+
   const { cardId } = (await req.json()) as { cardId: string };
   const brandId = read().boardCards.find((c) => c.id === cardId)?.brandId;
   mutate((db) => void (db.boardCards = db.boardCards.filter((c) => c.id !== cardId)));

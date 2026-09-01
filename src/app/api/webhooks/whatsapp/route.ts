@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { mutate, read } from "@/lib/db";
 import { uid } from "@/lib/ids";
 import { parseWebhook } from "@/lib/platforms/whatsapp";
+import { handleInbound } from "@/lib/ops/agent";
+import { ensureOpsSeed, defaultOrgId } from "@/lib/ops/seed";
+import { receiveDocument } from "@/lib/ops/documents";
+import { activeCase, caseProgress } from "@/lib/ops/loan";
+import { findByPhone } from "@/lib/ops/customers";
 
 /**
  * Meta verifies a webhook by GETting it with a challenge and expects the raw
@@ -25,8 +30,38 @@ export async function GET(req: Request) {
  * 200, so we acknowledge first and keep the work minimal — and we key on the
  * platform message id so a retry cannot duplicate the conversation.
  */
+/**
+ * Signature verification.
+ *
+ * Meta signs every webhook with the app secret. Without this check, anyone who
+ * learns the URL can inject messages into a customer's conversation and drive
+ * the workflow. Enforced whenever META_APP_SECRET is configured.
+ */
+async function verifySignature(raw: string, header: string | null): Promise<boolean> {
+  const secret = process.env.META_APP_SECRET;
+  if (!secret) return true; // not configured — mock/dev mode
+  if (!header?.startsWith("sha256=")) return false;
+  const { createHmac, timingSafeEqual } = await import("node:crypto");
+  const expected = createHmac("sha256", secret).update(raw).digest("hex");
+  const a = Buffer.from(header.slice(7));
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function POST(req: Request) {
-  const payload = await req.json();
+  // Read the body once as text so the signature covers the exact bytes received.
+  const raw = await req.text();
+  if (!(await verifySignature(raw, req.headers.get("x-hub-signature-256")))) {
+    return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
+  }
+
   const messages = parseWebhook(payload);
   if (!messages.length) return NextResponse.json({ ok: true, ignored: "no messages in payload" });
 
@@ -67,5 +102,88 @@ export async function POST(req: Request) {
     return n;
   });
 
-  return NextResponse.json({ ok: true, received: messages.length, created });
+  // ---- Ops workflow ------------------------------------------------------
+  // The existing social inbox behaviour above is untouched. Each message is now
+  // additionally driven through the customer lifecycle agent. Failures here are
+  // captured per message rather than failing the webhook: returning non-2xx to
+  // Meta triggers redelivery, which would replay every message in the batch.
+  const orgId = defaultOrgId();
+  ensureOpsSeed(orgId);
+
+  const outcomes: Array<Record<string, unknown>> = [];
+  for (const m of messages) {
+    try {
+      let documentId: string | undefined;
+
+      // Media arrives as an id that must be downloaded from the Graph API. In
+      // mock mode there is no media to fetch, so the message is handled as text
+      // and the document path is exercised by the upload endpoint and tests.
+      if (m.type !== "text" && m.type !== "interactive") {
+        const customer = findByPhone(orgId, m.from);
+        const loanCase = customer ? activeCase(customer.id) : undefined;
+        const media = await fetchWhatsAppMedia(m.mediaId);
+        if (media && customer && loanCase) {
+          const progress = caseProgress(loanCase.id);
+          // Attribute to the item we most recently asked for; if a rejected item
+          // is outstanding it takes precedence, since that is what we chased.
+          const target = progress.rejected[0] ?? progress.missing[0];
+          const stored = await receiveDocument({
+            orgId,
+            customerId: customer.id,
+            filename: media.filename,
+            mimeType: media.mimeType,
+            data: media.data,
+            checklistItemId: target?.id,
+            loanCaseId: loanCase.id,
+            uploadedBy: "customer",
+          });
+          if (stored.ok) documentId = stored.document.id;
+        }
+      }
+
+      const outcome = await handleInbound({
+        orgId,
+        phone: m.from,
+        name: m.name,
+        body: m.text,
+        externalId: m.id,
+        documentId,
+        receivedAt: m.timestamp,
+      });
+      outcomes.push({ id: m.id, customerId: outcome.customerId, replied: Boolean(outcome.reply), silent: outcome.silentReason });
+    } catch (e) {
+      console.error("[whatsapp/ops]", (e as Error).message);
+      outcomes.push({ id: m.id, error: (e as Error).message });
+    }
+  }
+
+  return NextResponse.json({ ok: true, received: messages.length, created, ops: outcomes });
+}
+
+/** Media download. Returns null in mock mode or when no token is configured. */
+async function fetchWhatsAppMedia(
+  mediaId?: string,
+): Promise<{ data: Buffer; mimeType: string; filename: string } | null> {
+  const token = process.env.META_SYSTEM_USER_TOKEN;
+  if (!mediaId || !token || process.env.PLATFORM_DRIVER !== "live") return null;
+  const version = process.env.META_GRAPH_VERSION ?? "v23.0";
+  try {
+    const meta = await fetch(`https://graph.facebook.com/${version}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!meta.ok) return null;
+    const info = (await meta.json()) as { url?: string; mime_type?: string };
+    if (!info.url) return null;
+    const bin = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!bin.ok) return null;
+    const mimeType = info.mime_type ?? "application/octet-stream";
+    const ext = mimeType === "application/pdf" ? "pdf" : (mimeType.split("/")[1] ?? "bin");
+    return {
+      data: Buffer.from(await bin.arrayBuffer()),
+      mimeType,
+      filename: `whatsapp-${mediaId}.${ext}`,
+    };
+  } catch {
+    return null;
+  }
 }

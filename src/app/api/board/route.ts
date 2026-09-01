@@ -3,9 +3,13 @@ import { mutate, read, resolveBrandId } from "@/lib/db";
 import { makeBoard, templateColumns } from "@/lib/board/templates";
 import { logActivity } from "@/lib/engine/publisher";
 import type { Board, BoardColumn, BoardFieldKey } from "@/lib/types";
+import { guard } from "@/lib/auth/guard";
 
 /** Fetch (creating on first use) the board for a brand. */
 export async function GET(req: Request) {
+  const denied = await guard("customers.read");
+  if (denied) return denied;
+
   const url = new URL(req.url);
   const db = read();
   const brandId = resolveBrandId(db, url.searchParams.get("brand"));
@@ -28,6 +32,9 @@ export async function GET(req: Request) {
  * make silently.
  */
 export async function PATCH(req: Request) {
+  const denied = await guard("customers.read");
+  if (denied) return denied;
+
   const body = (await req.json()) as {
     boardId: string;
     name?: string;

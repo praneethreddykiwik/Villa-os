@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Database } from "./types";
+import { EMPTY_OPS } from "./ops/types";
 
 /**
  * Storage is a single JSON document behind a narrow repository interface.
@@ -12,7 +13,10 @@ import type { Database } from "./types";
  * directly.
  */
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+// Overridable so tests run against an isolated store instead of the dev data.
+const DATA_DIR = process.env.OPS_DATA_DIR
+  ? path.resolve(process.env.OPS_DATA_DIR)
+  : path.join(process.cwd(), ".data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 
 const EMPTY: Database = {
@@ -39,6 +43,7 @@ const EMPTY: Database = {
   brokers: [],
   crmContacts: [],
   crmTasks: [],
+  ...EMPTY_OPS,
 };
 
 let cache: Database | null = null;

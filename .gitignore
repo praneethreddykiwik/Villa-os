@@ -6,3 +6,7 @@ node_modules
 *.tsbuildinfo
 next-env.d.ts
 media/renders
+.test-build
+.private
+.provisioned-credentials.txt
+.DS_Store

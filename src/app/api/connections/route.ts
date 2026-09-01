@@ -5,6 +5,7 @@ import { specFor } from "@/lib/platforms/oauth";
 import { channelMeta } from "@/lib/platforms/registry";
 import { logActivity } from "@/lib/engine/publisher";
 import type { ChannelId } from "@/lib/types";
+import { guard } from "@/lib/auth/guard";
 
 /**
  * Connect / reconnect / disconnect a channel.
@@ -15,6 +16,9 @@ import type { ChannelId } from "@/lib/types";
  * demonstrable without registering six developer apps.
  */
 export async function POST(req: Request) {
+  const denied = await guard("workflows.manage");
+  if (denied) return denied;
+
   const body = (await req.json()) as { brandId?: string; channel: ChannelId; handle?: string; action?: "connect" | "disconnect" | "reconnect" };
   const db = read();
   const brandId = resolveBrandId(db, body.brandId);
