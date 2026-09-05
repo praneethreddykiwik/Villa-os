@@ -156,3 +156,16 @@ export async function DELETE(req: Request) {
   });
   return NextResponse.json({ ok: true });
 }
+
+export async function GET(req: Request) {
+  const denied = await guard("marketing.read");
+  if (denied) return denied;
+
+  const url = new URL(req.url);
+  const db = read();
+  const brandId = resolveBrandId(db, url.searchParams.get("brand"));
+  const posts = db.posts.filter((p) => !brandId || p.brandId === brandId);
+
+  return NextResponse.json({ ok: true, posts });
+}
+

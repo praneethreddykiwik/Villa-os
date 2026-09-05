@@ -92,6 +92,7 @@ export async function checkUploadPostStatus(): Promise<UploadPostStatusResult> {
         Authorization: `Apikey ${key}`,
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!meRes.ok) {
@@ -113,6 +114,7 @@ export async function checkUploadPostStatus(): Promise<UploadPostStatusResult> {
         Authorization: `Apikey ${key}`,
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
 
     let profiles: UploadPostProfile[] = [];

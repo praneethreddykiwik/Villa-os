@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { mutate } from "@/lib/db";
+import { mutate, read, resolveBrandId } from "@/lib/db";
 import { uid } from "@/lib/ids";
 import type { CrmTask } from "@/lib/crm/types";
 import { guard } from "@/lib/auth/guard";
@@ -50,3 +50,20 @@ export async function PATCH(req: Request) {
   if (!task) return NextResponse.json({ ok: false, error: "task not found" }, { status: 404 });
   return NextResponse.json({ ok: true, task });
 }
+
+export async function GET(req: Request) {
+  const denied = await guard("customers.read");
+  if (denied) return denied;
+
+  const url = new URL(req.url);
+  const db = read();
+  const brandId = resolveBrandId(db, url.searchParams.get("brand"));
+  const status = url.searchParams.get("status");
+
+  let tasks = db.crmTasks;
+  if (brandId) tasks = tasks.filter((t) => t.brandId === brandId);
+  if (status) tasks = tasks.filter((t) => t.status === status);
+
+  return NextResponse.json({ ok: true, tasks });
+}
+

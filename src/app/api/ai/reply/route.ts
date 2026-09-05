@@ -2,37 +2,52 @@ import { NextResponse } from "next/server";
 import { mutate, read } from "@/lib/db";
 import { draftReply } from "@/lib/ai/reviews";
 import { guard } from "@/lib/auth/guard";
+import { apiError, apiFail, apiOk } from "@/lib/auth/http";
 
 /** Draft (or publish) a review reply. Drafting never posts — a human clicks send. */
 export async function POST(req: Request) {
   const denied = await guard("customers.write");
   if (denied) return denied;
 
-  const body = (await req.json()) as { reviewId: string; publish?: boolean; text?: string };
-  const db = read();
-  const review = db.reviews.find((r) => r.id === body.reviewId);
-  if (!review) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
-  const brand = db.brands.find((b) => b.id === review.brandId)!;
+  try {
+    let body: { reviewId?: string; publish?: boolean; text?: string };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return apiFail("Request body must be valid JSON.", 400);
+    }
 
-  if (body.publish) {
-    const text = body.text ?? review.draftReply ?? "";
+    if (!body.reviewId) return apiFail("reviewId is required.", 400);
+
+    const db = read();
+    const review = db.reviews.find((r) => r.id === body.reviewId);
+    if (!review) return apiFail("Review not found.", 404);
+    const brand = db.brands.find((b) => b.id === review.brandId);
+    if (!brand) return apiFail("Brand not found.", 404);
+
+    if (body.publish) {
+      const text = body.text ?? review.draftReply ?? "";
+      mutate((d) => {
+        const r = d.reviews.find((x) => x.id === body.reviewId)!;
+        r.replied = true;
+        r.reply = text;
+        r.repliedAt = new Date().toISOString();
+        r.draftReply = undefined;
+      });
+      return apiOk({ reply: text });
+    }
+
+    const text = await draftReply(brand, review);
     mutate((d) => {
       const r = d.reviews.find((x) => x.id === body.reviewId)!;
-      r.replied = true;
-      r.reply = text;
-      r.repliedAt = new Date().toISOString();
-      r.draftReply = undefined;
+      r.draftReply = text;
     });
-    return NextResponse.json({ ok: true, reply: text });
+    return apiOk({ draft: text });
+  } catch (e) {
+    return apiError(e);
   }
-
-  const text = await draftReply(brand, review);
-  mutate((d) => {
-    const r = d.reviews.find((x) => x.id === body.reviewId)!;
-    r.draftReply = text;
-  });
-  return NextResponse.json({ ok: true, draft: text });
 }
+
 
 /** Bulk-draft every unanswered review at or above a rating threshold. */
 export async function PUT(req: Request) {

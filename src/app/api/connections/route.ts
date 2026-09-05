@@ -105,3 +105,34 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: false, error: setup, missingEnv }, { status: 400 });
 }
+
+export async function GET(req: Request) {
+  const denied = await guard("workflows.manage");
+  if (denied) return denied;
+
+  const url = new URL(req.url);
+  const db = read();
+  const brandId = resolveBrandId(db, url.searchParams.get("brand"));
+
+  // Allowlist public connection fields only — never tokens
+  const connections = db.connections
+    .filter((c) => !brandId || c.brandId === brandId)
+    .map((c) => ({
+      id: c.id,
+      brandId: c.brandId,
+      channel: c.channel,
+      handle: c.handle,
+      externalId: c.externalId,
+      status: c.status,
+      scopes: c.scopes,
+      avatarColor: c.avatarColor,
+      followers: c.followers,
+      connectedAt: c.connectedAt,
+      lastSyncedAt: c.lastSyncedAt,
+      lastError: c.lastError,
+    }));
+
+  return NextResponse.json({ ok: true, connections });
+}
+
+

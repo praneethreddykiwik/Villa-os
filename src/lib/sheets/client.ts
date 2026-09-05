@@ -72,6 +72,7 @@ export async function checkGoogleSheetsStatus(): Promise<GoogleSheetsStatusResul
     const res = await fetch(`${SHEETS_BASE_URL}/__villa_os_probe_id__?key=${key}`, {
       method: "GET",
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
 
     const json = (await res.json().catch(() => ({}))) as {
