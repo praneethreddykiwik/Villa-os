@@ -25,6 +25,7 @@ const EMPTY: Database = {
   availability: [],
   webhookSubscribers: [],
   webhookDeliveries: [],
+  n8nSubmissions: [],
   brands: [],
   connections: [],
   media: [],

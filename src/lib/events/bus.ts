@@ -31,9 +31,9 @@ export const ORBIT_EVENTS = [
   "message.received",
 ] as const;
 
-export type OrbitEvent = (typeof ORBIT_EVENTS)[number];
+export type GlentreeEvent = (typeof ORBIT_EVENTS)[number];
 
-export function isOrbitEvent(v: unknown): v is OrbitEvent {
+export function isGlentreeEvent(v: unknown): v is GlentreeEvent {
   return typeof v === "string" && (ORBIT_EVENTS as readonly string[]).includes(v);
 }
 
@@ -45,7 +45,7 @@ export interface WebhookSubscriber {
   /** https only, re-validated at delivery time. See `checkWebhookUrl`. */
   url: string;
   /** Event names, or the single entry "*" for everything. */
-  events: Array<OrbitEvent | typeof ALL_EVENTS>;
+  events: Array<GlentreeEvent | typeof ALL_EVENTS>;
   /**
    * The HMAC key. Server-side only: the config route strips it from every
    * response, because a subscriber secret that has been read once is a forgery
@@ -64,11 +64,11 @@ export interface WebhookSubscriber {
 /** One outbound event, after all attempts for one subscriber have finished. */
 export interface WebhookDeliveryRecord {
   direction: "outbound";
-  /** The value sent as `x-orbit-delivery`, so a log line joins to n8n's own. */
+  /** The value sent as `x-glentree-delivery`, so a log line joins to n8n's own. */
   id: string;
   subscriberId: string;
   url: string;
-  event: OrbitEvent;
+  event: GlentreeEvent;
   at: string;
   ok: boolean;
   attempts: number;
@@ -197,7 +197,7 @@ export function publicSubscribers(): Array<Omit<WebhookSubscriber, "secret">> {
   return subscribers().map(({ secret: _secret, ...rest }) => rest);
 }
 
-export function subscribersFor(event: OrbitEvent): WebhookSubscriber[] {
+export function subscribersFor(event: GlentreeEvent): WebhookSubscriber[] {
   return subscribers().filter(
     (s) => s.active && (s.events.includes(ALL_EVENTS) || s.events.includes(event)),
   );
@@ -205,7 +205,7 @@ export function subscribersFor(event: OrbitEvent): WebhookSubscriber[] {
 
 export function addSubscriber(input: {
   url: string;
-  events: Array<OrbitEvent | typeof ALL_EVENTS>;
+  events: Array<GlentreeEvent | typeof ALL_EVENTS>;
   secret: string;
   createdBy: string;
 }): WebhookSubscriber {
@@ -335,9 +335,9 @@ export function rememberReceipt(
 /* -------------------------------------------------------------------------- */
 
 export interface EventEnvelope {
-  /** Same value as the `x-orbit-delivery` header. */
+  /** Same value as the `x-glentree-delivery` header. */
   id: string;
-  event: OrbitEvent;
+  event: GlentreeEvent;
   at: string;
   data: Record<string, unknown>;
 }
@@ -351,9 +351,9 @@ export function signBody(secret: string, body: string): string {
  *
  * Every request carries three headers:
  *
- *   x-orbit-event      the event name, e.g. "appointment.booked"
- *   x-orbit-delivery   a uuid, unique per (event, subscriber) attempt-group
- *   x-orbit-signature  "sha256=" + lowercase hex HMAC
+ *   x-glentree-event      the event name, e.g. "appointment.booked"
+ *   x-glentree-delivery   a uuid, unique per (event, subscriber) attempt-group
+ *   x-glentree-signature  "sha256=" + lowercase hex HMAC
  *
  * In the n8n Webhook node set **Raw Body = on**, then in a Code node:
  *
@@ -362,13 +362,13 @@ export function signBody(secret: string, body: string): string {
  *      the digest would not match.
  *   2. Compute  HMAC-SHA256(secret = <the secret you registered>, message = raw body)
  *      and hex-encode it lowercase.
- *   3. Compare  "sha256=" + that hex  against the x-orbit-signature header using
+ *   3. Compare  "sha256=" + that hex  against the x-glentree-signature header using
  *      a constant-time comparison (`crypto.timingSafeEqual` on equal-length
  *      buffers). A `===` here leaks the digest one byte at a time to anyone who
  *      can measure the response.
  *   4. Reject the request if it does not match. Nothing else in the payload is
  *      authenticated — the body is the only signed material.
- *   5. Treat x-orbit-delivery as a dedupe key. A retry after a timeout reuses
+ *   5. Treat x-glentree-delivery as a dedupe key. A retry after a timeout reuses
  *      it, so a workflow that stores the id can tell a retry from a new event.
  *
  * Node example:
@@ -376,16 +376,16 @@ export function signBody(secret: string, body: string): string {
  *   const raw = $request.rawBody;                       // Buffer
  *   const mac = crypto.createHmac('sha256', SECRET).update(raw).digest('hex');
  *   const a = Buffer.from(`sha256=${mac}`);
- *   const b = Buffer.from($request.headers['x-orbit-signature'] ?? '');
+ *   const b = Buffer.from($request.headers['x-glentree-signature'] ?? '');
  *   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new Error('bad signature');
  */
 function headersFor(sub: WebhookSubscriber, envelope: EventEnvelope, body: string): HeadersInit {
   return {
     "content-type": "application/json",
     "user-agent": "orbit-events/1",
-    "x-orbit-event": envelope.event,
-    "x-orbit-delivery": envelope.id,
-    "x-orbit-signature": signBody(sub.secret, body),
+    "x-glentree-event": envelope.event,
+    "x-glentree-delivery": envelope.id,
+    "x-glentree-signature": signBody(sub.secret, body),
   };
 }
 
@@ -471,7 +471,7 @@ async function deliverTo(sub: WebhookSubscriber, envelope: EventEnvelope): Promi
  * Awaitable, for the worker tick and for tests. Business code calls `emit()`.
  */
 export async function dispatch(
-  event: OrbitEvent,
+  event: GlentreeEvent,
   data: Record<string, unknown>,
 ): Promise<WebhookDeliveryRecord[]> {
   let targets: WebhookSubscriber[];
@@ -518,6 +518,53 @@ export async function dispatch(
 }
 
 /**
+ * Deliver a probe to one subscriber and report exactly what happened.
+ *
+ * This is the answer to "is the endpoint I just registered actually reachable,
+ * and does my workflow's signature check pass?" — a question that otherwise
+ * waits for the next real booking to answer, at which point a mistake has
+ * already cost a customer.
+ *
+ * Two deliberate choices:
+ *
+ *  - It reuses `deliverTo`, so the probe is signed, retried, timed out and
+ *    re-checked for SSRF by the same code a real delivery is. A test that takes
+ *    a shortcut tests the shortcut.
+ *  - The payload carries `test: true` and nothing else. Inventing a plausible
+ *    booking — a name, a phone number, a slot — is how a probe ends up in a
+ *    spreadsheet as a customer, or sends a stranger a WhatsApp message. A
+ *    workflow that does not branch on the flag will fail on the missing fields,
+ *    which is loud, local and harmless.
+ *
+ * The event name is one the subscriber already registered for, because a
+ * delivery it did not subscribe to would be filtered out by the very routing
+ * this is meant to prove.
+ */
+export async function sendTestEvent(subscriberId: string): Promise<WebhookDeliveryRecord | null> {
+  const sub = subscribers().find((s) => s.id === subscriberId);
+  if (!sub) return null;
+
+  const event: GlentreeEvent = sub.events.includes(ALL_EVENTS)
+    ? ORBIT_EVENTS[0]
+    : (sub.events.find((e): e is GlentreeEvent => e !== ALL_EVENTS) ?? ORBIT_EVENTS[0]);
+
+  const envelope: EventEnvelope = {
+    id: crypto.randomUUID(),
+    event,
+    at: new Date().toISOString(),
+    data: { test: true },
+  };
+
+  const record = await deliverTo(sub, envelope);
+  try {
+    recordDelivery(record);
+  } catch {
+    /* the log is diagnostics; losing a line must not lose the result */
+  }
+  return record;
+}
+
+/**
  * Announce that something happened. Fire-and-forget by design.
  *
  * Returns void rather than a promise so no call site can accidentally `await`
@@ -526,7 +573,7 @@ export async function dispatch(
  * unhandled rejection escaping here would take the process down under
  * `--unhandled-rejections=throw`.
  */
-export function emit(event: OrbitEvent, data: Record<string, unknown>): void {
+export function emit(event: GlentreeEvent, data: Record<string, unknown>): void {
   try {
     void dispatch(event, data).catch(() => {});
   } catch {

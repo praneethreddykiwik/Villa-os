@@ -1,4 +1,4 @@
-# Orbit — Social, Ads & Local Command Center
+# Glentree — Social, Ads & Local Command Center
 
 One dashboard to **create and edit video, publish everywhere, run Meta + Google ads, manage reviews and local visibility, and get ranked AI recommendations** — built multi-tenant from the first line so you point it at Villa today and at 50 other businesses tomorrow.
 

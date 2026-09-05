@@ -21,14 +21,14 @@ export function applyTheme(choice: ThemeChoice): void {
 
   // A cookie, not localStorage, so the server can render the correct theme on
   // the first response instead of flashing the wrong one.
-  document.cookie = `orbit-theme=${choice}; path=/; max-age=31536000; samesite=lax`;
+  document.cookie = `glentree-theme=${choice}; path=/; max-age=31536000; samesite=lax`;
 }
 
 export function ThemeToggle() {
   const [choice, setChoice] = useState<ThemeChoice>("dark");
 
   useEffect(() => {
-    const saved = (document.cookie.match(/(?:^|;\s*)orbit-theme=([^;]+)/)?.[1] as ThemeChoice | null) ?? "system";
+    const saved = (document.cookie.match(/(?:^|;\s*)glentree-theme=([^;]+)/)?.[1] as ThemeChoice | null) ?? "system";
     setChoice(saved);
   }, []);
 

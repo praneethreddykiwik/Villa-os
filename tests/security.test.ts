@@ -821,3 +821,18 @@ describe("a control that cannot fail is not a control", () => {
     );
   });
 });
+
+describe("records are filed under a real brand", () => {
+  test("a post cannot be created orphaned", () => {
+    // /api/posts took body.brandId verbatim. A caller omitting it wrote
+    // brandId: undefined — a record matching no brand, so invisible on the
+    // calendar, the queue and every analytics screen — while the response
+    // still said ok:true. Direct API callers and n8n both hit this path.
+    const src = read("src/app/api/posts/route.ts").replace(/\/\/.*$/gm, "");
+    assert.match(src, /resolveBrandId\(/, "the brand must be resolved, not trusted from the body");
+    assert.ok(
+      !/brandId:\s*body\.brandId/.test(src),
+      "the unresolved body value must not be written onto the record",
+    );
+  });
+});

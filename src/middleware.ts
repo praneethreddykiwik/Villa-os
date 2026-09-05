@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 /**
  * SECURITY MIDDLEWARE
@@ -97,7 +98,59 @@ function securityHeaders(nonce: string, isDev: boolean): Record<string, string> 
   };
 }
 
-export function middleware(req: NextRequest) {
+/**
+ * Refresh the Supabase session and carry the rotated cookies onto the response.
+ *
+ * Why this has to happen HERE and nowhere else: the access token lives about an
+ * hour, and rotating it means writing a new cookie. Server Components cannot set
+ * cookies — `serverClient()` in src/lib/supabase/client.ts even swallows the
+ * attempt with a "read-only rendering context" catch — so although
+ * `resolveSession()` calls getUser() on every render and Supabase hands back a
+ * fresh token, that token was thrown away every single time. An hour after
+ * signing in, the cookie held a dead access token and the operator was bounced
+ * to /signin. Middleware is the one place in the request path that can both read
+ * the old cookie and write the new one.
+ *
+ * The returned response is the one that must be sent: it carries the rotated
+ * cookies. Building a different NextResponse after calling this discards them
+ * and reintroduces the logout.
+ */
+async function withRefreshedSession(
+  req: NextRequest,
+  res: NextResponse,
+): Promise<{ res: NextResponse; signedIn: boolean }> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return { res, signedIn: false };
+  }
+
+  let out = res;
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll: () => req.cookies.getAll(),
+        setAll: (list) => {
+          for (const c of list) out.cookies.set(c.name, c.value, c.options);
+        },
+      },
+    },
+  );
+
+  try {
+    // getUser() re-validates with Supabase and triggers the refresh when the
+    // access token is stale. getSession() would trust the cookie and never
+    // rotate anything.
+    const { data } = await supabase.auth.getUser();
+    return { res: out, signedIn: Boolean(data.user) };
+  } catch {
+    // A Supabase outage must not lock everyone out of a page they are entitled
+    // to; fall back to the cheap cookie presence check below.
+    return { res: out, signedIn: hasSessionCookie(req) };
+  }
+}
+
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isDev = process.env.NODE_ENV !== "production";
   const nonce = crypto.randomUUID().replace(/-/g, "");
@@ -108,8 +161,17 @@ export function middleware(req: NextRequest) {
   requestHeaders.set("x-pathname", pathname);
 
   // ---- Authentication gate --------------------------------------------
-  if (!isPublic(pathname)) {
-    if (!hasSessionCookie(req)) {
+  //
+  // The response is created FIRST so the refresh can write rotated cookies onto
+  // the object that is actually returned.
+  const base = NextResponse.next({ request: { headers: requestHeaders } });
+  const publicPath = isPublic(pathname);
+  const { res: refreshed, signedIn } = publicPath
+    ? { res: base, signedIn: false }
+    : await withRefreshedSession(req, base);
+
+  if (!publicPath) {
+    if (!signedIn) {
       if (pathname.startsWith("/api/")) {
         const res = NextResponse.json({ ok: false, error: "Sign in to continue." }, { status: 401 });
         for (const [k, v] of Object.entries(securityHeaders(nonce, isDev))) res.headers.set(k, v);
@@ -124,9 +186,8 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  const res = NextResponse.next({ request: { headers: requestHeaders } });
-  for (const [k, v] of Object.entries(securityHeaders(nonce, isDev))) res.headers.set(k, v);
-  return res;
+  for (const [k, v] of Object.entries(securityHeaders(nonce, isDev))) refreshed.headers.set(k, v);
+  return refreshed;
 }
 
 export const config = {

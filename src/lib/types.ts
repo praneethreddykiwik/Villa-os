@@ -1,4 +1,5 @@
 import type { Appointment, AvailabilityConfig } from "./appointments/types";
+import type { N8nSubmission } from "./automation/types";
 import type { WebhookLogEntry, WebhookSubscriber } from "./events/bus";
 /**
  * Domain model for the whole product. Everything is multi-tenant from day one:
@@ -550,6 +551,13 @@ export interface Database {
    */
   webhookSubscribers: WebhookSubscriber[];
   webhookDeliveries: WebhookLogEntry[];
+  /**
+   * Videos handed to the operator's n8n posting workflow. Kept here rather than
+   * inferred from the delivery log because a forward is not an event delivery:
+   * it carries a file, it is initiated by a person, and "who sent that video and
+   * did it land" is a question the delivery log cannot answer.
+   */
+  n8nSubmissions: N8nSubmission[];
   brands: Brand[];
   connections: Connection[];
   media: MediaAsset[];

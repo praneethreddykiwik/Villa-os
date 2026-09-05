@@ -34,7 +34,7 @@ import type { ChannelId } from "@/lib/types";
  *    intermediary's logs.
  */
 
-export const STATE_COOKIE = "orbit_oauth_state";
+export const STATE_COOKIE = "glentree_oauth_state";
 
 /** Redirect back to the Connections screen with a short, safe status message. */
 function back(origin: string, params: Record<string, string>): NextResponse {

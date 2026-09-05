@@ -100,7 +100,7 @@ export default async function ConnectionsPage({
                       <div>Formats: {adapter.capabilities.formats.join(", ")}</div>
                       <div>Caption: {adapter.capabilities.captionLimit.toLocaleString()} chars · {adapter.capabilities.hashtagLimit} hashtags · {adapter.capabilities.maxMedia} media</div>
                       <div>
-                        {adapter.capabilities.supportsNativeScheduling ? "Native scheduling" : "Queued by Orbit"}
+                        {adapter.capabilities.supportsNativeScheduling ? "Native scheduling" : "Queued by Glentree"}
                         {adapter.capabilities.supportsStories && " · stories"}
                         {adapter.capabilities.supportsFirstComment && " · first comment"}
                       </div>

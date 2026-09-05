@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { mutate, read } from "@/lib/db";
+import { mutate, read, resolveBrandId } from "@/lib/db";
 import { uid } from "@/lib/ids";
 import { adapterFor } from "@/lib/platforms/registry";
 import { logActivity } from "@/lib/engine/publisher";
@@ -39,6 +39,31 @@ export async function POST(req: Request) {
   };
 
   const db = read();
+
+  /**
+   * Resolve the brand rather than trusting the body.
+   *
+   * This took `body.brandId` verbatim. A caller that omitted it — the composer
+   * does send one, but the API is reachable directly and n8n will be — wrote a
+   * post with `brandId: undefined`, which matches no brand, so the record was
+   * orphaned: invisible on the calendar, the queue and every analytics screen,
+   * while the response said `ok: true`. An explicitly named brand that does not
+   * exist is a mistake worth reporting; an absent one falls back the way every
+   * other route in this codebase does.
+   */
+  const brandId = resolveBrandId(db, body.brandId ?? null);
+  if (!brandId) {
+    return NextResponse.json(
+      { ok: false, error: "No brand is configured to file this post under." },
+      { status: 409 },
+    );
+  }
+  if (body.brandId && body.brandId !== brandId) {
+    return NextResponse.json(
+      { ok: false, error: `Unknown brand "${body.brandId}".` },
+      { status: 404 },
+    );
+  }
   const connections = db.connections.filter((c) => body.connectionIds.includes(c.id));
   const errors: string[] = [];
 
@@ -77,7 +102,7 @@ export async function POST(req: Request) {
   const now = new Date().toISOString();
   const post: Post = {
     id: uid("post"),
-    brandId: body.brandId,
+    brandId,
     status: body.status ?? "scheduled",
     caption: body.caption,
     hashtags: body.hashtags,
@@ -94,7 +119,7 @@ export async function POST(req: Request) {
   mutate((d) => {
     d.posts.push(post);
   });
-  logActivity(body.brandId, "compose", `Scheduled "${post.caption.slice(0, 40)}" to ${targets.length} channels`, actorLabel(session));
+  logActivity(brandId, "compose", `Scheduled "${post.caption.slice(0, 40)}" to ${targets.length} channels`, actorLabel(session));
   return NextResponse.json({ ok: true, post });
 }
 

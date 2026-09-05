@@ -6,6 +6,8 @@ import {
   Activity, BarChart3, CalendarCheck, CalendarDays, Film, Gauge, Inbox, KanbanSquare, Lightbulb, MapPin,
   Megaphone, PenSquare, PlugZap, Sparkles, Star, FileText, Settings,
   Users, GitBranch, Contact, UserCheck, ListTodo, BellRing, Building2, Wallet, ShieldCheck, MessageSquare,
+  PhoneCall,
+  Instagram, Facebook, Linkedin, Youtube, Workflow,
 } from "lucide-react";
 import clsx from "clsx";
 import type { Brand } from "@/lib/types";
@@ -29,6 +31,15 @@ const NAV: NavSection[] = [
     { href: "/insights", label: "AI Insights", icon: Sparkles, badgeKey: "suggestions" as const },
     { href: "/analytics", label: "Analytics", icon: BarChart3 },
   ]},
+  // One tab per network, each tracking that network on its own. Gated by the
+  // same map the pages are: `requiredPermissionFor` matches /^\/channels/ to
+  // marketing.read, so these links cannot outlive the permission behind them.
+  { group: "Channels", items: [
+    { href: "/channels/instagram", label: "Instagram", icon: Instagram },
+    { href: "/channels/facebook", label: "Facebook", icon: Facebook },
+    { href: "/channels/linkedin", label: "LinkedIn", icon: Linkedin },
+    { href: "/channels/youtube", label: "YouTube", icon: Youtube },
+  ]},
   { group: "Create & publish", items: [
     { href: "/composer", label: "Composer", icon: PenSquare },
     { href: "/studio", label: "Video Studio", icon: Film },
@@ -47,6 +58,9 @@ const NAV: NavSection[] = [
     { href: "/crm/appointments", label: "Site visits", icon: CalendarCheck },
     { href: "/crm/tasks", label: "Tasks", icon: ListTodo },
     { href: "/crm/follow-ups", label: "Follow-ups", icon: BellRing },
+    // Voice sits in CRM rather than Grow because every call on it is made to a
+    // lead in this list, and it is gated on customers.read like the directory.
+    { href: "/voice", label: "Voice agent", icon: PhoneCall },
   ]},
   { group: "Grow", items: [
     { href: "/ads", label: "Ads · Meta + Google", icon: Megaphone },
@@ -63,6 +77,10 @@ const NAV: NavSection[] = [
   ]},
   { group: "Deliver", items: [
     { href: "/reports", label: "Reports", icon: FileText },
+    // Reachable on marketing.read, matching /^\/automation/ in the access map:
+    // the screen's everyday half is the video-posting form, and the webhook
+    // registry on it is gated by its own API rather than by this link.
+    { href: "/automation", label: "Automation", icon: Workflow },
     { href: "/activity", label: "Activity", icon: Activity },
     { href: "/connections", label: "Connections", icon: PlugZap },
     { href: "/settings", label: "Settings", icon: Settings },
@@ -103,7 +121,7 @@ export function Sidebar({
           O
         </div>
         <div>
-          <div className="text-[13px] font-semibold leading-tight">Orbit</div>
+          <div className="text-[13px] font-semibold leading-tight">Glentree</div>
           <div className="text-[10px] leading-tight text-mist-400">Social · Ads · Local</div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { BarChart3, MessageSquare, ShieldCheck, Workflow } from "lucide-react";
-import { OrbitMark } from "./mark";
+import { GlentreeMark } from "./mark";
 
 /**
  * The left half of the sign-in screen on wide viewports.
@@ -31,9 +31,9 @@ export function BrandPanel() {
   return (
     <div className="relative hidden flex-col gap-12 py-12 pl-10 lg:flex xl:pl-4">
       <div className="flex items-center gap-3.5">
-        <OrbitMark size={46} />
+        <GlentreeMark size={46} />
         <div>
-          <div className="text-[17px] font-semibold tracking-tight text-mist-100">Orbit</div>
+          <div className="text-[17px] font-semibold tracking-tight text-mist-100">Glentree</div>
           <div className="text-[11.5px] text-mist-500">Social · Ads · CRM · Operations</div>
         </div>
       </div>

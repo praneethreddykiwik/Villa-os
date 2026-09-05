@@ -18,7 +18,7 @@ after(() => cleanup(dir));
 const bus = require("../src/lib/events/bus") as typeof import("../src/lib/events/bus");
 const { mutate, read } = require("../src/lib/db") as typeof import("../src/lib/db");
 
-function register(url: string, events: Array<import("../src/lib/events/bus").OrbitEvent | "*">): string {
+function register(url: string, events: Array<import("../src/lib/events/bus").GlentreeEvent | "*">): string {
   // Written straight to the store rather than through addSubscriber's caller, so
   // a URL the config route would reject can still be exercised at delivery time.
   const sub = bus.addSubscriber({ url, events, secret: "s".repeat(32), createdBy: "test" });
@@ -82,12 +82,12 @@ describe("delivery signing", () => {
     // Recomputed the way the documented n8n snippet does it: over the raw body,
     // never over a re-stringified parse.
     const expected = `sha256=${createHmac("sha256", "s".repeat(32)).update(body, "utf8").digest("hex")}`;
-    assert.equal(headers["x-orbit-signature"], expected);
-    assert.equal(headers["x-orbit-event"], "appointment.booked");
-    assert.match(headers["x-orbit-delivery"], /^[0-9a-f-]{36}$/);
+    assert.equal(headers["x-glentree-signature"], expected);
+    assert.equal(headers["x-glentree-event"], "appointment.booked");
+    assert.match(headers["x-glentree-delivery"], /^[0-9a-f-]{36}$/);
     // The delivery id in the header is the one inside the signed envelope, so a
     // subscriber can dedupe on it without trusting an unsigned header.
-    assert.equal(JSON.parse(body).id, headers["x-orbit-delivery"]);
+    assert.equal(JSON.parse(body).id, headers["x-glentree-delivery"]);
   });
 });
 

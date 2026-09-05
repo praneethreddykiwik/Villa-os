@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Orbit — Social & Ads Command Center",
+  title: "Glentree — Social & Ads Command Center",
   description: "Publish everywhere, run Meta and Google ads, and get AI recommendations in one place.",
 };
 
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
  * prefers-color-scheme media query in globals.css.
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const choice = (await cookies()).get("orbit-theme")?.value;
+  const choice = (await cookies()).get("glentree-theme")?.value;
   const explicit = choice === "light" || choice === "dark" ? choice : undefined;
 
   return (

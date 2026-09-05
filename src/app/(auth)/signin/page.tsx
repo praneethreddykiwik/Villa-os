@@ -6,12 +6,12 @@ import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { BrandPanel } from "@/components/auth/brand-panel";
 import { RotatePasswordForm, SignInForm } from "@/components/auth/sign-in-form";
 import { SignedOutNotice } from "@/components/auth/signed-out-notice";
-import { OrbitMark } from "@/components/auth/mark";
+import { GlentreeMark } from "@/components/auth/mark";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Sign in · Orbit",
+  title: "Sign in · Glentree",
   description: "Sign in to your workspace.",
 };
 
@@ -64,9 +64,9 @@ export default async function SignInPage({
           {/* The mark repeats here only where the brand panel is hidden, so the
               wide layout never shows it twice. */}
           <div className="mb-7 flex flex-col items-center gap-3 text-center lg:hidden">
-            <OrbitMark size={54} />
+            <GlentreeMark size={54} />
             <div>
-              <div className="text-[19px] font-semibold tracking-tight text-mist-100">Orbit</div>
+              <div className="text-[19px] font-semibold tracking-tight text-mist-100">Glentree</div>
               <div className="text-[12px] text-mist-500">Social · Ads · CRM · Operations</div>
             </div>
           </div>

@@ -8,12 +8,12 @@ import {
   ORBIT_EVENTS,
   addSubscriber,
   checkWebhookUrl,
-  isOrbitEvent,
+  isGlentreeEvent,
   publicSubscribers,
   recentDeliveries,
   removeSubscriber,
   subscribers,
-  type OrbitEvent,
+  type GlentreeEvent,
 } from "@/lib/events/bus";
 
 /**
@@ -77,13 +77,13 @@ export async function POST(req: Request) {
     if (!raw.length) {
       return apiFail(`Choose at least one event, or "${ALL_EVENTS}" for all of them.`, 400);
     }
-    const events: Array<OrbitEvent | typeof ALL_EVENTS> = [];
+    const events: Array<GlentreeEvent | typeof ALL_EVENTS> = [];
     for (const e of raw) {
       if (e === ALL_EVENTS) {
         events.push(ALL_EVENTS);
         continue;
       }
-      if (!isOrbitEvent(e)) {
+      if (!isGlentreeEvent(e)) {
         return apiFail(`Unknown event "${String(e).slice(0, 60)}". Known events: ${ORBIT_EVENTS.join(", ")}.`, 400);
       }
       events.push(e);
