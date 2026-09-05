@@ -95,9 +95,11 @@ const NAV: NavSection[] = [
 export function Sidebar({
   counts,
   permissions = [],
+  sessionInfo,
 }: {
   counts: Record<string, number>;
   permissions?: string[];
+  sessionInfo?: { name: string; email: string; role?: string };
 }) {
   const allowed = new Set(permissions);
   const visible = NAV.map((section) => ({
@@ -115,21 +117,25 @@ export function Sidebar({
   const qs = params.get("brand") ? `?brand=${params.get("brand")}` : "";
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[228px] shrink-0 flex-col border-r border-ink-800 bg-ink-900/60">
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-[var(--a-on)]">
-          O
+    <aside className="sticky top-0 flex h-screen w-[236px] shrink-0 flex-col border-r border-ink-800/80 bg-ink-950/70 backdrop-blur-2xl">
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-ink-800/40">
+        <div className="relative grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600 text-sm font-bold text-[var(--a-on)] shadow-md shadow-brand-500/20">
+          <span className="font-extrabold tracking-tight">V</span>
+          <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-ink-950 bg-good-400" />
         </div>
-        <div>
-          <div className="text-[13px] font-semibold leading-tight">Glentree</div>
-          <div className="text-[10px] leading-tight text-mist-400">Social · Ads · Local</div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13.5px] font-bold tracking-tight text-mist-100">Villa-OS</span>
+            <span className="rounded-full bg-brand-500/15 px-1.5 py-0.2 text-[9px] font-semibold text-brand-400 border border-brand-500/20">v2.4</span>
+          </div>
+          <div className="truncate text-[10.5px] text-mist-400">Operations &amp; AI Center</div>
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 pb-6">
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
         {visible.map((section) => (
           <div key={section.group} className="mb-5">
-            <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-mist-400/70">
+            <div className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-mist-400/70">
               {section.group}
             </div>
             {section.items.map((item) => {
@@ -141,14 +147,24 @@ export function Sidebar({
                   key={item.href}
                   href={`${item.href}${qs}`}
                   className={clsx(
-                    "group mb-0.5 flex items-center gap-2.5 rounded-lg px-2 py-[7px] text-[13px] transition-colors",
-                    active ? "bg-brand-500/12 text-mist-100" : "text-mist-300 hover:bg-ink-800 hover:text-mist-100",
+                    "group relative mb-0.5 flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all duration-150",
+                    active
+                      ? "bg-gradient-to-r from-brand-500/16 to-brand-500/4 text-mist-100 shadow-sm border-l-2 border-brand-400"
+                      : "text-mist-400 hover:bg-ink-800/60 hover:text-mist-100",
                   )}
                 >
-                  <Icon size={15} className={active ? "text-brand-400" : "text-mist-400 group-hover:text-mist-200"} />
+                  <Icon
+                    size={15}
+                    className={clsx(
+                      "transition-transform duration-150 group-hover:scale-110",
+                      active ? "text-brand-400" : "text-mist-400 group-hover:text-mist-200",
+                    )}
+                  />
                   <span className="flex-1 truncate">{item.label}</span>
                   {count > 0 && (
-                    <span className="tnum rounded-full bg-ink-700 px-1.5 text-[10px] font-semibold text-mist-200">{count}</span>
+                    <span className="tnum rounded-full border border-brand-500/30 bg-brand-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-brand-300">
+                      {count}
+                    </span>
                   )}
                 </Link>
               );
@@ -156,6 +172,23 @@ export function Sidebar({
           </div>
         ))}
       </nav>
+
+      {sessionInfo && (
+        <div className="mt-auto border-t border-ink-800/60 p-3">
+          <div className="flex items-center gap-2.5 rounded-xl bg-ink-900/60 p-2.5 border border-ink-800/50 backdrop-blur">
+            <div className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-ink-700 to-ink-800 text-[11px] font-bold text-mist-200 uppercase border border-ink-700">
+              {sessionInfo.name ? sessionInfo.name.charAt(0) : "U"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[12px] font-medium text-mist-100">{sessionInfo.name}</div>
+              <div className="truncate text-[10px] text-mist-400 capitalize">
+                {sessionInfo.role ? sessionInfo.role.replace(/_/g, " ") : "Staff"}
+              </div>
+            </div>
+            <span className="beacon-dot bg-good-400 shrink-0" title="Online" />
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
@@ -193,23 +226,32 @@ export function TopBar({
   const range = params.get("range") ?? "30";
 
   return (
-    <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-ink-800 bg-ink-950/85 px-7 py-3.5 backdrop-blur">
+    <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-ink-800/70 bg-ink-950/75 px-7 py-3.5 backdrop-blur-2xl">
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-[17px] font-semibold tracking-tight">{title}</h1>
+        <h1 className="truncate text-[17px] font-bold tracking-tight gradient-heading">{title}</h1>
         {subtitle && <p className="truncate text-xs text-mist-400">{subtitle}</p>}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
+        <Link
+          href="/setup"
+          className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-good-500/25 bg-good-500/10 px-2.5 py-1 text-[11px] font-medium text-good-400 hover:bg-good-500/15 transition-colors"
+        >
+          <span className="beacon-dot bg-good-400" />
+          <span>Live Ops</span>
+        </Link>
         {right}
         <ThemeToggle />
-        <div className="flex overflow-hidden rounded-lg border border-ink-700">
+        <div className="flex overflow-hidden rounded-xl border border-ink-700/80 bg-ink-900/50 p-0.5">
           {["7", "30", "90"].map((d) => (
             <button
               key={d}
               onClick={() => setRange(d)}
               className={clsx(
-                "px-2.5 py-1.5 text-[12px] transition-colors",
-                range === d ? "bg-ink-700 text-mist-100" : "text-mist-400 hover:text-mist-200",
+                "rounded-lg px-2.5 py-1 text-[11.5px] font-medium transition-all duration-150",
+                range === d
+                  ? "bg-brand-500/15 text-brand-300 border border-brand-500/25 shadow-sm"
+                  : "text-mist-400 hover:text-mist-200",
               )}
             >
               {d}d
@@ -221,14 +263,16 @@ export function TopBar({
           <select
             value={brandId}
             onChange={(e) => switchBrand(e.target.value)}
-            className="appearance-none rounded-lg border border-ink-700 bg-ink-850 py-1.5 pl-7 pr-7 text-[12px] text-mist-100 outline-none hover:border-ink-600"
+            className="appearance-none rounded-xl border border-ink-700/80 bg-ink-900/70 py-1.5 pl-7 pr-7 text-[12px] font-medium text-mist-100 outline-none hover:border-ink-600 backdrop-blur-md cursor-pointer transition-colors"
           >
             {brands.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
             ))}
           </select>
           <span
-            className="pointer-events-none absolute left-2.5 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full"
+            className="pointer-events-none absolute left-2.5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ring-2 ring-ink-950"
             style={{ background: brand?.color }}
           />
         </div>

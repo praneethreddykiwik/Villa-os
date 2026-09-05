@@ -88,22 +88,24 @@ export function Pipeline({ leads }: { leads: PipelineLead[] }) {
   );
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-4 text-[12px] text-mist-400">
-        <span>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-ink-800/80 bg-ink-950/40 backdrop-blur-md px-4 py-2.5 text-[12px] text-mist-400">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-good-400 beacon-dot" />
           Weighted forecast{" "}
           <span className="tnum font-semibold text-mist-100">{inr(totalWeighted)}</span>
         </span>
+        <span className="text-ink-700">|</span>
         <span>
           Gross open{" "}
           <span className="tnum font-semibold text-mist-100">
             {inr(rows.filter((l) => !["won", "lost"].includes(l.status)).reduce((a, l) => a + (l.budgetMin + l.budgetMax) / 2, 0))}
           </span>
         </span>
-        <span className="text-mist-500">Drag a card to move the deal — milestone dates and follow-ups update automatically.</span>
+        <span className="text-mist-500 ml-auto hidden md:inline">Drag a card to move the deal — milestone dates and follow-ups update automatically.</span>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="flex gap-3.5 overflow-x-auto pb-4 pt-1">
         {LEAD_STATUSES.map((stage) => {
           const list = byStage.get(stage.id) ?? [];
           const gross = list.reduce((a, l) => a + (l.budgetMin + l.budgetMax) / 2, 0);
@@ -122,24 +124,24 @@ export function Pipeline({ leads }: { leads: PipelineLead[] }) {
                 setOver(null);
               }}
               className={clsx(
-                "flex w-[280px] shrink-0 flex-col rounded-xl border border-ink-700 bg-ink-900/60",
-                over === stage.id && "drop-target",
+                "flex w-[284px] shrink-0 flex-col rounded-2xl border border-ink-800/80 bg-ink-950/50 backdrop-blur-md shadow-sm transition-colors",
+                over === stage.id && "ring-2 ring-brand-500/50 border-brand-500/60 bg-ink-900/60",
               )}
             >
-              <div className="border-b border-ink-700 px-3 py-2.5">
+              <div className="border-b border-ink-800/70 px-3.5 py-3 bg-ink-900/30 rounded-t-2xl">
                 <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ background: stage.color }} />
+                  <span className="h-2.5 w-2.5 rounded-full ring-2 ring-ink-950" style={{ background: stage.color }} />
                   <span className="truncate text-[11.5px] font-semibold uppercase tracking-wider text-mist-100">{stage.label}</span>
-                  <span className="tnum ml-auto text-[12px] text-mist-400">{list.length}</span>
+                  <span className="tnum ml-auto rounded-full bg-ink-800/80 px-2 py-0.5 text-[11px] font-medium text-mist-300">{list.length}</span>
                 </div>
-                <div className="mt-1 flex items-baseline gap-2 text-[10.5px]">
+                <div className="mt-1.5 flex items-baseline gap-2 text-[10.5px]">
                   <span className="tnum font-semibold text-mist-200">{inr(weighted)}</span>
                   <span className="text-mist-500">weighted · {Math.round(STAGE_PROBABILITY[stage.id] * 100)}%</span>
                   <span className="tnum ml-auto text-mist-400">{inr(gross)}</span>
                 </div>
               </div>
 
-              <div className="flex-1 space-y-2 overflow-y-auto p-2">
+              <div className="flex-1 space-y-2.5 overflow-y-auto p-2.5 max-h-[calc(100vh-280px)]">
                 {list.map((l) => (
                   <article
                     key={l.id}
@@ -147,22 +149,22 @@ export function Pipeline({ leads }: { leads: PipelineLead[] }) {
                     onDragStart={() => setDrag(l.id)}
                     onDragEnd={() => setDrag(null)}
                     className={clsx(
-                      "cursor-grab rounded-xl border border-ink-700 bg-ink-850 p-2.5 active:cursor-grabbing",
-                      drag === l.id && "drag-ghost",
+                      "cursor-grab rounded-xl border border-ink-800/80 bg-ink-900/80 hover:bg-ink-850 hover:border-ink-700/90 p-3 shadow-sm transition-all duration-150 active:cursor-grabbing active:scale-[0.98]",
+                      drag === l.id && "drag-ghost opacity-50",
                     )}
                   >
-                    <div className="flex items-start gap-2">
-                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ink-700 text-[9px] font-semibold text-mist-200">
+                    <div className="flex items-start gap-2.5">
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink-800 border border-ink-700/60 text-[10px] font-semibold text-mist-200">
                         {initials(l.name)}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1">
-                          <span className="truncate text-[12.5px] font-semibold text-mist-100">{l.name}</span>
-                          {l.isHNWI && <Star size={9} className="shrink-0 fill-warn-400 text-warn-400" />}
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-[13px] font-semibold text-mist-100">{l.name}</span>
+                          {l.isHNWI && <Star size={11} className="shrink-0 fill-amber-400 text-amber-400 drop-shadow-sm" />}
                         </div>
-                        <div className="truncate text-[10.5px] text-mist-400">{l.projectInterest}</div>
+                        <div className="truncate text-[11px] text-mist-400">{l.projectInterest}</div>
                       </div>
-                      <span className={clsx("tnum text-[11px] font-semibold", l.score >= 70 ? "text-good-400" : l.score >= 40 ? "text-warn-400" : "text-mist-500")}>
+                      <span className={clsx("tnum rounded px-1.5 py-0.5 text-[10.5px] font-semibold", l.score >= 70 ? "bg-good-500/15 text-good-400" : l.score >= 40 ? "bg-warn-500/15 text-warn-400" : "bg-ink-800 text-mist-500")}>
                         {l.score}
                       </span>
                     </div>
@@ -189,7 +191,7 @@ export function Pipeline({ leads }: { leads: PipelineLead[] }) {
                   </article>
                 ))}
                 {!list.length && (
-                  <div className="rounded-xl border border-dashed border-ink-700 py-8 text-center text-[11.5px] text-mist-500">
+                  <div className="rounded-xl border border-dashed border-ink-800/80 bg-ink-950/20 py-8 text-center text-[11.5px] text-mist-500 hover:border-ink-700/80 transition-colors">
                     Drop a deal here
                   </div>
                 )}

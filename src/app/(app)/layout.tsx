@@ -34,9 +34,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const permissions = [...session.permissions];
 
   return (
-    <div className="flex min-h-screen">
+    <div className="app-ambient flex min-h-screen">
+      <div className="app-ambient-glow" aria-hidden="true" />
       <Suspense fallback={<div className="w-[228px] shrink-0 border-r border-ink-800" />}>
-        <Sidebar counts={{}} permissions={permissions} />
+        <Sidebar
+          counts={{}}
+          permissions={permissions}
+          sessionInfo={{ name: session.fullName, email: session.email, role: session.roles[0] }}
+        />
       </Suspense>
       <main className="min-w-0 flex-1">
         {allowed ? children : <NoAccess pathname={pathname} required={required} roles={session.roles} />}

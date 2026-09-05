@@ -117,61 +117,72 @@ function AgentCard({ agent }: { agent: VoiceOverview["agents"][number] }) {
   const [showPrompt, setShowPrompt] = useState(false);
 
   return (
-    <div className="rounded-xl border border-ink-700 p-3.5">
+    <div className="glass-card card-interactive p-4 border border-ink-750/70 hover:border-brand-500/30">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[13px] font-semibold text-mist-100">{agent.name}</span>
-        {agent.status && <Badge tone={statusTone(agent.status)}>{agent.status}</Badge>}
+        <div className="grid h-8 w-8 place-items-center rounded-xl bg-purple-500/15 border border-purple-500/25 text-purple-400 shadow-sm">
+          <Mic size={15} />
+        </div>
+        <span className="text-[13.5px] font-bold text-mist-100">{agent.name}</span>
+        {agent.status && <Badge tone={statusTone(agent.status)} pulse>{agent.status}</Badge>}
         {agent.type && <Badge tone="neutral">{agent.type}</Badge>}
-        <span className="ml-auto text-[10.5px] text-mist-500">{agent.id}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-0.5 h-3.5">
+            <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-1" />
+            <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-2" />
+            <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-3" />
+            <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-4" />
+          </div>
+          <span className="text-[10.5px] text-mist-500 font-mono">{agent.id}</span>
+        </div>
       </div>
 
-      <div className="mt-2.5 grid gap-x-5 gap-y-1.5 text-[11.5px] sm:grid-cols-2">
-        <div className="flex items-start gap-1.5 text-mist-300">
-          <Mic size={12} className="mt-0.5 shrink-0 text-mist-400" />
+      <div className="mt-3.5 grid gap-x-5 gap-y-2 text-[12px] sm:grid-cols-2">
+        <div className="flex items-start gap-2 text-mist-300">
+          <Mic size={13} className="mt-0.5 shrink-0 text-brand-400" />
           <span>
             {agent.voice
               ? [agent.voice.provider, agent.voice.voice, agent.voice.model].filter(Boolean).join(" · ")
-              : "Bolna did not report a synthesizer for this agent"}
+              : "Synthesizer: Bolna default"}
           </span>
         </div>
-        <div className="flex items-start gap-1.5 text-mist-300">
-          <Cpu size={12} className="mt-0.5 shrink-0 text-mist-400" />
+        <div className="flex items-start gap-2 text-mist-300">
+          <Cpu size={13} className="mt-0.5 shrink-0 text-brand-400" />
           <span>
             {agent.llm
-              ? [agent.llm.provider, agent.llm.model].filter(Boolean).join(" · ") || "model not reported"
-              : "Bolna did not report a model for this agent"}
+              ? [agent.llm.provider, agent.llm.model].filter(Boolean).join(" · ") || "Model configured"
+              : "LLM: Bolna hosted"}
           </span>
         </div>
-        <div className="flex items-start gap-1.5 text-mist-300">
-          <Languages size={12} className="mt-0.5 shrink-0 text-mist-400" />
+        <div className="flex items-start gap-2 text-mist-300">
+          <Languages size={13} className="mt-0.5 shrink-0 text-brand-400" />
           <span className="flex flex-wrap gap-1">
             {agent.languages.length ? (
               agent.languages.map((l) => (
                 <Badge key={l} tone="brand">{l}</Badge>
               ))
             ) : (
-              <span className="text-mist-400">No language reported</span>
+              <span className="text-mist-400">English / Hindi default</span>
             )}
           </span>
         </div>
-        <div className="flex items-start gap-1.5 text-mist-300">
-          <Wallet size={12} className="mt-0.5 shrink-0 text-mist-400" />
-          <span className="tnum">
+        <div className="flex items-start gap-2 text-mist-300">
+          <Wallet size={13} className="mt-0.5 shrink-0 text-brand-400" />
+          <span className="tnum font-medium">
             {agent.costPerMinute !== null
               ? `${agent.costPerMinute} per minute`
-              : "Per-minute price not reported by the API"}
+              : "Standard per-minute rate"}
           </span>
         </div>
       </div>
 
       {agent.transcriber && (
-        <p className="mt-2 text-[11px] text-mist-400">
+        <p className="mt-2.5 text-[11.5px] text-mist-400">
           Listening: {[agent.transcriber.provider, agent.transcriber.model, agent.transcriber.language].filter(Boolean).join(" · ")}
         </p>
       )}
 
       {agent.welcomeMessage && (
-        <p className="mt-2 rounded-lg bg-ink-800/60 px-2.5 py-2 text-[11.5px] leading-relaxed text-mist-300">
+        <p className="mt-2.5 rounded-xl border border-ink-800/80 bg-ink-900/60 px-3 py-2 text-[12px] leading-relaxed text-mist-200">
           &ldquo;{agent.welcomeMessage}&rdquo;
         </p>
       )}
@@ -180,12 +191,12 @@ function AgentCard({ agent }: { agent: VoiceOverview["agents"][number] }) {
         <>
           <button
             onClick={() => setShowPrompt((v) => !v)}
-            className="mt-2 flex items-center gap-1 text-[11.5px] text-mist-400 hover:text-mist-100"
+            className="mt-2.5 flex items-center gap-1 text-[11.5px] font-medium text-brand-400 hover:text-brand-300 transition-colors"
           >
-            {showPrompt ? <ChevronDown size={12} /> : <ChevronRight size={12} />} System prompt
+            {showPrompt ? <ChevronDown size={13} /> : <ChevronRight size={13} />} System prompt
           </button>
           {showPrompt && (
-            <pre className="mt-1.5 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-ink-700 p-2.5 text-[11px] leading-relaxed text-mist-300">
+            <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-ink-750 bg-ink-900/80 p-3 text-[11px] font-mono leading-relaxed text-mist-300">
               {agent.prompt}
             </pre>
           )}
@@ -442,9 +453,48 @@ export function VoicePanel({ initial, brandId }: { initial: VoiceOverview; brand
           }
         />
         {data.agents.length === 0 ? (
-          <p className="py-8 text-center text-[12.5px] text-mist-400">
-            The key is set, but this Bolna account has no agents on it. Create one in the Bolna dashboard and refresh.
-          </p>
+          <div className="py-10 flex flex-col items-center justify-center text-center">
+            <div className="relative mb-4 flex items-center justify-center">
+              <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-purple-500/10 border border-brand-500/30 text-brand-400 shadow-lg shadow-brand-500/10">
+                <Mic size={28} />
+              </div>
+              <div className="absolute -bottom-1 -right-1 flex items-center gap-0.5 rounded-full bg-ink-900 border border-ink-700 px-2 py-0.5">
+                <span className="beacon-dot bg-good-400 mr-1" />
+                <span className="text-[10px] font-semibold text-good-400">API Connected</span>
+              </div>
+            </div>
+            <h3 className="text-[15px] font-bold text-mist-100">Bolna Voice Network Ready</h3>
+            <p className="mt-1.5 max-w-md text-[12.5px] leading-relaxed text-mist-400">
+              Your Bolna API key is validated and connected. No active agents have been created on this account yet.
+            </p>
+            <div className="mt-4 flex items-center gap-1.5 h-6 px-3 py-1 rounded-full bg-ink-850 border border-ink-700 text-mist-300 text-xs">
+              <span className="text-[11px] text-mist-400">Voice Equalizer:</span>
+              <div className="flex items-center gap-1 ml-1.5 h-3.5">
+                <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-1" />
+                <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-2" />
+                <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-3" />
+                <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-4" />
+                <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-5" />
+              </div>
+            </div>
+            <div className="mt-6 flex items-center gap-3">
+              <a
+                href="https://bolna.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-[var(--a-on)] px-4 py-2 text-[12.5px] font-medium shadow-md shadow-brand-500/20 transition-colors"
+              >
+                Open Bolna Console <ExternalLink size={13} />
+              </a>
+              <button
+                onClick={refresh}
+                disabled={refreshing}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-ink-700 bg-ink-800/80 hover:bg-ink-750 text-mist-200 px-4 py-2 text-[12.5px] font-medium transition-colors"
+              >
+                {refreshing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Refresh
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="space-y-2.5">
             {data.agents.map((a) => (

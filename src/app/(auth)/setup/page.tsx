@@ -130,60 +130,66 @@ export default async function SetupPage() {
   return (
     // Reachable without signing in, on purpose: when authentication itself is
     // misconfigured, a diagnostic page behind authentication is useless.
-    <div className="mx-auto w-full max-w-3xl space-y-5 px-5 py-10 sm:px-8">
-      <Link
-        href="/signin"
-        className="inline-flex items-center gap-1.5 text-[12px] text-mist-400 transition-colors hover:text-mist-200"
-      >
-        <ArrowLeft size={13} /> Back to sign in
-      </Link>
-      <div>
-        <h1 className="text-[21px] font-semibold tracking-tight">Setup &amp; connections</h1>
-        <p className="mt-1 text-[12.5px] text-mist-400">
-          Every row below is a live check. Nothing here reports &ldquo;connected&rdquo; from a stored flag.
-        </p>
-      </div>
+    <div className="relative min-h-screen app-ambient px-5 py-10 sm:px-8">
+      <div className="app-ambient-glow" aria-hidden="true" />
+      <div className="relative mx-auto w-full max-w-3xl space-y-6">
+        <Link
+          href="/signin"
+          className="inline-flex items-center gap-1.5 text-[12px] text-mist-400 transition-colors hover:text-mist-200"
+        >
+          <ArrowLeft size={13} /> Back to sign in
+        </Link>
+        <div>
+          <h1 className="text-[24px] font-semibold tracking-tight gradient-heading">Setup &amp; connections</h1>
+          <p className="mt-1 text-[13px] text-mist-400">
+            Live infrastructure probe across database, storage, AI, telephony, and social APIs.
+          </p>
+        </div>
 
-      {blocking.length > 0 && (
-        <Card className="border-warn-500/30 bg-warn-500/[0.05]">
-          <div className="flex gap-2.5">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0 text-warn-400" />
-            <div className="text-[12.5px] leading-relaxed text-mist-300">
-              <strong className="text-mist-100">{blocking.length} item(s) still need configuration.</strong> Until they
-              are set, the affected features are inert by design rather than pretending to work — publishing will not
-              call an API it has no token for, and the AI will not message a customer through a channel that is not
-              connected.
+        {blocking.length > 0 && (
+          <Card variant="glass" className="border-warn-500/30 bg-warn-500/[0.06] backdrop-blur-xl">
+            <div className="flex gap-3">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warn-400" />
+              <div className="text-[12.5px] leading-relaxed text-mist-300">
+                <strong className="text-mist-100">{blocking.length} integration(s) require configuration.</strong> Until they
+                are set, affected sub-systems remain gracefully inert — live calls won't fail with raw errors.
+              </div>
             </div>
+          </Card>
+        )}
+
+        <Card variant="glass">
+          <SectionTitle title="Live Integration Matrix" hint="Probed live on every page load" />
+          <div className="space-y-2.5">
+            {rows.map((r) => (
+              <div
+                key={r.label}
+                className="flex flex-wrap items-start gap-3 rounded-xl border border-ink-800/80 bg-ink-900/60 p-3.5 transition-colors hover:border-ink-700 hover:bg-ink-850/70"
+              >
+                <span className="mt-0.5 grid h-6 w-6 place-items-center rounded-lg bg-ink-800/80">
+                  {r.state === "ok" ? (
+                    <Check size={14} className="text-good-400" />
+                  ) : r.state === "partial" ? (
+                    <Circle size={14} className="text-warn-400" />
+                  ) : (
+                    <X size={14} className="text-bad-400" />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-mist-100">{r.label}</span>
+                  <span className="block text-[11.5px] text-mist-400">{r.detail}</span>
+                </span>
+                <Badge
+                  tone={r.state === "ok" ? "good" : r.state === "partial" ? "warn" : "bad"}
+                  pulse={r.state === "ok"}
+                >
+                  {r.state === "ok" ? "ready" : r.state === "partial" ? "partial" : "not set"}
+                </Badge>
+                {r.action && <span className="w-full text-[10.5px] text-mist-500 sm:w-auto">{r.action}</span>}
+              </div>
+            ))}
           </div>
         </Card>
-      )}
-
-      <Card>
-        <SectionTitle title="Status" hint="Probed on every page load" />
-        <div className="space-y-2">
-          {rows.map((r) => (
-            <div key={r.label} className="flex flex-wrap items-start gap-3 rounded-xl border border-ink-700 p-3">
-              <span className="mt-0.5">
-                {r.state === "ok" ? (
-                  <Check size={15} className="text-good-400" />
-                ) : r.state === "partial" ? (
-                  <Circle size={15} className="text-warn-400" />
-                ) : (
-                  <X size={15} className="text-bad-400" />
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-mist-100">{r.label}</span>
-                <span className="block text-[11.5px] text-mist-400">{r.detail}</span>
-              </span>
-              <Badge tone={r.state === "ok" ? "good" : r.state === "partial" ? "warn" : "bad"}>
-                {r.state === "ok" ? "ready" : r.state === "partial" ? "partial" : "not set"}
-              </Badge>
-              {r.action && <span className="w-full text-[10.5px] text-mist-500 sm:w-auto">{r.action}</span>}
-            </div>
-          ))}
-        </div>
-      </Card>
 
       <Card>
         <SectionTitle title="Applying the schema" hint="Two files, in order, in the Supabase SQL editor" />
@@ -212,6 +218,7 @@ export default async function SetupPage() {
           Both files are idempotent — re-running them is safe.
         </p>
       </Card>
+      </div>
     </div>
   );
 }
