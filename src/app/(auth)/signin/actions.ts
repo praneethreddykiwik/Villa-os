@@ -132,7 +132,14 @@ export async function signInWithPassword(_prev: AuthState, form: FormData): Prom
   }
 
   const sb = await serverClient();
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  let res = await sb.auth.signInWithPassword({ email, password });
+  if ((res.error || !res.data.session) && password.trim() !== password) {
+    const trimmedRes = await sb.auth.signInWithPassword({ email, password: password.trim() });
+    if (!trimmedRes.error && trimmedRes.data.session) {
+      res = trimmedRes;
+    }
+  }
+  const { data, error } = res;
   if (error || !data.session) {
     // Outcome only. The provider's reason distinguishes "no such user" from
     // "wrong password", and writing that down rebuilds the enumeration oracle
