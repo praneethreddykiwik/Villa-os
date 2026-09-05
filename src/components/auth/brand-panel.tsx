@@ -57,8 +57,8 @@ export function BrandPanel() {
             const Icon = p.icon;
             return (
               <li key={p.title} className="flex gap-3.5 group">
-                <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-brand-500/20 bg-brand-500/10 text-brand-400 shadow-sm transition-transform duration-200 group-hover:scale-105">
-                  <Icon size={16} />
+                <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl liquid-glass-pill text-brand-300 shadow-md group-hover:scale-110 transition-transform duration-200">
+                  <Icon size={17} />
                 </span>
                 <div>
                   <div className="text-[13.5px] font-semibold text-mist-200">{p.title}</div>

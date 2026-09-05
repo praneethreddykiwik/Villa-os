@@ -109,12 +109,12 @@ export function OpsHome({
   return (
     <div className="mx-auto max-w-4xl p-7 sm:p-10 space-y-8">
       {/* Hero Header Banner */}
-      <div className="glass-card relative overflow-hidden p-6 sm:p-8">
-        <div className="absolute right-0 top-0 -mt-8 -mr-8 h-48 w-48 rounded-full bg-gradient-to-br from-brand-500/10 to-transparent blur-2xl pointer-events-none" />
+      <div className="liquid-glass-card relative overflow-hidden p-6 sm:p-8">
+        <div className="absolute right-0 top-0 -mt-10 -mr-10 h-56 w-56 rounded-full bg-gradient-to-br from-purple-500/20 via-pink-500/15 to-transparent blur-3xl pointer-events-none" />
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
           <div className="flex items-start gap-4">
-            <div className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-400/20 to-brand-600/30 border border-brand-500/30 text-brand-300 shadow-md">
-              <Building2 size={24} />
+            <div className="relative grid h-13 w-13 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-400/25 via-brand-500/20 to-brand-600/30 border border-white/20 text-brand-300 shadow-lg">
+              <Building2 size={26} />
               <span className="beacon-dot absolute -bottom-0.5 -right-0.5 bg-good-400" />
             </div>
             <div>
@@ -128,7 +128,7 @@ export function OpsHome({
                   </Badge>
                 ))}
               </div>
-              <p className="mt-1 text-[12.5px] text-mist-400 flex items-center gap-2">
+              <p className="mt-1 text-[13px] text-mist-400 flex items-center gap-2">
                 <span>Glentree Command Center</span>
                 <span>·</span>
                 <span className="text-mist-300 font-medium">
@@ -141,16 +141,16 @@ export function OpsHome({
           <div className="flex items-center gap-2.5">
             <Link
               href="/setup"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-ink-750 bg-ink-850/80 px-3 py-2 text-[12px] font-medium text-mist-300 hover:text-mist-100 hover:border-ink-600 transition-colors"
+              className="liquid-glass-button px-4 py-2 text-[12px] font-medium text-mist-200 hover:text-white"
             >
-              <Sparkles size={13} className="text-brand-400" />
+              <Sparkles size={13} className="text-brand-400 mr-1.5" />
               Diagnostics
             </Link>
             <button
               onClick={signOut}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-ink-750 bg-ink-850/80 px-3 py-2 text-[12px] font-medium text-mist-300 hover:text-bad-400 hover:border-bad-500/30 transition-colors"
+              className="liquid-glass-button px-4 py-2 text-[12px] font-medium text-mist-300 hover:text-bad-400 hover:border-bad-500/30"
             >
-              <LogOut size={13} />
+              <LogOut size={13} className="mr-1.5" />
               Sign out
             </button>
           </div>
@@ -161,43 +161,47 @@ export function OpsHome({
       <div>
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-[15px] font-bold tracking-tight gradient-heading">Available Workspaces</h2>
-            <p className="text-[12px] text-mist-400">Jump directly into your operational modules</p>
+            <h2 className="text-[16px] font-bold tracking-tight gradient-heading">Operational Hubs</h2>
+            <p className="text-[12.5px] text-mist-400">Direct liquid access into your business engines</p>
           </div>
-          <span className="text-[11px] font-medium text-mist-500">
+          <span className="text-[11.5px] font-medium text-mist-500">
             {visible.length} workspace{visible.length === 1 ? "" : "s"} accessible
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {visible.map((d) => {
             const Icon = d.icon;
+            const isVoice = d.href === "/voice";
             return (
               <Link key={d.href} href={d.href} className="group">
-                <div className="glass-card card-interactive p-5 flex flex-col justify-between h-full">
+                <div className="liquid-glass-card liquid-glass-interactive p-6 flex flex-col justify-between h-full">
                   <div>
-                    <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center justify-between gap-3 mb-3.5">
                       <div
-                        className={`grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br border ${d.color} shadow-sm group-hover:scale-105 transition-transform duration-200`}
+                        className={`grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br border ${d.color} shadow-sm group-hover:scale-110 transition-transform duration-200`}
                       >
-                        <Icon size={19} />
+                        <Icon size={20} />
                       </div>
-                      <Badge tone="neutral" className="text-[10px] uppercase font-semibold tracking-wider">
+                      <Badge
+                        tone={isVoice ? "holographic" : "neutral"}
+                        className="text-[10.5px] uppercase font-semibold tracking-wider"
+                      >
                         {d.badge}
                       </Badge>
                     </div>
-                    <h3 className="text-[14.5px] font-semibold text-mist-100 group-hover:text-brand-300 transition-colors">
+                    <h3 className="text-[15px] font-bold text-mist-100 group-hover:text-brand-300 transition-colors">
                       {d.label}
                     </h3>
-                    <p className="mt-1 text-[12px] leading-relaxed text-mist-400">
+                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-mist-400">
                       {d.description}
                     </p>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-ink-800/40 flex items-center justify-between text-[11.5px] font-medium text-mist-500 group-hover:text-mist-200 transition-colors">
-                    <span>Open workspace</span>
+                  <div className="mt-5 pt-3.5 border-t border-ink-800/50 flex items-center justify-between text-[11.5px] font-semibold text-mist-400 group-hover:text-mist-100 transition-colors">
+                    <span>Open Workspace</span>
                     <ArrowRight
                       size={14}
-                      className="group-hover:translate-x-1 transition-transform duration-150 text-brand-400"
+                      className="group-hover:translate-x-1.5 transition-transform duration-150 text-brand-400"
                     />
                   </div>
                 </div>

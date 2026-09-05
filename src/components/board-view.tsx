@@ -245,26 +245,26 @@ export function BoardView({ board: initialBoard, cards: initialCards }: { board:
                 setDropCol(null);
               }}
               className={clsx(
-                "flex w-[300px] shrink-0 flex-col rounded-2xl border border-ink-800/80 bg-ink-950/50 backdrop-blur-md shadow-sm transition-colors",
-                dropCol === col.id && "ring-2 ring-brand-500/50 border-brand-500/60 bg-ink-900/60",
+                "liquid-glass-card flex w-[308px] shrink-0 flex-col rounded-3xl p-0 transition-all",
+                dropCol === col.id && "ring-2 ring-brand-500/60 border-brand-500/70 shadow-lg shadow-brand-500/10",
               )}
             >
-              <div className="flex items-center gap-2 px-3.5 py-3 border-b border-ink-800/70 bg-ink-900/30 rounded-t-2xl">
+              <div className="flex items-center gap-2 px-4 py-3.5 border-b border-ink-800/70 bg-ink-900/30 rounded-t-3xl">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-ink-950" style={{ background: col.color }} />
-                <span className="truncate text-[12px] font-semibold uppercase tracking-wider text-mist-100">{col.name}</span>
+                <span className="truncate text-[12px] font-bold uppercase tracking-wider text-mist-100">{col.name}</span>
                 {col.hitl && (
-                  <span className="flex items-center gap-1 rounded bg-warn-500/15 border border-warn-500/25 px-1.5 py-0.5 text-[9.5px] font-semibold text-warn-400">
+                  <span className="flex items-center gap-1 rounded-full bg-warn-500/15 border border-warn-500/25 px-2 py-0.5 text-[9.5px] font-semibold text-warn-400">
                     <Shield size={9} /> HITL
                   </span>
                 )}
-                <span className={clsx("tnum ml-auto rounded-full bg-ink-800/80 px-2 py-0.5 text-[11px]", overLimit ? "font-semibold text-warn-400" : "text-mist-400")}>
+                <span className={clsx("tnum ml-auto rounded-full bg-ink-800/80 px-2 py-0.5 text-[11px] font-semibold", overLimit ? "text-warn-400" : "text-mist-300")}>
                   {list.length}
                   {col.wipLimit !== undefined && `/${col.wipLimit}`}
                 </span>
-                <button onClick={() => setAddingIn(col.id)} className="rounded-md p-1 text-mist-400 hover:text-mist-100 hover:bg-ink-800/60 transition-colors"><Plus size={14} /></button>
+                <button onClick={() => setAddingIn(col.id)} className="rounded-full p-1 text-mist-400 hover:text-mist-100 hover:bg-white/10 transition-colors"><Plus size={14} /></button>
               </div>
 
-              <div className="flex-1 space-y-2.5 overflow-y-auto px-2.5 pb-2.5 pt-1 max-h-[calc(100vh-240px)]">
+              <div className="flex-1 space-y-3 overflow-y-auto p-3 max-h-[calc(100vh-260px)]">
                 {addingIn === col.id && (
                   <input
                     autoFocus
@@ -277,7 +277,7 @@ export function BoardView({ board: initialBoard, cards: initialCards }: { board:
                       }
                       if (e.key === "Escape") setAddingIn(null);
                     }}
-                    className="w-full rounded-lg border border-brand-500 bg-ink-850 px-3 py-2 text-[13px] outline-none"
+                    className="w-full rounded-xl border border-brand-500 bg-ink-850 px-3 py-2 text-[13px] outline-none shadow-sm"
                   />
                 )}
 
@@ -288,7 +288,7 @@ export function BoardView({ board: initialBoard, cards: initialCards }: { board:
                     onDragStart={() => setDragCard(card.id)}
                     onDragEnd={() => setDragCard(null)}
                     className={clsx(
-                      "group cursor-grab rounded-xl border border-ink-800/80 bg-ink-900/80 hover:bg-ink-850 hover:border-ink-700/90 p-3 shadow-sm transition-all duration-150 active:cursor-grabbing active:scale-[0.98]",
+                      "liquid-glass-card liquid-glass-interactive group cursor-grab rounded-2xl p-3.5 border border-white/15 dark:border-white/10 active:cursor-grabbing active:scale-[0.98]",
                       dragCard === card.id && "drag-ghost opacity-50",
                     )}
                   >

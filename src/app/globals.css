@@ -90,6 +90,16 @@
   --glass-border-hover: rgba(255, 255, 255, 0.18);
   --glass-highlight: rgba(255, 255, 255, 0.06);
   --glow-accent: rgba(139, 122, 255, 0.15);
+
+  /* Liquid Glass tokens (Dark mode - Liquid Obsidian) */
+  --liquid-glass-bg: linear-gradient(135deg, rgba(26, 26, 34, 0.65) 0%, rgba(14, 14, 18, 0.78) 100%);
+  --liquid-glass-card-hover: linear-gradient(135deg, rgba(35, 35, 46, 0.75) 0%, rgba(20, 20, 26, 0.88) 100%);
+  --liquid-glass-border: rgba(255, 255, 255, 0.12);
+  --liquid-glass-border-hover: rgba(255, 255, 255, 0.24);
+  --liquid-glass-specular: rgba(255, 255, 255, 0.22);
+  --liquid-glass-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.55), 0 2px 6px 0 rgba(0, 0, 0, 0.3);
+  --liquid-glass-glow: rgba(147, 129, 255, 0.18);
+  --holographic-gradient: linear-gradient(135deg, #f472b6 0%, #a855f7 50%, #38bdf8 100%);
   color-scheme: dark;
 }
 
@@ -98,17 +108,17 @@
    lets us drop the inline theme script and keep a stricter CSP. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]):not([data-theme="light"]) {
-    --s-bg: #f7f7f8;
+    --s-bg: #f4f5f8;
     --s-surface: #ffffff;
     --s-input: #ffffff;
-    --s-raised: #f0f0f2;
-    --s-border: #e4e4e7;
-    --s-border-strong: #d1d1d6;
-    --s-faint: #a1a1aa;
-    --t-muted: #71717a;
-    --t-secondary: #52525b;
-    --t-strong: #3f3f46;
-    --t-primary: #09090b;
+    --s-raised: #ececf0;
+    --s-border: #e2e4e8;
+    --s-border-strong: #cfd2d8;
+    --s-faint: #9ea2ac;
+    --t-muted: #6b7280;
+    --t-secondary: #4b5563;
+    --t-strong: #374151;
+    --t-primary: #0f172a;
     --a-400: #27272a;
     --a-500: #18181b;
     --a-600: #000000;
@@ -131,22 +141,32 @@
     --glass-border-hover: rgba(0, 0, 0, 0.16);
     --glass-highlight: rgba(255, 255, 255, 0.8);
     --glow-accent: rgba(99, 102, 241, 0.1);
+
+    /* Liquid Glass tokens (Light mode - Crystalline Pearl) */
+    --liquid-glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.62) 100%);
+    --liquid-glass-card-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.78) 100%);
+    --liquid-glass-border: rgba(255, 255, 255, 0.75);
+    --liquid-glass-border-hover: rgba(255, 255, 255, 0.95);
+    --liquid-glass-specular: rgba(255, 255, 255, 0.95);
+    --liquid-glass-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+    --liquid-glass-glow: rgba(99, 102, 241, 0.12);
+    --holographic-gradient: linear-gradient(135deg, #f472b6 0%, #a855f7 50%, #38bdf8 100%);
     color-scheme: light;
   }
 }
 
 :root[data-theme="light"] {
-  --s-bg: #f7f7f8;
+  --s-bg: #f4f5f8;
   --s-surface: #ffffff;
   --s-input: #ffffff;
-  --s-raised: #f0f0f2;
-  --s-border: #e4e4e7;
-  --s-border-strong: #d1d1d6;
-  --s-faint: #a1a1aa;
-  --t-muted: #71717a;
-  --t-secondary: #52525b;
-  --t-strong: #3f3f46;
-  --t-primary: #09090b;
+  --s-raised: #ececf0;
+  --s-border: #e2e4e8;
+  --s-border-strong: #cfd2d8;
+  --s-faint: #9ea2ac;
+  --t-muted: #6b7280;
+  --t-secondary: #4b5563;
+  --t-strong: #374151;
+  --t-primary: #0f172a;
 
   --a-400: #27272a;
   --a-500: #18181b;
@@ -173,6 +193,16 @@
   --glass-border-hover: rgba(0, 0, 0, 0.16);
   --glass-highlight: rgba(255, 255, 255, 0.8);
   --glow-accent: rgba(99, 102, 241, 0.1);
+
+  /* Liquid Glass tokens (Light mode - Crystalline Pearl) */
+  --liquid-glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.62) 100%);
+  --liquid-glass-card-hover: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.78) 100%);
+  --liquid-glass-border: rgba(255, 255, 255, 0.75);
+  --liquid-glass-border-hover: rgba(255, 255, 255, 0.95);
+  --liquid-glass-specular: rgba(255, 255, 255, 0.95);
+  --liquid-glass-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  --liquid-glass-glow: rgba(99, 102, 241, 0.12);
+  --holographic-gradient: linear-gradient(135deg, #f472b6 0%, #a855f7 50%, #38bdf8 100%);
   color-scheme: light;
 }
 
@@ -223,13 +253,13 @@ body {
 .glass-card {
   position: relative;
   background: var(--glass-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--glass-border);
-  border-radius: 16px;
+  border-radius: 18px;
   box-shadow: 
     0 1px 0 0 var(--glass-highlight) inset,
-    0 4px 20px -4px rgba(0, 0, 0, 0.35);
+    0 4px 20px -4px rgba(0, 0, 0, 0.25);
   transition: transform 0.22s cubic-bezier(0.2, 0.7, 0.3, 1),
               box-shadow 0.22s cubic-bezier(0.2, 0.7, 0.3, 1),
               border-color 0.18s ease,
@@ -238,6 +268,178 @@ body {
 .glass-card:hover {
   background: var(--glass-card-hover);
   border-color: var(--glass-border-hover);
+}
+
+/* Liquid Glass Card — Crystalline, ultra-clear liquid glass with 24px curvature & specular hairline */
+.liquid-glass-card {
+  position: relative;
+  background: var(--liquid-glass-bg);
+  backdrop-filter: blur(28px) saturate(200%) contrast(102%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%) contrast(102%);
+  border: 1px solid var(--liquid-glass-border);
+  border-radius: 24px;
+  box-shadow: 
+    inset 0 1.5px 1.5px 0 var(--liquid-glass-specular),
+    var(--liquid-glass-shadow);
+  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease,
+              background 0.2s ease;
+}
+.liquid-glass-card:hover {
+  background: var(--liquid-glass-card-hover);
+  border-color: var(--liquid-glass-border-hover);
+}
+
+.liquid-glass-interactive {
+  cursor: pointer;
+}
+.liquid-glass-interactive:hover {
+  transform: translateY(-2.5px) scale(1.002);
+  box-shadow: 
+    inset 0 1.5px 1.5px 0 var(--liquid-glass-specular),
+    0 24px 48px -12px rgba(0, 0, 0, 0.25),
+    0 0 0 1px var(--liquid-glass-border-hover);
+}
+
+/* Liquid Glass Capsule / Pill */
+.liquid-glass-pill {
+  border-radius: 9999px;
+  background: var(--liquid-glass-bg);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid var(--liquid-glass-border);
+  box-shadow: 
+    inset 0 1px 1.5px 0 var(--liquid-glass-specular),
+    0 8px 24px -6px rgba(0, 0, 0, 0.12);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.liquid-glass-pill:hover {
+  border-color: var(--liquid-glass-border-hover);
+  background: var(--liquid-glass-card-hover);
+}
+
+/* Liquid Glass Button */
+.liquid-glass-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--liquid-glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--liquid-glass-border);
+  box-shadow: 
+    inset 0 1px 1px 0 var(--liquid-glass-specular),
+    0 4px 14px -2px rgba(0, 0, 0, 0.1);
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.16s ease,
+              background 0.16s ease,
+              border-color 0.16s ease;
+  cursor: pointer;
+  user-select: none;
+}
+.liquid-glass-button:hover {
+  background: var(--liquid-glass-card-hover);
+  border-color: var(--liquid-glass-border-hover);
+  transform: translateY(-1px);
+  box-shadow: 
+    inset 0 1px 1px 0 var(--liquid-glass-specular),
+    0 8px 20px -4px rgba(0, 0, 0, 0.16);
+}
+.liquid-glass-button:active {
+  transform: scale(0.97);
+}
+
+/* Holographic Prismatic Sheen (matching the Try-On button & center dock orb in screenshot) */
+.holographic-sheen {
+  position: relative;
+  background: var(--holographic-gradient);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.65),
+    0 8px 24px -4px rgba(168, 85, 247, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.holographic-sheen:hover {
+  transform: translateY(-1.5px) scale(1.02);
+  box-shadow: 
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.8),
+    0 12px 30px -4px rgba(168, 85, 247, 0.6);
+}
+.holographic-sheen:active {
+  transform: scale(0.96);
+}
+
+/* Holographic Orb — Central floating action button */
+.holographic-orb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--holographic-gradient);
+  box-shadow: 
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.7),
+    0 8px 20px -2px rgba(168, 85, 247, 0.5);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease;
+  cursor: pointer;
+}
+.holographic-orb:hover {
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 
+    inset 0 2px 2.5px 0 rgba(255, 255, 255, 0.9),
+    0 14px 28px -2px rgba(168, 85, 247, 0.65);
+}
+.holographic-orb:active {
+  transform: scale(0.94);
+}
+
+/* Floating Liquid Dock (like the bottom navigation dock in the screenshot) */
+.liquid-dock {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 9999px;
+  background: var(--liquid-glass-bg);
+  backdrop-filter: blur(32px) saturate(210%) contrast(104%);
+  -webkit-backdrop-filter: blur(32px) saturate(210%) contrast(104%);
+  border: 1px solid var(--liquid-glass-border);
+  box-shadow: 
+    inset 0 1.5px 1.5px 0 var(--liquid-glass-specular),
+    0 20px 48px -8px rgba(0, 0, 0, 0.35),
+    0 4px 12px 0 rgba(0, 0, 0, 0.1);
+  z-index: 40;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.liquid-dock-item {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--t-muted);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.liquid-dock-item:hover {
+  color: var(--t-primary);
+  background: var(--liquid-glass-card-hover);
+  transform: translateY(-2px);
+}
+.liquid-dock-item[data-active="true"] {
+  color: var(--t-primary);
+  background: var(--s-raised);
+  box-shadow: inset 0 1px 1px 0 var(--liquid-glass-specular), 0 2px 8px -1px rgba(0, 0, 0, 0.2);
 }
 
 .card-interactive {
@@ -258,7 +460,7 @@ body {
   border: 1px solid var(--glass-border);
 }
 
-/* Ambient app background mesh */
+/* Ambient app background mesh with chromatic spheres */
 .app-ambient {
   position: relative;
   isolation: isolate;
@@ -270,29 +472,29 @@ body {
   pointer-events: none;
   z-index: -1;
   overflow: hidden;
-  opacity: 0.4;
+  opacity: 0.6;
 }
 .app-ambient-glow::before {
   content: "";
   position: absolute;
-  top: -12vw;
-  right: 5vw;
-  width: 55vw;
-  height: 55vw;
+  top: -10vw;
+  right: 8vw;
+  width: 50vw;
+  height: 50vw;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(139, 122, 255, 0.08) 0%, transparent 68%);
-  filter: blur(90px);
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.14) 0%, rgba(129, 140, 248, 0.08) 40%, transparent 70%);
+  filter: blur(80px);
 }
 .app-ambient-glow::after {
   content: "";
   position: absolute;
-  bottom: -5vw;
-  left: 10vw;
-  width: 48vw;
-  height: 48vw;
+  bottom: -6vw;
+  left: 6vw;
+  width: 52vw;
+  height: 52vw;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.05) 0%, transparent 68%);
-  filter: blur(90px);
+  background: radial-gradient(circle, rgba(244, 114, 182, 0.12) 0%, rgba(56, 189, 248, 0.09) 45%, transparent 70%);
+  filter: blur(85px);
 }
 
 /* Live beacon radar pulse */

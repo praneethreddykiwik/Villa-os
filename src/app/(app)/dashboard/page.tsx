@@ -71,7 +71,11 @@ export default async function DashboardPage({
         title="Dashboard"
         subtitle={`${brand.name} · ${range.from} → ${range.to}`}
         right={
-          <Link href={`/composer${link}`} className="rounded-lg bg-brand-500 px-3 py-1.5 text-[12px] font-medium text-[var(--a-on)] hover:bg-brand-600">
+          <Link
+            href={`/composer${link}`}
+            className="holographic-sheen inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-semibold text-white shadow-md shadow-purple-500/25 transition-transform active:scale-[0.97]"
+          >
+            <Sparkles size={13} />
             Compose
           </Link>
         }

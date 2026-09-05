@@ -147,10 +147,10 @@ export default async function SetupPage() {
         </div>
 
         {blocking.length > 0 && (
-          <Card variant="glass" className="border-warn-500/30 bg-warn-500/[0.06] backdrop-blur-xl">
+          <Card variant="liquid" className="border-warn-500/30 bg-warn-500/[0.06] backdrop-blur-2xl">
             <div className="flex gap-3">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warn-400" />
-              <div className="text-[12.5px] leading-relaxed text-mist-300">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warn-400" />
+              <div className="text-[13px] leading-relaxed text-mist-300">
                 <strong className="text-mist-100">{blocking.length} integration(s) require configuration.</strong> Until they
                 are set, affected sub-systems remain gracefully inert — live calls won't fail with raw errors.
               </div>
@@ -158,15 +158,15 @@ export default async function SetupPage() {
           </Card>
         )}
 
-        <Card variant="glass">
+        <Card variant="liquid">
           <SectionTitle title="Live Integration Matrix" hint="Probed live on every page load" />
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {rows.map((r) => (
               <div
                 key={r.label}
-                className="flex flex-wrap items-start gap-3 rounded-xl border border-ink-800/80 bg-ink-900/60 p-3.5 transition-colors hover:border-ink-700 hover:bg-ink-850/70"
+                className="liquid-glass-card liquid-glass-interactive flex flex-wrap items-start gap-3.5 rounded-2xl p-4 border border-white/15 dark:border-white/10"
               >
-                <span className="mt-0.5 grid h-6 w-6 place-items-center rounded-lg bg-ink-800/80">
+                <span className="mt-0.5 grid h-7 w-7 place-items-center rounded-full bg-ink-800/90 shadow-inner">
                   {r.state === "ok" ? (
                     <Check size={14} className="text-good-400" />
                   ) : r.state === "partial" ? (
@@ -176,8 +176,8 @@ export default async function SetupPage() {
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-mist-100">{r.label}</span>
-                  <span className="block text-[11.5px] text-mist-400">{r.detail}</span>
+                  <span className="block text-[13.5px] font-bold text-mist-100">{r.label}</span>
+                  <span className="block text-[12px] text-mist-400 mt-0.5">{r.detail}</span>
                 </span>
                 <Badge
                   tone={r.state === "ok" ? "good" : r.state === "partial" ? "warn" : "bad"}
@@ -185,7 +185,7 @@ export default async function SetupPage() {
                 >
                   {r.state === "ok" ? "ready" : r.state === "partial" ? "partial" : "not set"}
                 </Badge>
-                {r.action && <span className="w-full text-[10.5px] text-mist-500 sm:w-auto">{r.action}</span>}
+                {r.action && <span className="w-full text-[11px] text-mist-500 sm:w-auto font-mono">{r.action}</span>}
               </div>
             ))}
           </div>

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getSession, hasPermission } from "@/lib/auth/session";
 import { requiredPermissionFor } from "@/lib/auth/page-access";
-import { Sidebar } from "@/components/shell";
+import { LiquidDock, Sidebar } from "@/components/shell";
 import { NoAccess } from "@/components/ops/no-access";
 
 /**
@@ -36,16 +36,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="app-ambient flex min-h-screen">
       <div className="app-ambient-glow" aria-hidden="true" />
-      <Suspense fallback={<div className="w-[228px] shrink-0 border-r border-ink-800" />}>
+      <Suspense fallback={<div className="w-[240px] shrink-0 border-r border-ink-800" />}>
         <Sidebar
           counts={{}}
           permissions={permissions}
           sessionInfo={{ name: session.fullName, email: session.email, role: session.roles[0] }}
         />
       </Suspense>
-      <main className="min-w-0 flex-1">
+      <main className="min-w-0 flex-1 pb-24">
         {allowed ? children : <NoAccess pathname={pathname} required={required} roles={session.roles} />}
       </main>
+      <LiquidDock />
     </div>
   );
 }

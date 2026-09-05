@@ -117,20 +117,20 @@ function AgentCard({ agent }: { agent: VoiceOverview["agents"][number] }) {
   const [showPrompt, setShowPrompt] = useState(false);
 
   return (
-    <div className="glass-card card-interactive p-4 border border-ink-750/70 hover:border-brand-500/30">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="grid h-8 w-8 place-items-center rounded-xl bg-purple-500/15 border border-purple-500/25 text-purple-400 shadow-sm">
-          <Mic size={15} />
+    <div className="liquid-glass-card liquid-glass-interactive p-5 rounded-3xl border border-white/20 dark:border-white/10 hover:border-brand-500/40">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="grid h-9 w-9 place-items-center rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/15 border border-purple-500/30 text-purple-300 shadow-md">
+          <Mic size={16} />
         </div>
-        <span className="text-[13.5px] font-bold text-mist-100">{agent.name}</span>
+        <span className="text-[14px] font-bold text-mist-100">{agent.name}</span>
         {agent.status && <Badge tone={statusTone(agent.status)} pulse>{agent.status}</Badge>}
         {agent.type && <Badge tone="neutral">{agent.type}</Badge>}
-        <div className="ml-auto flex items-center gap-2">
-          <div className="flex items-center gap-0.5 h-3.5">
-            <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-1" />
-            <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-2" />
-            <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-3" />
-            <span className="w-0.5 rounded-full bg-brand-400 soundwave-bar-4" />
+        <div className="ml-auto flex items-center gap-2.5">
+          <div className="flex items-center gap-1 h-4">
+            <span className="w-1 rounded-full bg-brand-400 soundwave-bar-1" />
+            <span className="w-1 rounded-full bg-brand-400 soundwave-bar-2" />
+            <span className="w-1 rounded-full bg-brand-400 soundwave-bar-3" />
+            <span className="w-1 rounded-full bg-brand-400 soundwave-bar-4" />
           </div>
           <span className="text-[10.5px] text-mist-500 font-mono">{agent.id}</span>
         </div>
@@ -482,14 +482,14 @@ export function VoicePanel({ initial, brandId }: { initial: VoiceOverview; brand
                 href="https://bolna.ai"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-[var(--a-on)] px-4 py-2 text-[12.5px] font-medium shadow-md shadow-brand-500/20 transition-colors"
+                className="holographic-sheen inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-purple-500/25 transition-all"
               >
                 Open Bolna Console <ExternalLink size={13} />
               </a>
               <button
                 onClick={refresh}
                 disabled={refreshing}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-ink-700 bg-ink-800/80 hover:bg-ink-750 text-mist-200 px-4 py-2 text-[12.5px] font-medium transition-colors"
+                className="liquid-glass-button px-4 py-2.5 text-[12.5px] font-medium text-mist-200 transition-all"
               >
                 {refreshing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Refresh
               </button>
@@ -509,13 +509,13 @@ export function VoicePanel({ initial, brandId }: { initial: VoiceOverview; brand
           title="Call this lead"
           hint="The agent is passed the lead's name, so it opens by using it. The number must include its country code."
         />
-        <div className="flex flex-wrap items-end gap-2.5">
+        <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-[180px] flex-1">
             <span className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-mist-400">Agent</span>
             <select
               value={agentId}
               onChange={(e) => setAgentId(e.target.value)}
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-[12.5px] text-mist-100 outline-none hover:border-ink-600"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3 py-2 text-[12.5px] text-mist-100 outline-none hover:border-ink-600 shadow-sm"
             >
               {data.agents.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
@@ -528,7 +528,7 @@ export function VoicePanel({ initial, brandId }: { initial: VoiceOverview; brand
             <select
               value={leadId}
               onChange={(e) => chooseLead(e.target.value)}
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-[12.5px] text-mist-100 outline-none hover:border-ink-600"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3 py-2 text-[12.5px] text-mist-100 outline-none hover:border-ink-600 shadow-sm"
             >
               <option value="">No lead — number only</option>
               {data.leads.map((l) => (
@@ -543,14 +543,14 @@ export function VoicePanel({ initial, brandId }: { initial: VoiceOverview; brand
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+91…"
-              className="w-full rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-[12.5px] text-mist-100 outline-none placeholder:text-mist-500 hover:border-ink-600"
+              className="w-full rounded-xl border border-ink-700 bg-ink-850 px-3 py-2 text-[12.5px] text-mist-100 outline-none placeholder:text-mist-500 hover:border-ink-600 shadow-sm"
             />
           </label>
 
           <button
             onClick={dial}
             disabled={dialling || !agentId || !phone.trim()}
-            className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-[12.5px] font-medium text-[var(--a-on)] hover:bg-brand-400 disabled:opacity-50"
+            className="holographic-sheen flex items-center gap-2 rounded-full px-5 py-2 text-[12.5px] font-semibold text-white shadow-lg shadow-purple-500/25 disabled:opacity-50"
           >
             {dialling ? <Loader2 size={13} className="animate-spin" /> : <PhoneOutgoing size={13} />} Start call
           </button>
