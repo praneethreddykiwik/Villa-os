@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
 import test, { after, describe } from "node:test";
+import fs from "node:fs";
+import path from "node:path";
 import { cleanup, isolate } from "./helpers";
+
+// Load .env.local if present
+const envPath = path.resolve(process.cwd(), ".env.local");
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+  }
+}
 
 /**
  * Bolna client — parsing and configuration.
@@ -15,18 +26,41 @@ const dir = isolate("bolna");
 after(() => cleanup(dir));
 
 const {
-  isConfigured, normaliseAgent, normaliseExecution, toE164,
+  isConfigured,
+  normaliseAgent,
+  normaliseExecution,
+  toE164,
+  checkBolnaStatus,
+  listAgents,
 } = require("../src/lib/bolna/client") as typeof import("../src/lib/bolna/client");
 
 describe("configuration", () => {
   test("an unset or blank key is not configured", () => {
-    delete process.env.BOLNA_API_KEY;
-    assert.equal(isConfigured(), false);
-    process.env.BOLNA_API_KEY = "   ";
-    assert.equal(isConfigured(), false);
-    process.env.BOLNA_API_KEY = "bn-test";
-    assert.equal(isConfigured(), true);
-    delete process.env.BOLNA_API_KEY;
+    const prev = process.env.BOLNA_API_KEY;
+    try {
+      delete process.env.BOLNA_API_KEY;
+      assert.equal(isConfigured(), false);
+      process.env.BOLNA_API_KEY = "   ";
+      assert.equal(isConfigured(), false);
+      process.env.BOLNA_API_KEY = "bn-test";
+      assert.equal(isConfigured(), true);
+    } finally {
+      if (prev) process.env.BOLNA_API_KEY = prev;
+      else delete process.env.BOLNA_API_KEY;
+    }
+  });
+
+  test("checkBolnaStatus reports unconfigured when key missing", async () => {
+    const prev = process.env.BOLNA_API_KEY;
+    try {
+      delete process.env.BOLNA_API_KEY;
+      const status = await checkBolnaStatus();
+      assert.equal(status.configured, false);
+      assert.equal(status.valid, false);
+    } finally {
+      if (prev) process.env.BOLNA_API_KEY = prev;
+      else delete process.env.BOLNA_API_KEY;
+    }
   });
 });
 
@@ -149,3 +183,30 @@ describe("dialable numbers", () => {
     assert.equal(toE164(`+${"9".repeat(16)}`), null);
   });
 });
+
+describe("Bolna live API verification", () => {
+  test("authenticates API key with api.bolna.ai and queries agents", async (t) => {
+    if (!process.env.BOLNA_API_KEY) {
+      t.skip("BOLNA_API_KEY not configured in environment");
+      return;
+    }
+
+    let status;
+    try {
+      status = await checkBolnaStatus();
+    } catch (e) {
+      t.skip(`Network unreachable: ${(e as Error).message}`);
+      return;
+    }
+
+    if (!status.valid && (status.error?.includes("fetch failed") || status.error?.includes("ENOTFOUND"))) {
+      t.skip(`Network unreachable (sandboxed): ${status.error}`);
+      return;
+    }
+
+    assert.equal(status.configured, true);
+    assert.equal(status.valid, true, `Bolna API error: ${status.error}`);
+    assert.ok(typeof status.agentCount === "number", "Agent count should be a number");
+  });
+});
+

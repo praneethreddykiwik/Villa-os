@@ -6,6 +6,7 @@ import { activeProvider } from "@/lib/ai/provider";
 import { checkSupabase, hasServiceRole, isSupabaseConfigured, supabaseUrl } from "@/lib/supabase/client";
 import { checkUploadPostStatus } from "@/lib/uploadpost/client";
 import { checkGoogleSheetsStatus } from "@/lib/sheets/client";
+import { checkBolnaStatus } from "@/lib/bolna/client";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -59,10 +60,11 @@ function envRow(label: string, keys: string[], action: string): Row {
 }
 
 export default async function SetupPage() {
-  const [supabase, uploadPost, sheets] = await Promise.all([
+  const [supabase, uploadPost, sheets, bolna] = await Promise.all([
     checkSupabase(),
     checkUploadPostStatus(),
     checkGoogleSheetsStatus(),
+    checkBolnaStatus(),
   ]);
 
   const migrationsDir = path.join(process.cwd(), "supabase", "migrations");
@@ -108,6 +110,12 @@ export default async function SetupPage() {
       state: sheets.configured ? (sheets.valid ? "ok" : "partial") : "missing",
       detail: sheets.message,
       action: "Google Cloud → Credentials → API Key in .env.local",
+    },
+    {
+      label: "Bolna AI Voice Agents",
+      state: bolna.configured ? (bolna.valid ? "ok" : "partial") : "missing",
+      detail: bolna.message,
+      action: "bolna.ai → API Keys → BOLNA_API_KEY in .env.local",
     },
     envRow("WhatsApp Cloud API", ["WHATSAPP_PHONE_NUMBER_ID", "META_SYSTEM_USER_TOKEN", "WHATSAPP_VERIFY_TOKEN", "META_APP_SECRET"], "Meta App → WhatsApp → API setup"),
     envRow("Meta (Instagram + Facebook)", ["META_APP_ID", "META_APP_SECRET"], "developers.facebook.com → App → Settings"),

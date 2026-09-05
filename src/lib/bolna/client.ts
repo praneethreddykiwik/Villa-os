@@ -577,3 +577,38 @@ export function toE164(input: string): string | null {
   if (digits.length < 8 || digits.length > 15) return null;
   return `+${digits}`;
 }
+
+export interface BolnaStatusResult {
+  configured: boolean;
+  valid: boolean;
+  message: string;
+  agentCount?: number;
+  error?: string;
+}
+
+export async function checkBolnaStatus(): Promise<BolnaStatusResult> {
+  if (!isConfigured()) {
+    return {
+      configured: false,
+      valid: false,
+      message: "BOLNA_API_KEY is not set in .env.local",
+    };
+  }
+  const res = await listAgents();
+  if (res.ok) {
+    const count = res.data.length;
+    return {
+      configured: true,
+      valid: true,
+      message: count === 0 ? "Connected (0 voice agents configured)" : `Connected (${count} voice agent${count === 1 ? "" : "s"})`,
+      agentCount: count,
+    };
+  }
+  return {
+    configured: true,
+    valid: false,
+    message: res.error || "Failed to authenticate with Bolna API",
+    error: res.error,
+  };
+}
+
