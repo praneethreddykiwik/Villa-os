@@ -4,6 +4,8 @@ import path from "node:path";
 import { AlertTriangle, ArrowLeft, Check, Circle, X } from "lucide-react";
 import { activeProvider } from "@/lib/ai/provider";
 import { checkSupabase, hasServiceRole, isSupabaseConfigured, supabaseUrl } from "@/lib/supabase/client";
+import { checkUploadPostStatus } from "@/lib/uploadpost/client";
+import { checkGoogleSheetsStatus } from "@/lib/sheets/client";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +59,11 @@ function envRow(label: string, keys: string[], action: string): Row {
 }
 
 export default async function SetupPage() {
-  const supabase = await checkSupabase();
+  const [supabase, uploadPost, sheets] = await Promise.all([
+    checkSupabase(),
+    checkUploadPostStatus(),
+    checkGoogleSheetsStatus(),
+  ]);
 
   const migrationsDir = path.join(process.cwd(), "supabase", "migrations");
   // Only live migrations; superseded ones live in supabase/superseded/ and must
@@ -89,12 +95,27 @@ export default async function SetupPage() {
         : "needed to create staff accounts with confirmed emails and to run background jobs",
       action: "Project Settings → API → service_role → paste into .env.local",
     },
+    {
+      label: "Upload-Post (Instagram & YouTube)",
+      state: uploadPost.configured ? (uploadPost.valid ? "ok" : "partial") : "missing",
+      detail: uploadPost.valid
+        ? `${uploadPost.email ?? "connected"} · IG: ${uploadPost.connectedAccounts.instagram?.handle ?? "linked"} · YT: ${uploadPost.connectedAccounts.youtube?.handle ?? "linked"}`
+        : uploadPost.error ?? "UPLOAD_POST_API_KEY not set in .env.local",
+      action: "upload-post.com → API key in .env.local",
+    },
+    {
+      label: "Google Sheets API",
+      state: sheets.configured ? (sheets.valid ? "ok" : "partial") : "missing",
+      detail: sheets.message,
+      action: "Google Cloud → Credentials → API Key in .env.local",
+    },
     envRow("WhatsApp Cloud API", ["WHATSAPP_PHONE_NUMBER_ID", "META_SYSTEM_USER_TOKEN", "WHATSAPP_VERIFY_TOKEN", "META_APP_SECRET"], "Meta App → WhatsApp → API setup"),
     envRow("Meta (Instagram + Facebook)", ["META_APP_ID", "META_APP_SECRET"], "developers.facebook.com → App → Settings"),
     envRow("Google (YouTube / Business Profile)", ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"], "Google Cloud → Credentials → OAuth client"),
     envRow("LinkedIn", ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"], "linkedin.com/developers → App → Auth"),
     aiRow(),
   ];
+
 
   const blocking = rows.filter((r) => r.state !== "ok");
 
