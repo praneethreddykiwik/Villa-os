@@ -154,8 +154,36 @@ export async function renderAspect(
   if (fs.existsSync(outputPath)) {
     return { aspect, outputPath: publicPath, ok: true, simulated: false, command };
   }
-  if (!hasFfmpeg() || !fs.existsSync(asset.src)) {
-    return { aspect, outputPath: publicPath, ok: true, simulated: true, command };
+
+  /**
+   * ffmpeg reads an http(s) source directly, and uploaded media now arrives as a
+   * signed URL into private storage. `fs.existsSync` on a URL is always false,
+   * so the old guard sent every uploaded asset down the simulated path and no
+   * render was ever produced for anything a person actually uploaded.
+   */
+  const remote = /^https?:\/\//i.test(asset.src);
+  const readable = remote || fs.existsSync(asset.src);
+
+  if (!hasFfmpeg() || !readable) {
+    /**
+     * Nothing was rendered, so this is NOT ok.
+     *
+     * It used to return `ok: true, simulated: true`, and the caller wrote the
+     * output path onto the asset — recording a render that does not exist. The
+     * composer then offered it as a publish target and the file was missing at
+     * publish time. A simulated render is a failure with an explanation, not a
+     * success with a footnote.
+     */
+    return {
+      aspect,
+      outputPath: publicPath,
+      ok: false,
+      simulated: true,
+      command,
+      error: !hasFfmpeg()
+        ? "ffmpeg is not installed on this host, so nothing was rendered. The command above is what would have run."
+        : `The source could not be read (${asset.src.slice(0, 60)}), so nothing was rendered.`,
+    };
   }
 
   fs.mkdirSync(outDir, { recursive: true });

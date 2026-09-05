@@ -28,7 +28,12 @@ const PUBLIC_PATHS = [
 
 /** Authenticate by their own mechanism (signature / shared secret), not a session. */
 const SELF_AUTHENTICATING = [
-  "/api/webhooks/",        // HMAC-verified
+  "/api/webhooks/",        // HMAC-verified (WhatsApp) or shared-secret (n8n)
+  // Listed explicitly even though the prefix above already matches it: this
+  // array is the inventory of everything the session gate does not cover, and
+  // an entry that only exists implicitly is one nobody audits. It authenticates
+  // with N8N_WEBHOOK_SECRET, constant-time compared, failing closed when unset.
+  "/api/webhooks/n8n",
   "/api/ops/session",      // the sign-in endpoint itself
   "/api/publish/tick",     // worker secret, constant-time compared
   "/api/ops/followups",    // worker secret or session, checked in-route

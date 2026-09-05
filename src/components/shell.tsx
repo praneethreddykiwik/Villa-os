@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  Activity, BarChart3, CalendarDays, Film, Gauge, Inbox, KanbanSquare, Lightbulb, MapPin,
+  Activity, BarChart3, CalendarCheck, CalendarDays, Film, Gauge, Inbox, KanbanSquare, Lightbulb, MapPin,
   Megaphone, PenSquare, PlugZap, Sparkles, Star, FileText, Settings,
   Users, GitBranch, Contact, UserCheck, ListTodo, BellRing, Building2, Wallet, ShieldCheck, MessageSquare,
 } from "lucide-react";
@@ -41,6 +41,10 @@ const NAV: NavSection[] = [
     { href: "/crm/pipeline", label: "Pipeline", icon: GitBranch },
     { href: "/crm/contacts", label: "Contacts", icon: Contact },
     { href: "/crm/customers", label: "Customers", icon: UserCheck },
+    // Gated by the same rule the page is: `requiredPermissionFor` matches
+    // /^\/crm\// to sales.read, so this link and the screen behind it can never
+    // drift apart into a visible link to a locked door.
+    { href: "/crm/appointments", label: "Site visits", icon: CalendarCheck },
     { href: "/crm/tasks", label: "Tasks", icon: ListTodo },
     { href: "/crm/follow-ups", label: "Follow-ups", icon: BellRing },
   ]},

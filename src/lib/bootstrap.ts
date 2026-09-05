@@ -52,6 +52,10 @@ export function buildBootstrap(): Database {
 
   return {
     workspaces: [workspace],
+    appointments: [],
+    availability: [],
+    webhookSubscribers: [],
+    webhookDeliveries: [],
     brands: [brand],
     // Everything below is business content. It stays empty until something real
     // creates it — a publish, a sync, a webhook, a form submission.

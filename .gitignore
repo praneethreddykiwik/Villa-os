@@ -12,3 +12,4 @@ media/renders
 .DS_Store
 .security-audit/
 .claude/
+_e2e.mjs

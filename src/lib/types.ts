@@ -1,3 +1,5 @@
+import type { Appointment, AvailabilityConfig } from "./appointments/types";
+import type { WebhookLogEntry, WebhookSubscriber } from "./events/bus";
 /**
  * Domain model for the whole product. Everything is multi-tenant from day one:
  * a Workspace is an agency, a Brand is one client business. Nothing anywhere in
@@ -454,6 +456,7 @@ export interface ReportBlock {
 import type { Broker, CrmContact, CrmTask, Lead } from "./crm/types";
 import type { OpsDatabase } from "./ops/types";
 export type * from "./crm/types";
+export type * from "./appointments/types";
 export type * from "./ops/types";
 
 /* -------------------------------------------------------------------------- */
@@ -537,6 +540,16 @@ export interface Board {
 
 export interface Database {
   workspaces: Workspace[];
+  /** Site-visit bookings and the opening hours they are drawn from. */
+  appointments: Appointment[];
+  availability: AvailabilityConfig[];
+  /**
+   * Automation wiring: where outbound events are POSTed, and the bounded log of
+   * what was sent — plus the inbound idempotency receipts, which share the log
+   * because both are webhook traffic an operator may have to account for.
+   */
+  webhookSubscribers: WebhookSubscriber[];
+  webhookDeliveries: WebhookLogEntry[];
   brands: Brand[];
   connections: Connection[];
   media: MediaAsset[];

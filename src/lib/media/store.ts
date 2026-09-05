@@ -23,6 +23,24 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const BUCKET = "marketing-media";
 
+/**
+ * Marks a `MediaAsset.src` as an object key in the bucket rather than a path on
+ * disk. A signed URL cannot be stored in its place: it expires in an hour, and
+ * a render requested next week must still be able to read the file.
+ */
+export const STORAGE_SRC_PREFIX = "supabase://marketing-media/";
+
+/** True when this asset lives in object storage rather than the local tree. */
+export function isStorageSrc(src: string): boolean {
+  return src.startsWith(STORAGE_SRC_PREFIX);
+}
+
+/** A fresh, short-lived URL ffmpeg can read for a stored object. */
+export async function resolveSrc(sb: SupabaseClient, src: string, expiresInSeconds = 3600): Promise<string | null> {
+  if (!isStorageSrc(src)) return src;
+  return signedUrl(sb, src.slice(STORAGE_SRC_PREFIX.length), expiresInSeconds);
+}
+
 /** Hard ceiling. Instagram itself rejects a reel over 1GB; we stop far earlier. */
 export const MAX_BYTES = 512 * 1024 * 1024;
 

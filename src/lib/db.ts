@@ -21,6 +21,10 @@ const DB_PATH = path.join(DATA_DIR, "db.json");
 
 const EMPTY: Database = {
   workspaces: [],
+  appointments: [],
+  availability: [],
+  webhookSubscribers: [],
+  webhookDeliveries: [],
   brands: [],
   connections: [],
   media: [],

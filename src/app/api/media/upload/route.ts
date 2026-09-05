@@ -3,7 +3,9 @@ import { serverClient } from "@/lib/supabase/client";
 import { requirePermission } from "@/lib/auth/session";
 import { apiError, apiFail, apiOk } from "@/lib/auth/http";
 import { rateLimit } from "@/lib/ops/ratelimit";
-import { MAX_BYTES, listMedia, probeDimensions, putMedia, signedUrl, validateUpload } from "@/lib/media/store";
+import { MAX_BYTES, listMedia, probeDimensions, putMedia, signedUrl, validateUpload, STORAGE_SRC_PREFIX } from "@/lib/media/store";
+import { mutate, read, resolveBrandId } from "@/lib/db";
+import { uid } from "@/lib/ids";
 
 /**
  * MEDIA UPLOAD
@@ -87,6 +89,36 @@ export async function POST(req: Request) {
       dimensions,
       projectId,
       tags,
+    });
+
+    /**
+     * Register the upload in the JSON store as well.
+     *
+     * The object and its row live in Supabase, but the Studio, the Composer and
+     * the render pipeline all read `db.media`. Writing only to Supabase meant a
+     * video uploaded successfully and then appeared nowhere — the publishing
+     * pipeline was severed at its first joint. This mirrors the record across
+     * until those three read from Postgres directly.
+     *
+     * `src` holds the storage path behind a scheme rather than a signed URL,
+     * because a signed URL expires in an hour and the render pipeline needs to
+     * read the file again days later.
+     */
+    const db = read();
+    const brandId = resolveBrandId(db, null);
+    mutate((d) => {
+      d.media.push({
+        id: asset.id,
+        brandId,
+        kind: asset.kind,
+        src: `${STORAGE_SRC_PREFIX}${asset.storagePath}`,
+        width: asset.width,
+        height: asset.height,
+        durationSec: dimensions.durationSec,
+        renders: {},
+        createdAt: asset.createdAt,
+        tags,
+      });
     });
 
     return apiOk({
