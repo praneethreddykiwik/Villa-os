@@ -3,7 +3,7 @@
  *
  * Direct integration with Google Sheets API v4 using API key authentication.
  * Supports reading spreadsheet data, metadata inspection, and mapping rows
- * into Villa-OS CRM leads or pricing sheets.
+ * into Glentree CRM leads or pricing sheets.
  */
 
 import type { KycStatus, Lead, LeadSource, LeadStatus } from "../crm/types";
@@ -192,7 +192,7 @@ export async function readSheetValues(
 }
 
 /**
- * Maps 2D table values into normalized Villa-OS CRM leads.
+ * Maps 2D table values into normalized Glentree CRM leads.
  */
 export function parseLeadsFromSheet(
   rows: string[][],

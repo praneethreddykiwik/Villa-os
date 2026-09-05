@@ -59,8 +59,37 @@ export async function sendWhatsApp(opts: {
     };
   }
 
+  /**
+   * Explicit test seam.
+   *
+   * The suites that exercise the agent — "did it tell the customer why the
+   * document was rejected", "does it answer the message in front of it" — are
+   * about what the agent SAYS, not about whether Meta accepted it. They need a
+   * transport that succeeds without a network. That is a different thing from
+   * the mock driver quietly reporting success to a real operator, so it is a
+   * separate, explicitly named switch that only tests/helpers.ts sets. Nothing
+   * in a running deployment turns it on by accident.
+   */
+  if (process.env.WHATSAPP_TRANSPORT === "stub") {
+    return { ok: true, messageId: `wamid.stub${Math.random().toString(36).slice(2, 10)}` };
+  }
+
   if (DRIVER === "mock") {
-    return { ok: true, messageId: `wamid.mock${Math.random().toString(36).slice(2, 10)}` };
+    /**
+     * Fail, do not pretend.
+     *
+     * This returned `ok: true` with a fabricated `wamid.mock…`. The caller in
+     * src/lib/ops/agent.ts takes that success and marks the reply delivered, so
+     * a customer who never received anything showed in the inbox as answered —
+     * and a follow-up that never went out was recorded as sent. A message that
+     * was not transmitted is a failure with a reason.
+     */
+    return {
+      ok: false,
+      error:
+        'WhatsApp is running with PLATFORM_DRIVER="mock", so nothing was sent. ' +
+        "Set PLATFORM_DRIVER=live to deliver messages.",
+    };
   }
 
   const body = opts.template

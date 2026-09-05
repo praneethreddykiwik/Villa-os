@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { pageContext, qs } from "@/lib/page-context";
-import { channelMeta } from "@/lib/platforms/registry";
+import { channelMeta, isUsableConnection, connectionProblem } from "@/lib/platforms/registry";
 import { TopBar } from "@/components/shell";
 import { Badge, Card, Dot, Empty, SectionTitle, fmt } from "@/components/ui";
 import { CHANNEL_TABS, hasSignal, snapshotFor } from "./_data";
@@ -121,7 +121,7 @@ export default async function ChannelsIndexPage({
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {snaps.map((s) => {
               const meta = channelMeta(s.channel);
-              const live = s.connections.some((c) => c.status === "connected");
+              const live = s.connections.some((c) => isUsableConnection(c));
               return (
                 <Link key={s.channel} href={`/channels/${s.channel}${link}`} className="card card-hover p-4">
                   <div className="flex items-center gap-2">

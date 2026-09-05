@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, PlugZap } from "lucide-react";
 import { pageContext, qs } from "@/lib/page-context";
 import { pctChange } from "@/lib/metrics/aggregate";
-import { channelMeta } from "@/lib/platforms/registry";
+import { channelMeta, isUsableConnection, connectionProblem } from "@/lib/platforms/registry";
 import { TopBar } from "@/components/shell";
 import { Badge, Bar, Card, Dot, Empty, SectionTitle, Stat, fmt } from "@/components/ui";
 import { TrendArea, VIZ } from "@/components/charts";
@@ -42,7 +42,7 @@ export default async function ChannelPage({
   const r = snap.rollup;
   const p = snap.previous;
 
-  const live = snap.connections.filter((c) => c.status === "connected");
+  const live = snap.connections.filter((c) => isUsableConnection(c));
   const maxFormatReach = Math.max(...snap.formats.map((f) => f.reach), 1);
 
   return (

@@ -1,3 +1,4 @@
+import { isUsableConnection } from "../platforms/registry";
 import { mutate, read } from "../db";
 import { uid } from "../ids";
 import { sendWhatsApp } from "../platforms/whatsapp";
@@ -377,7 +378,7 @@ export async function deliver(
   if (!customer) return { ok: false, error: "Customer not found" };
 
   const db = read();
-  const conn = db.connections.find((c) => c.channel === "whatsapp" && c.status === "connected");
+  const conn = db.connections.find((c) => c.channel === "whatsapp" && isUsableConnection(c));
   const lastInbound = db.opsMessages
     .filter((m) => m.customerId === customerId && m.direction === "inbound")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];

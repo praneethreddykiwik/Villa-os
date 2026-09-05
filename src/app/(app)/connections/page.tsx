@@ -1,5 +1,5 @@
 import { pageContext } from "@/lib/page-context";
-import { adapterFor, channelMeta } from "@/lib/platforms/registry";
+import { adapterFor, channelMeta, isUsableConnection, connectionProblem } from "@/lib/platforms/registry";
 import { DRIVER } from "@/lib/platforms/types";
 import { TopBar } from "@/components/shell";
 import { Card, SectionTitle, Badge, fmt } from "@/components/ui";
@@ -36,7 +36,8 @@ export default async function ConnectionsPage({
               channel: spec.channel,
               label: spec.label,
               color: spec.color,
-              connected: existing?.status === "connected",
+              connected: existing ? isUsableConnection(existing) : false,
+              problem: existing ? connectionProblem(existing) : null,
               status: existing?.status,
               handle: existing?.handle,
               scopes: spec.scopes,

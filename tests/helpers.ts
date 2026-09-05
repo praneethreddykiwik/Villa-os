@@ -12,6 +12,9 @@ export function isolate(name: string): string {
   process.env.OPS_DATA_DIR = path.join(dir, "data");
   process.env.OPS_DOCUMENT_DIR = path.join(dir, "documents");
   process.env.PLATFORM_DRIVER = "mock";
+  // Agent suites assert what the agent says, not that Meta accepted it. The mock
+  // driver deliberately fails now, so tests opt into a stub transport instead.
+  process.env.WHATSAPP_TRANSPORT = "stub";
   process.env.WORKER_SECRET = "test-secret";
   process.env.OPS_SESSION_SECRET = "test-session-secret";
   delete process.env.ANTHROPIC_API_KEY; // deterministic extraction in tests

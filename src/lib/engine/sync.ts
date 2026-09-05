@@ -1,3 +1,4 @@
+import { isUsableConnection } from "../platforms/registry";
 import { mutate, read } from "../db";
 import { uid } from "../ids";
 import { analyseReview } from "../ai/reviews";
@@ -120,7 +121,8 @@ async function fetchGoogleReviews(account: string, location: string, token: stri
 
 export async function retrieveAll(brandId: string): Promise<SyncResult> {
   const db = read();
-  const connections = db.connections.filter((c) => c.brandId === brandId && c.status === "connected");
+  // A tokenless row cannot be retrieved from, however "connected" it claims to be.
+  const connections = db.connections.filter((c) => c.brandId === brandId && isUsableConnection(c));
   const sources: SourceResult[] = [];
   const inbound: Partial<Conversation>[] = [];
   const inboundReviews: Partial<Review>[] = [];

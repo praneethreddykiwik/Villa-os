@@ -125,12 +125,12 @@ export function Sidebar({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-[14px] font-bold tracking-tight text-mist-100">Villa-OS</span>
+            <span className="text-[14px] font-bold tracking-tight text-mist-100">Glentree</span>
             <span className="rounded-full bg-brand-500/15 px-2 py-0.2 text-[9px] font-semibold text-brand-300 border border-brand-500/30">
               PRO
             </span>
           </div>
-          <div className="truncate text-[10.5px] text-mist-400">Liquid Intelligence</div>
+          <div className="truncate text-[10.5px] text-mist-400">Villas · Sales · Marketing</div>
         </div>
       </div>
 
