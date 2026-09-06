@@ -41,6 +41,7 @@ const NAV: NavSection[] = [
     { href: "/channels/youtube", label: "YouTube", icon: Youtube },
   ]},
   { group: "Create & publish", items: [
+    { href: "/showcase", label: "3D Showcase", icon: Building2 },
     { href: "/composer", label: "Composer", icon: PenSquare },
     { href: "/automation", label: "Publish video", icon: Workflow },
     { href: "/publish-v2", label: "Video Pipeline", icon: Sparkles },

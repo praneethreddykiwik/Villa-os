@@ -38,7 +38,7 @@ const RULES: Array<[RegExp, Permission]> = [
   [/^\/voice/, "customers.read"],
 
   // Marketing surfaces
-  [/^\/(composer|studio|ideas|calendar|board|local)/, "marketing.read"],
+  [/^\/(composer|studio|ideas|calendar|board|local|showcase)/, "marketing.read"],
   // The per-channel tabs read the brand's own organic performance and write
   // nothing, so they take the marketing read permission. Listed explicitly
   // because an unmapped path is denied: without this line the Channels group
