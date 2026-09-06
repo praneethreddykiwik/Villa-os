@@ -212,7 +212,11 @@ export function LeadsGrid({ leads, brokers }: { leads: Lead[]; brokers: Broker[]
           </thead>
           <tbody>
             {filtered.map((l) => {
-              const status = LEAD_STATUSES.find((s) => s.id === l.status)!;
+              const status = LEAD_STATUSES.find((s) => s.id === l.status) ?? {
+                id: l.status,
+                label: (l.status as string || "Unknown").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+                color: "#94a3b8",
+              };
               const broker = l.brokerId ? brokerName[l.brokerId] : undefined;
               return (
                 <tr key={l.id} className={clsx("border-b border-ink-700/60 last:border-0 hover:bg-ink-850/50", busy === l.id && "opacity-50")}>
@@ -240,11 +244,14 @@ export function LeadsGrid({ leads, brokers }: { leads: Lead[]; brokers: Broker[]
                       value={l.status}
                       onChange={(e) => move(l.id, e.target.value as LeadStatus)}
                       className="rounded-md border border-ink-700 bg-ink-850 px-1.5 py-1 text-[11px] outline-none"
-                      style={{ color: status.color }}
+                      style={{ color: status?.color || "inherit" }}
                     >
                       {LEAD_STATUSES.map((s) => (
                         <option key={s.id} value={s.id} className="text-mist-100">{s.label}</option>
                       ))}
+                      {!LEAD_STATUSES.some((s) => s.id === l.status) && (
+                        <option value={l.status} className="text-mist-100">{status.label}</option>
+                      )}
                     </select>
                   </td>
                   <td className="tnum px-3 py-2.5 font-medium text-mist-200">
@@ -266,8 +273,8 @@ export function LeadsGrid({ leads, brokers }: { leads: Lead[]; brokers: Broker[]
                     )}
                   </td>
                   <td className="px-3 py-2.5">
-                    <Badge tone={l.kycStatus === "verified" ? "good" : l.kycStatus === "pending" ? "warn" : l.kycStatus === "rejected" ? "bad" : "neutral"}>
-                      {KYC_LABELS[l.kycStatus]}
+                    <Badge tone={l.kycStatus === "verified" ? "good" : l.kycStatus === "pending" || (l.kycStatus as string) === "in_progress" ? "warn" : l.kycStatus === "rejected" ? "bad" : "neutral"}>
+                      {KYC_LABELS[l.kycStatus] ?? (l.kycStatus as string || "Not started").replace(/_/g, " ")}
                     </Badge>
                   </td>
                   <td className="px-3 py-2.5 text-mist-300">{l.assignedTo}</td>

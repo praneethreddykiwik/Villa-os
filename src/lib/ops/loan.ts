@@ -2,9 +2,9 @@ import { mutate, read } from "../db";
 import { uid } from "../ids";
 import { assign } from "./assignment";
 import { audit, notify } from "./audit";
-import { getConfig } from "./config";
+import { getConfig, updateConfig } from "./config";
 import { setStage, updateCustomer } from "./customers";
-import type { ChecklistItem, ChecklistItemStatus, LoanCase, LoanStatus } from "./types";
+import type { ChecklistItem, ChecklistItemStatus, LoanCase, LoanStatus, WorkflowConfig } from "./types";
 
 /**
  * LOAN WORKFLOW
@@ -80,7 +80,56 @@ export function createLoanCase(opts: {
     actorType: opts.actorType ?? "system",
   });
 
+  // A new case starts with the org's standard document set so the assistant
+  // can ask for paperwork immediately; the officer edits from there.
+  ensureDefaultChecklist(loanCase.id, { id: opts.actorId, type: opts.actorType === "human" ? "human" : "system" });
+
   return { loanCase: activeCase(opts.customerId) ?? loanCase, created: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Default document set                                                        */
+/* -------------------------------------------------------------------------- */
+
+export type ChecklistTemplateItem = WorkflowConfig["checklistTemplates"][number]["items"][number];
+
+/** The org's default document set (the template a new case starts with). */
+export function defaultChecklist(orgId: string): { templateId: string; items: ChecklistTemplateItem[] } {
+  const cfg = getConfig(orgId);
+  const template =
+    cfg.checklistTemplates.find((t) => t.id === (cfg.defaultChecklistTemplateId ?? "standard_home_loan")) ??
+    cfg.checklistTemplates[0];
+  return { templateId: template?.id ?? "standard_home_loan", items: template?.items ?? [] };
+}
+
+/** Replace the org's default document set. Existing cases are untouched. */
+export function setDefaultChecklist(orgId: string, items: ChecklistTemplateItem[]): ChecklistTemplateItem[] {
+  const cfg = getConfig(orgId);
+  const templateId = cfg.defaultChecklistTemplateId ?? "standard_home_loan";
+  const clean = items
+    .map((i) => ({
+      documentType: (i.documentType || i.customerLabel).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+      customerLabel: i.customerLabel.trim(),
+      description: (i.description ?? "").trim(),
+      required: Boolean(i.required),
+      acceptedFormats: (i.acceptedFormats?.length ? i.acceptedFormats : ["jpg", "png", "pdf"]).map((f) => f.toLowerCase()),
+    }))
+    .filter((i, idx, all) => i.customerLabel && all.findIndex((x) => x.documentType === i.documentType) === idx);
+  const templates = cfg.checklistTemplates.some((t) => t.id === templateId)
+    ? cfg.checklistTemplates.map((t) => (t.id === templateId ? { ...t, items: clean } : t))
+    : [{ id: templateId, name: "Standard home loan", items: clean }, ...cfg.checklistTemplates];
+  updateConfig(orgId, { checklistTemplates: templates, defaultChecklistTemplateId: templateId });
+  return clean;
+}
+
+/** Apply the default set once — only to a case that has no checklist at all. */
+export function ensureDefaultChecklist(loanCaseId: string, actor: { id?: string; type: "human" | "system" }): ChecklistItem[] {
+  const loanCase = getCase(loanCaseId);
+  if (!loanCase) return [];
+  if (checklistFor(loanCaseId).length) return [];
+  const { items } = defaultChecklist(loanCase.orgId);
+  if (!items.length) return [];
+  return addChecklistItems(loanCaseId, items, actor);
 }
 
 export function setLoanStatus(
@@ -262,6 +311,8 @@ export interface CaseProgress {
   rejected: ChecklistItem[];
   awaitingReview: ChecklistItem[];
   optionalOutstanding: ChecklistItem[];
+  /** Every required item has a file on it (uploaded or accepted, none rejected). */
+  allReceived: boolean;
 }
 
 /** Completion counts only *required* items — optional extras must not gate. */
@@ -278,7 +329,48 @@ export function caseProgress(loanCaseId: string): CaseProgress {
     rejected: items.filter((i) => i.status === "REJECTED"),
     awaitingReview: items.filter((i) => ["UPLOADED", "UNDER_REVIEW"].includes(i.status)),
     optionalOutstanding: items.filter((i) => !i.required && ["NOT_REQUESTED", "REQUESTED"].includes(i.status)),
+    allReceived: required.length > 0 && required.every((i) => ["UPLOADED", "UNDER_REVIEW", "ACCEPTED"].includes(i.status)),
   };
+}
+
+/** Absolute link to the case for e-mail; relative when no public URL is set. */
+export function caseLink(loanCaseId: string): string {
+  const base = (process.env.PUBLIC_BASE_URL ?? "").trim().replace(/\/$/, "");
+  return `${base}/ops/loans/${loanCaseId}`;
+}
+
+/**
+ * Tell the assigned officer (or every officer) the case needs them: in-app
+ * always, e-mail when configured. E-mail is fire-and-forget — the case state
+ * never waits on a mail provider.
+ */
+function notifyOfficer(loanCase: LoanCase, opts: { event: string; title: string; body: string }): void {
+  notify({
+    orgId: loanCase.orgId,
+    recipientId: loanCase.assignedOfficerId,
+    recipientRole: loanCase.assignedOfficerId ? undefined : "LOAN_OFFICER",
+    category: "LOAN",
+    event: opts.event,
+    title: opts.title,
+    body: `${opts.body} ${caseLink(loanCase.id)}`,
+    customerId: loanCase.customerId,
+    severity: "INFO",
+  });
+  const db = read();
+  const officer = db.teamMembers.find((m) => m.id === loanCase.assignedOfficerId);
+  const customer = db.customers.find((c) => c.id === loanCase.customerId);
+  void import("../notify")
+    .then(({ emailConfigured, configuredRecipients, sendEmail }) => {
+      if (!emailConfigured()) return;
+      const to = [...(officer?.email ? [officer.email] : []), ...configuredRecipients()];
+      if (!to.length) return;
+      return sendEmail({
+        to,
+        subject: `${opts.title} — ${customer?.name ?? "customer"}`,
+        text: `${opts.body}\n\nCustomer: ${customer?.name ?? "Unknown"} ${customer?.phone ?? ""}\nOpen the case: ${caseLink(loanCase.id)}`,
+      });
+    })
+    .catch((e: unknown) => console.warn(`[loan] officer e-mail failed: ${(e as Error).message}`));
 }
 
 /**
@@ -296,30 +388,42 @@ export function refreshCaseProgress(loanCaseId: string, actor: { id?: string; ty
   const terminal = ["APPROVED", "CONDITIONALLY_APPROVED", "REJECTED", "COMPLETED", "ON_HOLD"];
   if (terminal.includes(loanCase.status)) return progress;
 
-  if (progress.requiredTotal > 0 && progress.requiredAccepted === progress.requiredTotal) {
+  const allAccepted = progress.requiredTotal > 0 && progress.requiredAccepted === progress.requiredTotal;
+
+  if (allAccepted && !loanCase.allDocumentsAcceptedAt) {
+    mutate((db) => {
+      const l = db.loanCases.find((x) => x.id === loanCaseId);
+      if (l) {
+        l.allDocumentsAcceptedAt = new Date().toISOString();
+        if (!l.readyForReviewAt) l.readyForReviewAt = l.allDocumentsAcceptedAt;
+      }
+    });
+    if (loanCase.status !== "READY_FOR_ANALYSIS") setLoanStatus(loanCaseId, "READY_FOR_ANALYSIS", actor, "All required documents accepted");
+    notifyOfficer(getCase(loanCaseId) ?? loanCase, {
+      event: "loan_case.documents_accepted",
+      title: "All required documents accepted",
+      body: `Case is complete (${progress.requiredAccepted}/${progress.requiredTotal}) and ready for analysis.`,
+    });
+  } else if (progress.allReceived) {
+    // Every required file is in hand: the officer can start the analysis now.
+    // "Received" is not "accepted" — the customer is told the former only.
     if (loanCase.status !== "READY_FOR_ANALYSIS") {
-      setLoanStatus(loanCaseId, "READY_FOR_ANALYSIS", actor, "All required documents accepted");
+      setLoanStatus(loanCaseId, "READY_FOR_ANALYSIS", actor, "All required documents received");
       mutate((db) => {
         const l = db.loanCases.find((x) => x.id === loanCaseId);
         if (l && !l.readyForReviewAt) l.readyForReviewAt = new Date().toISOString();
       });
-      notify({
-        orgId: loanCase.orgId,
-        recipientId: loanCase.assignedOfficerId,
-        recipientRole: loanCase.assignedOfficerId ? undefined : "LOAN_OFFICER",
-        category: "LOAN",
+      notifyOfficer(getCase(loanCaseId) ?? loanCase, {
         event: "loan_case.ready_for_analysis",
-        title: "All required documents accepted",
-        body: `Case is complete (${progress.requiredAccepted}/${progress.requiredTotal}) and ready for analysis.`,
-        customerId: loanCase.customerId,
-        severity: "INFO",
+        title: "All documents received — ready for review",
+        body: `Every required document (${progress.requiredTotal}) has been received; ${progress.awaitingReview.length} awaiting your review.`,
       });
     }
-  } else if (progress.awaitingReview.length > 0 && loanCase.status !== "UNDER_REVIEW") {
-    setLoanStatus(loanCaseId, "UNDER_REVIEW", actor, "Documents awaiting officer review");
   } else if (progress.rejected.length > 0 && loanCase.status !== "DOCUMENTS_INCOMPLETE") {
     setLoanStatus(loanCaseId, "DOCUMENTS_INCOMPLETE", actor, "Documents rejected — replacements required");
-  } else if (progress.missing.length > 0 && !["DOCUMENT_COLLECTION"].includes(loanCase.status)) {
+  } else if (progress.awaitingReview.length > 0 && progress.missing.length === 0 && loanCase.status !== "UNDER_REVIEW") {
+    setLoanStatus(loanCaseId, "UNDER_REVIEW", actor, "Documents awaiting officer review");
+  } else if (progress.missing.length > 0 && loanCase.status !== "DOCUMENT_COLLECTION") {
     setLoanStatus(loanCaseId, "DOCUMENT_COLLECTION", actor, "Awaiting customer documents");
   }
 
@@ -346,7 +450,7 @@ export function loanWorkspace(orgId: string, officerId?: string) {
       progress.awaitingReview.length > 0 &&
       now - new Date(l.updatedAt).getTime() > cfg.sla.documentReviewHours * 3600_000;
 
-    return { loanCase: l, customer, progress, lastFollowUp, nextFollowUp, overdue };
+    return { loanCase: l, customer, progress, lastFollowUp, nextFollowUp, overdue, checklist: checklistFor(l.id) };
   });
 
   return {

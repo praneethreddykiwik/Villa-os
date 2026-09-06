@@ -506,7 +506,7 @@ describe("END-TO-END ACCEPTANCE (§38)", () => {
     const tick = await runFollowUpTick(ORG);
     assert.ok(tick.sent >= 1, `expected at least one follow-up sent, got ${JSON.stringify(tick)}`);
     const requested = read().opsMessages.filter((m) => m.customerId === customerId && m.direction === "outbound");
-    assert.ok(requested.some((m) => /photo id|income|address/i.test(m.body)), "the request must name a real checklist item");
+    assert.ok(requested.some((m) => /aadhaar card|aadhaar|pan card|photo id|income|salary|address/i.test(m.body)), "the request must name a real checklist item");
 
     // 14–15. Customer uploads; it appears for the officer as UPLOADED, not accepted.
     const first = items[0];

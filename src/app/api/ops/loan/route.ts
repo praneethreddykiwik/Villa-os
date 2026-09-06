@@ -4,8 +4,8 @@ import { fail, handleError, ok } from "@/lib/ops/http";
 import { assign } from "@/lib/ops/assignment";
 import { syncDocumentFollowUps } from "@/lib/ops/followups";
 import {
-  addChecklistItems, applyChecklistTemplate, caseProgress, checklistFor, getCase,
-  loanWorkspace, refreshCaseProgress, removeChecklistItem, setLoanStatus, updateChecklistItem,
+  addChecklistItems, applyChecklistTemplate, caseProgress, checklistFor, defaultChecklist, getCase,
+  loanWorkspace, refreshCaseProgress, removeChecklistItem, setDefaultChecklist, setLoanStatus, updateChecklistItem,
 } from "@/lib/ops/loan";
 import type { ChecklistItem, LoanStatus } from "@/lib/ops/types";
 
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   try {
     const session = await authorize(req, "loan:write");
     const body = (await req.json()) as {
-      action: "addItems" | "applyTemplate" | "updateItem" | "removeItem" | "setStatus" | "requestDocuments" | "reassign" | "addNote";
+      action: "addItems" | "applyTemplate" | "updateItem" | "removeItem" | "setStatus" | "requestDocuments" | "reassign" | "addNote" | "setDefaultChecklist";
       loanCaseId?: string;
       itemId?: string;
       templateId?: string;
@@ -97,6 +97,13 @@ export async function POST(req: Request) {
         const followUps = syncDocumentFollowUps(body.loanCaseId);
         refreshCaseProgress(body.loanCaseId, actor);
         return ok({ requested: items.length, followUps: followUps.map((f) => f.id) });
+      }
+
+      /** The org's default document set, applied to every new case. */
+      case "setDefaultChecklist": {
+        if (!Array.isArray(body.items)) return fail("items required", 400);
+        const items = setDefaultChecklist(session.orgId, body.items);
+        return ok({ items, templateId: defaultChecklist(session.orgId).templateId });
       }
 
       case "reassign": {

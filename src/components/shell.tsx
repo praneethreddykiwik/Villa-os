@@ -66,6 +66,7 @@ const NAV: NavSection[] = [
   { group: "Engage", items: [
     { href: "/voice", label: "Voice calls", icon: PhoneCall },
     { href: "/voice/whatsapp-training", label: "WhatsApp AI", icon: MessageSquare },
+    { href: "/inbox/whatsapp", label: "WhatsApp", icon: Inbox },
   ]},
   { group: "Grow", items: [
     { href: "/ads", label: "Ads · Meta + Google", icon: Megaphone },

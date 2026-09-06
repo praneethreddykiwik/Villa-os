@@ -6,6 +6,7 @@ import { graphVersion } from "../platforms/types";
 import { DRIVER } from "../platforms/types";
 import { isUploadPostConnection } from "../uploadpost/connections";
 import { syncYouTubeStats, type YouTubeSnapshotFetcher } from "./youtube-sync";
+import { isSocialChannel, syncSocialStats, type SocialAnalyticsFetcher } from "./uploadpost-sync";
 import type { ChannelId, Connection, Conversation, Review } from "../types";
 
 /**
@@ -42,8 +43,8 @@ export interface SourceResult {
   /** Human-readable outcome — why a source was skipped, or what it synced. */
   detail?: string;
   error?: string;
-  /** Present when a stats row was written (YouTube). */
-  stats?: { impressions: number; engagements: number; posts: number; followers: number };
+  /** Present when a stats row was written (YouTube, or a connector-backed social channel). */
+  stats?: { impressions: number; engagements: number; posts: number; followers: number; reach?: number };
 }
 
 export interface SyncResult {
@@ -57,6 +58,8 @@ export interface SyncResult {
 /** Test seam: retrieveAll fetches YouTube through this unless told otherwise. */
 export interface SyncOptions {
   youtube?: YouTubeSnapshotFetcher;
+  /** Test seam for the publishing-connector analytics behind Instagram / Facebook / LinkedIn rows. */
+  social?: SocialAnalyticsFetcher;
   /** Restrict the run to these channels (page-driven freshness refreshes only YouTube). */
   only?: ChannelId[];
   /** Skip the activity-feed entry — a background refresh every ten minutes would drown the feed. */
@@ -71,9 +74,9 @@ export interface SyncOptions {
  * any of those needs the network's own OAuth grant stored on the connection.
  */
 const UPLOAD_POST_SKIP: Partial<Record<ChannelId, string>> = {
-  instagram: "Instagram comments, DMs and insights need the native Meta connection (OAuth) — the publishing connector publishes but does not expose them.",
-  facebook: "Facebook comments, Messenger and Page insights need the native Meta connection (OAuth) — the publishing connector publishes but does not expose them.",
-  linkedin: "LinkedIn comments and analytics need the native LinkedIn connection (OAuth) — the publishing connector publishes but does not expose them.",
+  instagram: "Instagram comments and DMs need the native Meta connection (OAuth) — the publishing connector publishes and reports analytics only.",
+  facebook: "Facebook comments and Messenger need the native Meta connection (OAuth) — the publishing connector publishes and reports analytics only.",
+  linkedin: "LinkedIn comments need the native LinkedIn connection (OAuth) — the publishing connector publishes and reports analytics only.",
   tiktok: "TikTok comments and video stats need the native TikTok connection (OAuth) — the publishing connector publishes but does not expose them.",
   x: "X mentions and analytics need the native X connection (OAuth) — the publishing connector publishes but does not expose them.",
   google_business: "Google reviews and Q&A need the native Google Business Profile connection (OAuth) — the publishing connector publishes but does not expose them.",
@@ -194,7 +197,23 @@ export async function retrieveAll(brandId: string, opts: SyncOptions = {}): Prom
       continue;
     }
 
-    // Upload-Post rows have no token of their own: nothing here can be fetched.
+    // Connector-backed Instagram / Facebook / LinkedIn: the connector serves
+    // account analytics (not comments or DMs), so a stats row gets written
+    // the way YouTube's is. Networks the connector cannot report on — a
+    // LinkedIn personal profile, a Facebook page with no id — are skips.
+    if (isUploadPostConnection(conn) && isSocialChannel(conn.channel)) {
+      const out = await syncSocialStats(conn, opts.social);
+      sources.push(
+        out.ok
+          ? { ...base(conn), status: "synced", stats: out.stats, detail: `${out.detail} ${skipReason(conn)}` }
+          : out.skipped
+            ? { ...base(conn), status: "skipped", detail: out.detail }
+            : { ...base(conn), status: "error", error: out.error },
+      );
+      continue;
+    }
+
+    // Other Upload-Post rows have no token of their own: nothing here can be fetched.
     // This is the expected state of this deployment, so it is a skip, not an error.
     if (isUploadPostConnection(conn) || !conn.accessToken?.trim()) {
       sources.push({ ...base(conn), status: "skipped", detail: skipReason(conn) });

@@ -56,6 +56,8 @@ export interface Brand {
   offerings: string[];
   audience: string;
   createdAt: string;
+  /** Facebook Page id the publishing connector reports analytics for; set in the Facebook tab when discovery fails. */
+  facebookPageId?: string;
 }
 
 /** A connected account on a platform, e.g. one IG business account. */

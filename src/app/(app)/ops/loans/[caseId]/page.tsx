@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import { read } from "@/lib/db";
 import { canAccessCustomer, sessionFromCookies } from "@/lib/ops/auth";
 import { getConfig } from "@/lib/ops/config";
@@ -76,14 +76,27 @@ export default async function LoanCasePage({ params }: { params: Promise<{ caseI
         />
       </div>
 
+      {loanCase.status === "READY_FOR_ANALYSIS" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-good-500/40 bg-good-500/10 px-4 py-3">
+          <CheckCircle2 size={16} className="text-good-400" />
+          <div className="flex-1 text-[12.5px] text-mist-100">
+            <span className="font-semibold">Ready for analysis.</span>{" "}
+            {progress.awaitingReview.length > 0
+              ? `Every required document is in — ${progress.awaitingReview.length} still need your accept/reject decision.`
+              : "Every required document has been accepted. The customer has been told the loan officer will call."}
+            {loanCase.readyForReviewAt ? ` Since ${new Date(loanCase.readyForReviewAt).toLocaleString()}.` : ""}
+          </div>
+        </div>
+      )}
+
       <Card>
         <div className="flex items-center gap-3">
           <Bar value={progress.requiredAccepted} max={Math.max(1, progress.requiredTotal)} color="var(--color-good-500)" />
           <span className="tnum shrink-0 text-[14px] font-semibold">{progress.completionPct}%</span>
         </div>
         <p className="mt-2 text-[11.5px] text-mist-400">
-          Completion counts accepted <em>required</em> items only. At 100% the case moves to READY_FOR_ANALYSIS and you are
-          notified — the assistant tells the customer everything was received, and says nothing about approval.
+          Completion counts accepted <em>required</em> items only. Once every required document is received the case moves to
+          READY_FOR_ANALYSIS and you are notified — the assistant tells the customer everything was received, and says nothing about approval.
         </p>
       </Card>
 

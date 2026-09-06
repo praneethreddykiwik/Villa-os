@@ -176,7 +176,7 @@ describe("inbound media", () => {
     assert.ok(out.documentId);
     assert.equal(read().documents.find((d) => d.id === out.documentId)!.checklistItemId, firstItem.id);
     assert.equal(checklistFor(loanCase.id)[0].status, "UPLOADED", "received, never accepted");
-    assert.match(out.reply!, new RegExp(`received your ${firstItem.customerLabel}`, "i"));
+    assert.match(out.reply!, new RegExp(`(got|received) your ${firstItem.customerLabel}`, "i"));
     assert.match(out.reply!, new RegExp(secondItem.customerLabel, "i"), "the next missing item must be named");
     assert.doesNotMatch(out.reply!, /accepted|approved/i);
   });

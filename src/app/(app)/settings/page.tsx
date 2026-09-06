@@ -7,6 +7,8 @@ import { Card, SectionTitle, Badge } from "@/components/ui";
 import { getSession, hasPermission } from "@/lib/auth/session";
 import { AdminDiagnostics, vendorDiagnostics } from "@/components/settings/admin-diagnostics";
 import { KnowledgeEditor } from "@/components/knowledge-editor";
+import { WhatsAppHealthCard } from "@/components/settings/whatsapp-health";
+import { whatsappHealth } from "@/lib/platforms/whatsapp-health";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +21,7 @@ export default async function SettingsPage({
   const { db, brand, brandId } = pageContext(sp);
   // Vendor names are an admin concern; everyone else sees product wording.
   const isAdmin = hasPermission(await getSession(), "users.manage");
+  const waHealth = isAdmin ? await whatsappHealth() : null;
 
   const checks = [
     // Not "simulated": with the mock driver publishing fails outright rather than
@@ -57,6 +60,7 @@ export default async function SettingsPage({
         </Card>
 
         {isAdmin && <AdminDiagnostics rows={vendorDiagnostics(activeProvider())} />}
+        {waHealth && <WhatsAppHealthCard h={waHealth} />}
 
         <Card>
           <SectionTitle title="Brand profile" hint="This is what every AI engine conditions on — keep it specific" />

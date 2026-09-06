@@ -8,9 +8,10 @@ import type { ChannelId, Database } from "@/lib/types";
 
 /**
  * One card per connected social channel, shared by /analytics and /dashboard
- * so the two never disagree. YouTube carries real synced numbers; the other
- * channels are publish-only here (no insights API behind them), so they show
- * what is known — follower level and last post — and point to /connections.
+ * so the two never disagree. YouTube and the connector-backed Instagram /
+ * Facebook / LinkedIn rows carry real synced numbers from `dailyStats`; a
+ * channel with no analytics behind it yet shows what is known — follower
+ * level and last post — and points to /connections.
  */
 export const OVERVIEW_CHANNELS: ChannelId[] = ["instagram", "facebook", "linkedin", "youtube", "google_business"];
 
@@ -75,10 +76,10 @@ export function SocialOverview({
                 <div className="mt-2 space-y-1 text-[11.5px]">
                   <Row label="Followers" value={c.followers ? fmt.n(c.followers) : "—"} />
                   <Row label="Last post" value={c.lastPostAt ? new Date(c.lastPostAt).toLocaleDateString("en", { day: "numeric", month: "short" }) : "none yet"} />
-                  {c.rollup && (c.rollup.impressions > 0 || c.rollup.reach > 0 || c.rollup.posts > 0) ? (
+                  {c.rollup && (c.rollup.impressions > 0 || c.rollup.reach > 0 || c.rollup.engagements > 0 || c.rollup.videoViews > 0 || c.rollup.posts > 0) ? (
                     <>
-                      <Row label="Plays / Views" value={fmt.n(c.rollup.impressions)} />
                       <Row label="Reach" value={fmt.n(c.rollup.reach)} />
+                      <Row label="Views" value={fmt.n(c.rollup.videoViews || c.rollup.impressions)} />
                       <Row label="Engagements" value={fmt.n(c.rollup.engagements)} />
                       <Row label="Posts" value={fmt.n(c.rollup.posts)} />
                     </>

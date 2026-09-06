@@ -232,8 +232,16 @@ export interface OpsMessage {
   tag?: string;
   /** Small structured payload attached to the message, e.g. the slots offered. */
   meta?: Record<string, string>;
+  /** Platform delivery receipt for an outbound message (from the status webhook). */
+  deliveryStatus?: DeliveryStatus;
+  deliveryAt?: string;
+  deliveryError?: string;
+  /** When a staff member first opened the thread after this inbound arrived. */
+  readAt?: string;
   createdAt: string;
 }
+
+export type DeliveryStatus = "sent" | "delivered" | "read" | "failed";
 
 export interface SentimentEvent {
   id: string;
@@ -364,8 +372,10 @@ export interface LoanCase {
   financialInfo?: string;
   propertyInfo?: string;
   officerNotes: string[];
-  /** Set when required-document completion first reaches 100%. */
+  /** Set when every required document has first been received (or accepted). */
   readyForReviewAt?: string;
+  /** Set when every required document has been accepted by an officer. */
+  allDocumentsAcceptedAt?: string;
   createdAt: string;
   updatedAt: string;
   closedAt?: string;
@@ -593,6 +603,11 @@ export interface WorkflowConfig {
     salesCallHours: number;
     documentReviewHours: number;
   };
+  /**
+   * Template applied automatically when a loan case opens without a checklist.
+   * Defaults to "standard_home_loan"; editable on /ops/loans.
+   */
+  defaultChecklistTemplateId?: string;
   /** Checklist presets a loan officer can apply — never used by the AI directly. */
   checklistTemplates: Array<{
     id: string;

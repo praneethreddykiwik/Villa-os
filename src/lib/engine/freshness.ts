@@ -38,17 +38,25 @@ export interface FreshnessInfo {
 export function youtubeFreshnessInput(
   db: { connections: Array<{ brandId: string; channel: string; status: string; lastSyncedAt?: string }>; dailyStats: Array<{ brandId: string; channel: string; date: string }> },
   brandId: string,
+  channels: string[] = ["youtube"],
 ): { lastSyncedAt: string | null; newestStatDate: string | null; connected: boolean } {
-  const conns = db.connections.filter((c) => c.brandId === brandId && c.channel === "youtube" && c.status !== "disconnected");
+  const conns = db.connections.filter((c) => c.brandId === brandId && channels.includes(c.channel) && c.status !== "disconnected");
   const lastSyncedAt = conns.map((c) => c.lastSyncedAt ?? "").filter(Boolean).sort().pop() ?? null;
   const newestStatDate = db.dailyStats
-    .filter((s) => s.brandId === brandId && s.channel === "youtube")
+    .filter((s) => s.brandId === brandId && channels.includes(s.channel))
     .map((s) => s.date).sort().pop() ?? null;
   return { lastSyncedAt, newestStatDate, connected: conns.length > 0 };
 }
 
+/**
+ * Channels the page-driven refresh covers: YouTube (public API) and the three
+ * networks whose analytics the publishing connector serves. Nothing else has
+ * a keyless source to refresh from.
+ */
+export const FRESH_CHANNELS = ["youtube", "instagram", "facebook", "linkedin"] as const;
+
 export async function ensureFreshStats(brandId: string): Promise<FreshnessInfo> {
-  const before = youtubeFreshnessInput(read(), brandId);
+  const before = youtubeFreshnessInput(read(), brandId, [...FRESH_CHANNELS]);
   if (!before.connected || !isStale(before)) return { lastSyncedAt: before.lastSyncedAt, refreshed: false };
 
   const failed = lastFailedAt.get(brandId);
@@ -60,7 +68,7 @@ export async function ensureFreshStats(brandId: string): Promise<FreshnessInfo> 
     if (!p) {
       // Only a source that reached "synced" wrote rows worth re-reading;
       // anything else is remembered so the next TTL of renders skips the API.
-      p = retrieveAll(brandId, { only: ["youtube"], silent: true })
+      p = retrieveAll(brandId, { only: [...FRESH_CHANNELS], silent: true })
         .then((r) => r.totals.synced > 0)
         .then((ok) => { if (ok) lastFailedAt.delete(brandId); else lastFailedAt.set(brandId, Date.now()); return ok; })
         .finally(() => inflight.delete(brandId));
@@ -76,5 +84,5 @@ export async function ensureFreshStats(brandId: string): Promise<FreshnessInfo> 
     // Stale beats blank: the caller renders what the store already holds.
     lastFailedAt.set(brandId, Date.now());
   }
-  return { lastSyncedAt: youtubeFreshnessInput(read(), brandId).lastSyncedAt, refreshed };
+  return { lastSyncedAt: youtubeFreshnessInput(read(), brandId, [...FRESH_CHANNELS]).lastSyncedAt, refreshed };
 }

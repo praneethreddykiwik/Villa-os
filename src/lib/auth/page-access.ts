@@ -18,6 +18,7 @@ const RULES: Array<[RegExp, Permission]> = [
   [/^\/ops\/loans/, "loans.read"],
   [/^\/ops\/customers/, "customers.read"],
   [/^\/ops\/messages/, "customers.read"],
+  [/^\/inbox\/whatsapp/, "customers.read"],
 
   // Analytics and reporting — business performance, not everyone's business.
   [/^\/(dashboard|analytics|insights|reports|ads|activity)/, "analytics.view"],

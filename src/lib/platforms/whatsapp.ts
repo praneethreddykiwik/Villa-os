@@ -314,3 +314,56 @@ export const whatsapp: PlatformAdapter = {
   }),
   rateLimit: async () => ({ used: 0, quota: 1000, windowHours: 24 }),
 };
+
+/* -------------------------------------------------------------------------- */
+/* Delivery receipts                                                           */
+/* -------------------------------------------------------------------------- */
+
+export interface WhatsAppStatus {
+  /** Platform id of the outbound message the receipt is about. */
+  messageId: string;
+  status: "sent" | "delivered" | "read" | "failed";
+  recipient?: string;
+  timestamp: string;
+  error?: string;
+}
+
+/**
+ * Receipts arrive through the same webhook as messages, under `statuses`.
+ * Unknown status values are dropped rather than stored as free text.
+ */
+export function parseStatuses(payload: unknown): WhatsAppStatus[] {
+  const out: WhatsAppStatus[] = [];
+  const body = payload as {
+    entry?: Array<{
+      changes?: Array<{
+        value?: {
+          statuses?: Array<{
+            id: string;
+            status: string;
+            timestamp: string;
+            recipient_id?: string;
+            errors?: Array<{ title?: string; message?: string; code?: number }>;
+          }>;
+        };
+      }>;
+    }>;
+  };
+  for (const entry of body.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      for (const s of change.value?.statuses ?? []) {
+        if (!s?.id) continue;
+        if (!["sent", "delivered", "read", "failed"].includes(s.status)) continue;
+        const err = s.errors?.[0];
+        out.push({
+          messageId: s.id,
+          status: s.status as WhatsAppStatus["status"],
+          recipient: s.recipient_id,
+          timestamp: new Date(Number(s.timestamp) * 1000).toISOString(),
+          error: err ? (err.title ?? err.message ?? (err.code != null ? `error ${err.code}` : undefined)) : undefined,
+        });
+      }
+    }
+  }
+  return out;
+}

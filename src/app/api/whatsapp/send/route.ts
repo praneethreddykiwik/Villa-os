@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { mutate, read } from "@/lib/db";
 import { sendWhatsApp } from "@/lib/platforms/whatsapp";
 import { guard } from "@/lib/auth/guard";
+import { getSession } from "@/lib/auth/session";
+import { findByPhone } from "@/lib/ops/customers";
+import { recordExternalOutbound } from "@/lib/ops/inbox";
 
 /**
  * Reply on WhatsApp. The 24-hour service window is enforced before the call, so
@@ -54,6 +57,24 @@ export async function POST(req: Request) {
   });
 
   if (!result.ok) return NextResponse.json(result, { status: 422 });
+
+  // Every outbound must appear in the customer's conversation history. This
+  // path used to bypass opsMessages entirely, so staff replies sent from the
+  // social inbox were invisible to the WhatsApp inbox and to the agent.
+  const session = await getSession();
+  if (session) {
+    const customer = findByPhone(session.orgId, to);
+    if (customer) {
+      recordExternalOutbound({
+        orgId: session.orgId,
+        customerId: customer.id,
+        body: body.text ?? `[template: ${body.template?.name}]`,
+        authorType: "human",
+        authorId: session.userId,
+        externalId: result.messageId,
+      });
+    }
+  }
 
   mutate((d) => {
     const c = d.conversations.find((x) => x.id === body.conversationId);

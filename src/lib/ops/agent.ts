@@ -14,7 +14,7 @@ import { receiveDocument } from "./documents";
 import { cancelFollowUps, createFollowUp, dueFollowUps, escalate, markSent, syncDocumentFollowUps } from "./followups";
 import { deterministicExtract, extractInsight, INTENT_PATTERNS, recordSentiment } from "./intelligence";
 import { ensureKnowledge, factsBlock, logGap, retrieve } from "./knowledge";
-import { activeCase, caseProgress } from "./loan";
+import { activeCase, caseProgress, checklistFor, createLoanCase, updateChecklistItem } from "./loan";
 import { assign } from "./assignment";
 import { notify } from "./audit";
 import {
@@ -259,6 +259,11 @@ async function processInbound(input: InboundMessage): Promise<AgentOutcome> {
   if (insight.financingInterest) {
     updateCustomer(customer.id, { loanRequired: customer.loanRequired === "NO" ? "NO" : "YES" }, { type: "ai" });
   }
+  // "I need a home loan" opens the file and starts the document chase.
+  let caseOpened = false;
+  if (kind === "text" && LOAN_NEEDED.test(input.body) && customer.loanRequired !== "NO" && !customer.optedOut && !activeCase(customer.id)) {
+    caseOpened = openLoanCaseFromChat(input.orgId, customer.id).opened;
+  }
 
   rescoreCustomer(customer.id);
   const refreshed = getCustomer(customer.id)!;
@@ -305,7 +310,7 @@ async function processInbound(input: InboundMessage): Promise<AgentOutcome> {
   // "1" after a slot offer would no longer match. Send it now, in order.
   await flushQueuedReplies(input.orgId, customer.id);
 
-  const composed = await compose(customer.id, input, kind, ingested, Boolean(escalationId));
+  const composed = await compose(customer.id, input, kind, ingested, Boolean(escalationId), caseOpened);
   escalationId = composed?.escalationId ?? escalationId;
   // Exactly one outbound per inbound. Idempotency on externalId above means a
   // webhook retry cannot produce a second one either.
@@ -343,6 +348,8 @@ interface Ingested {
   duplicate: boolean;
   /** Why nothing was stored: not downloaded, unsupported type, storage error. */
   error?: string;
+  /** Formats the item we were chasing accepts — so a refusal can say what to send instead. */
+  acceptedFormats?: string[];
 }
 
 /**
@@ -372,8 +379,75 @@ async function ingestMedia(
     loanCaseId: loanCase?.id,
     uploadedBy: "customer",
   });
-  if (!stored.ok) return { duplicate: false, error: stored.error };
+  if (!stored.ok) return { duplicate: false, error: stored.error, acceptedFormats: target?.acceptedFormats };
   return { documentId: stored.document.id, itemLabel: target?.customerLabel, duplicate: stored.duplicate };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Loan document chase                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The customer said they need financing — not merely mentioned a bank. "Do
+ * you have EMI options?" is a question answered from the knowledge base; "I
+ * need a home loan" opens the file.
+ */
+const LOAN_NEEDED = /\b(need|needs|want|wants|require|looking for|apply(?:ing)? for|help (?:me )?with|take|avail|get)\b[^.?!]{0,30}\b(home ?loan|loan|financing|finance|emi|mortgage)\b|\b(loan|financing|finance|emi)\b[^.?!]{0,20}\b(needed|required)\b/i;
+/** "Which documents do you need?" — at any point, list what is still missing. */
+const DOCS_QUESTION = /\b(which|what|list of|all the)\b[^.?!]{0,30}\b(documents?|papers|paperwork)\b|\b(documents?|papers|paperwork)\b[^.?!]{0,30}\b(need|needed|required|missing|pending|left|remaining)\b/i;
+
+const MAX_LIST_LINES = 8;
+
+/**
+ * Open the loan file from conversation. The default document set is applied
+ * by createLoanCase; here every item is marked REQUESTED (the customer is
+ * about to be told) and the daily reminder starts tomorrow, not now — the
+ * list itself is the day-0 message.
+ */
+function openLoanCaseFromChat(orgId: string, customerId: string): { loanCase: ReturnType<typeof activeCase>; opened: boolean } {
+  const existing = activeCase(customerId);
+  if (existing) return { loanCase: existing, opened: false };
+  const { loanCase, created } = createLoanCase({ orgId, customerId, loanType: "home", actorType: "ai" });
+  for (const i of checklistFor(loanCase.id).filter((x) => x.status === "NOT_REQUESTED")) {
+    updateChecklistItem(i.id, { status: "REQUESTED" }, { type: "ai" });
+  }
+  scheduleDocumentReminder(loanCase.id);
+  return { loanCase: activeCase(customerId) ?? loanCase, opened: created };
+}
+
+/** One gentle reminder a day for whatever is still missing, starting tomorrow. */
+function scheduleDocumentReminder(loanCaseId: string): void {
+  const loanCase = read().loanCases.find((l) => l.id === loanCaseId);
+  if (!loanCase) return;
+  if (!caseProgress(loanCaseId).missing.length) return;
+  createFollowUp({
+    orgId: loanCase.orgId,
+    customerId: loanCase.customerId,
+    kind: "DOCUMENT_REQUEST",
+    lane: "LOAN",
+    loanCaseId,
+    reason: "Daily reminder for missing loan documents",
+    scheduledAt: new Date(Date.now() + 86400_000).toISOString(),
+  });
+}
+
+/** Numbered list of what is still needed — required items first, at most 8 lines. */
+function documentListReply(customerId: string, greeting: string, opened: boolean): Composed {
+  const loanCase = activeCase(customerId);
+  const progress = loanCase ? caseProgress(loanCase.id) : undefined;
+  if (!loanCase || !progress) return { text: `${greeting}our loan team will be in touch about financing shortly.`, tag: "loan" };
+  const outstanding = [...progress.rejected, ...progress.missing];
+  if (!outstanding.length) {
+    return progress.awaitingReview.length || progress.allReceived
+      ? { text: `${greeting}we have every document we asked for — our loan officer will review them and call you.`, tag: "loan" }
+      : { text: `${greeting}there's nothing outstanding on your file right now.`, tag: "loan" };
+  }
+  const lines = outstanding.slice(0, MAX_LIST_LINES).map((i, n) => `${n + 1}. ${i.customerLabel}${i.status === "REJECTED" ? " (new copy)" : ""}`);
+  const more = outstanding.length > MAX_LIST_LINES ? `\n…and ${outstanding.length - MAX_LIST_LINES} more once these are in.` : "";
+  const lead = opened
+    ? `${greeting}happy to help with the home loan. To get started, please send these documents here as photos or PDFs:`
+    : `${greeting}here's what we still need from you:`;
+  return { text: `${lead}\n${lines.join("\n")}${more}`, tag: opened ? "loan_opened" : "loan" };
 }
 
 function escalationChecks(
@@ -443,6 +517,7 @@ async function compose(
   kind: WhatsAppInboundType,
   ingested: Ingested | null,
   escalated: boolean,
+  caseOpened = false,
 ): Promise<Composed | null> {
   const customer = getCustomer(customerId);
   if (!customer) return null;
@@ -483,7 +558,7 @@ async function compose(
     return proposeVisit(customerId, greeting, pref, detectLanguage(input.body));
   }
 
-  const draft = composeReply(customerId, input.body, escalated);
+  const draft = composeReply(customerId, input.body, escalated, { caseOpened });
   if (!draft) return null;
   if (!LLM_ELIGIBLE.has(draft.tag)) return draft;
 
@@ -520,12 +595,13 @@ function lastOfferWasSlots(customerId: string): boolean {
 function mediaReply(ctx: { orgId: string; customerId: string; actorType: "ai" }, greeting: string, kind: "image" | "document", ingested: Ingested | null): Composed {
   const noun = kind === "image" ? "photo" : "document";
   if (!ingested?.documentId) {
-    const unsupported = /unsupported/i.test(ingested?.error ?? "");
+    const unsupported = /unsupported|accepts/i.test(ingested?.error ?? "");
     // "Send it again" for an oversized file only invites the same file again.
     const tooLarge = /larger than/i.test(ingested?.error ?? "");
+    const formats = (ingested?.acceptedFormats?.length ? ingested.acceptedFormats : ["pdf", "jpg", "png"]).map((f) => f.toUpperCase()).join(", ");
     return {
       text: unsupported
-        ? `${greeting}I couldn't save that file type. Please send it as a PDF or a photo (JPG/PNG).`
+        ? `${greeting}I couldn't read that file. Please send it as ${formats} — a clear photo or a PDF works best.`
         : tooLarge
           ? `${greeting}that ${noun} is too large for me to accept (${ingested?.error}). Could you send a smaller or compressed version?`
           : `${greeting}I can see you sent a ${noun} but I couldn't retrieve it. Could you send it again?`,
@@ -536,15 +612,15 @@ function mediaReply(ctx: { orgId: string; customerId: string; actorType: "ai" },
     return { text: `${greeting}looks like we already have that one — thanks, no need to resend.`, tag: "media" };
   }
 
-  // Attributed to a checklist item: say what it was taken as, then the next
-  // gap. "Received", never "accepted" — no human has looked at it yet.
+  // Attributed to a checklist item: say what it was taken as, then what is
+  // still needed. "Got"/"received", never "accepted" — no human has looked yet.
   if (ingested.itemLabel) {
     const missing = TOOLS.get_missing_documents(ctx);
-    const next = missing.ok ? missing.data.missing[0] : undefined;
-    const tail = next
-      ? ` The next thing we need is your ${next.label} — ${sentence(next.description)}`
-      : " That's everything we asked for; it's with the loan team for review now.";
-    return { text: `${greeting}thanks — I've received your ${ingested.itemLabel}.${tail}`, tag: "media" };
+    const still = missing.ok ? [...missing.data.rejected, ...missing.data.missing].map((i) => i.label) : [];
+    if (still.length) {
+      return { text: `${greeting}got your ${ingested.itemLabel}. Still needed: ${still.slice(0, 3).join(", ")}${still.length > 3 ? ` (+${still.length - 3} more)` : ""}.`, tag: "media" };
+    }
+    return { text: `${greeting}got your ${ingested.itemLabel}. All documents received — our loan officer will review and call you.`, tag: "media_complete" };
   }
   return {
     text: `${greeting}thanks — I've received your ${noun} and saved it to your file. A colleague will take a look. Is there anything you'd like to know in the meantime?`,
@@ -882,7 +958,7 @@ Detected intent: ${intent}. A safe reply you may use or improve: "${draft.text}"
 
 /* ---- Deterministic composer ---------------------------------------------- */
 
-export function composeReply(customerId: string, incoming: string, escalated: boolean): Composed | null {
+export function composeReply(customerId: string, incoming: string, escalated: boolean, opts: { caseOpened?: boolean } = {}): Composed | null {
   const ctx = { orgId: getCustomer(customerId)!.orgId, customerId, actorType: "ai" as const };
   const profile = TOOLS.get_customer_profile(ctx);
   if (!profile.ok) return null;
@@ -904,6 +980,9 @@ export function composeReply(customerId: string, incoming: string, escalated: bo
 
   const caseResult = TOOLS.get_loan_case(ctx);
   if (caseResult.ok) {
+    // The file was just opened, or the customer asked what is needed: the
+    // numbered list, not the one-at-a-time nudge.
+    if (opts.caseOpened || DOCS_QUESTION.test(incoming)) return documentListReply(customerId, greeting, Boolean(opts.caseOpened));
     const missing = TOOLS.get_missing_documents(ctx);
     if (!missing.ok) return bounded(`${greeting}thanks — I'll come back to you shortly.`, "loan");
     const { rejected, awaitingReview, missing: outstanding, completionPct } = missing.data;
@@ -919,7 +998,7 @@ export function composeReply(customerId: string, incoming: string, escalated: bo
     }
     if (awaitingReview.length) {
       // "received", never "accepted": no human has looked at it yet.
-      return bounded(`${greeting}we've received everything we asked for. It's now with the loan team for review, and we'll come back to you once they've been through it.`, "loan");
+      return bounded(`${greeting}all documents received — our loan officer will review them and call you.`, "loan");
     }
     if (completionPct === 100) {
       return bounded(`${greeting}all the documents we asked for have been received and accepted. Your application is with the loan team now — they'll be in touch with next steps.`, "loan");

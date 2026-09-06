@@ -11,6 +11,7 @@ import { YouTubeVideos } from "@/components/channels/youtube-videos";
 import { FacebookStudio } from "@/components/channels/facebook-studio";
 import { InstagramStudio } from "@/components/channels/instagram-studio";
 import { LinkedInStudio } from "@/components/channels/linkedin-studio";
+import { SocialOverviewPanel } from "@/components/channels/social-overview-panel";
 import { formatsOn, hasSignal, isChannelTab, snapshotFor, toChannelId } from "../_data";
 
 export const dynamic = "force-dynamic";
@@ -128,6 +129,11 @@ export default async function ChannelPage({
 
         {/* YouTube Studio */}
         {channel === "youtube" && <YouTubeVideos brandId={brandId} />}
+
+        {/* Account analytics from the publishing connector, live */}
+        {(channel === "instagram" || channel === "facebook" || channel === "linkedin") && (
+          <SocialOverviewPanel brandId={brandId} channel={channel} />
+        )}
 
         {/* Facebook Studio */}
         {channel === "facebook" && <FacebookStudio brandId={brandId} />}

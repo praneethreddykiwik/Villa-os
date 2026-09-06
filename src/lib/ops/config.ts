@@ -52,17 +52,18 @@ export function defaultConfig(orgId: string): WorkflowConfig {
       {
         id: "document_collection",
         kind: "DOCUMENT_REQUEST",
-        // Day 0 request, +1 gentle, +3 firmer, +5 escalate. Deliberately short —
-        // a stalled application costs more than a slightly persistent reminder.
+        // One gentle reminder a day for missing documents, five at most, then
+        // a person takes over. The cooldown keeps it to one message per day.
         steps: [
           { afterDays: 0, template: "document_request" },
           { afterDays: 1, template: "document_reminder_1" },
-          { afterDays: 3, template: "document_reminder_2" },
-          { afterDays: 5, template: "document_final" },
+          { afterDays: 1, template: "document_reminder_1" },
+          { afterDays: 1, template: "document_reminder_2" },
+          { afterDays: 1, template: "document_final" },
         ],
-        maxAttempts: 4,
+        maxAttempts: 5,
         cooldownHours: 20,
-        escalateAfterAttempts: 4,
+        escalateAfterAttempts: 5,
       },
       {
         id: "document_rejected",
@@ -129,18 +130,23 @@ export function defaultConfig(orgId: string): WorkflowConfig {
 
     sla: { firstResponseMinutes: 30, salesCallHours: 24, documentReviewHours: 24 },
 
+    defaultChecklistTemplateId: "standard_home_loan",
     checklistTemplates: [
       {
         id: "standard_home_loan",
         name: "Standard home loan",
+        // The standard Indian home-loan set. Labels are what the customer reads
+        // on WhatsApp; descriptions are the one-line explanation sent with them.
         items: [
-          { documentType: "identity", customerLabel: "Photo ID", description: "Government-issued photo identity document", required: true, acceptedFormats: ["pdf", "jpg", "png"] },
-          { documentType: "address_proof", customerLabel: "Address proof", description: "A recent utility bill or equivalent showing your address", required: true, acceptedFormats: ["pdf", "jpg", "png"] },
-          { documentType: "income_proof", customerLabel: "Income proof", description: "Recent salary slips or income statement", required: true, acceptedFormats: ["pdf", "jpg", "png"] },
-          { documentType: "bank_statements", customerLabel: "Bank statements", description: "Last 6 months of bank statements", required: true, acceptedFormats: ["pdf"] },
-          { documentType: "employment_proof", customerLabel: "Employment proof", description: "Employment letter or contract", required: true, acceptedFormats: ["pdf", "jpg", "png"] },
-          { documentType: "tax_documents", customerLabel: "Tax documents", description: "Latest tax return or assessment", required: true, acceptedFormats: ["pdf"] },
-          { documentType: "property_documents", customerLabel: "Property documents", description: "Agreement or allotment letter for the property", required: false, acceptedFormats: ["pdf"] },
+          { documentType: "aadhaar", customerLabel: "Aadhaar card", description: "Front and back of your Aadhaar card", required: true, acceptedFormats: ["jpg", "png", "pdf"] },
+          { documentType: "pan", customerLabel: "PAN card", description: "A clear photo or scan of your PAN card", required: true, acceptedFormats: ["jpg", "png", "pdf"] },
+          { documentType: "photo", customerLabel: "Passport-size photo", description: "A recent passport-size photograph", required: true, acceptedFormats: ["jpg", "png", "pdf"] },
+          { documentType: "address_proof", customerLabel: "Address proof", description: "A recent utility bill, passport or rent agreement showing your current address", required: true, acceptedFormats: ["jpg", "png", "pdf"] },
+          { documentType: "income_proof", customerLabel: "Salary slips or ITR", description: "Last 3 months salary slips if salaried, or last 2 years ITR if self-employed", required: true, acceptedFormats: ["jpg", "png", "pdf"] },
+          { documentType: "bank_statements", customerLabel: "Bank statements", description: "Last 6 months bank statements of your salary or main account", required: true, acceptedFormats: ["jpg", "png", "pdf"] },
+          { documentType: "employment_proof", customerLabel: "Form 16 or employment proof", description: "Latest Form 16, or an employment letter or ID card", required: true, acceptedFormats: ["jpg", "png", "pdf"] },
+          { documentType: "property_documents", customerLabel: "Property documents", description: "Agreement of sale or allotment letter for the property", required: true, acceptedFormats: ["jpg", "png", "pdf"] },
+          { documentType: "existing_loans", customerLabel: "Existing loan statements", description: "Statements for any loans you are already repaying (only if you have any)", required: false, acceptedFormats: ["jpg", "png", "pdf"] },
         ],
       },
       {

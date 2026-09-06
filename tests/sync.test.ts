@@ -43,15 +43,30 @@ const snapshot = async () => ({
   ],
 });
 
+/**
+ * Connector analytics stub: the network is never touched here. It reports the
+ * "cannot read this account" state so the Instagram row is a skip, which is
+ * what the suite below pins.
+ */
+const social = async () => ({
+  analytics: {
+    channel: "instagram" as const, ok: false, reason: "page_id_required" as const,
+    message: "Analytics for this account need a page id.",
+    totals: { followers: 0, reach: 0, views: 0, impressions: 0, profileViews: 0, likes: 0, comments: 0, shares: 0, saves: 0 },
+    reachSeries: [], impressionsSeries: [], availableMetrics: [], metricLabels: {}, periodDays: 30,
+  },
+  postsInPeriod: 0,
+});
+
 describe("retrieval sync", () => {
-  test("Upload-Post-backed Instagram is skipped with a reason, not an error", async () => {
+  test("Upload-Post-backed Instagram the connector cannot report on is skipped with a reason, not an error", async () => {
     const brandId = stage();
-    const res = await retrieveAll(brandId, { youtube: async () => null });
+    const res = await retrieveAll(brandId, { youtube: async () => null, social });
     const ig = res.sources.find((s) => s.channel === "instagram");
     assert.ok(ig, "instagram must appear in the report");
     assert.equal(ig.status, "skipped");
     assert.equal(ig.error, undefined);
-    assert.match(ig.detail ?? "", /native Meta connection/);
+    assert.match(ig.detail ?? "", /page id/);
     assert.equal(res.ok, true);
     assert.equal(res.totals.skipped, 1);
     // A skipped source was not synced, so it must not be stamped as such.
@@ -62,7 +77,7 @@ describe("retrieval sync", () => {
     const brandId = stage();
     const today = new Date().toISOString().slice(0, 10);
 
-    const first = await retrieveAll(brandId, { youtube: snapshot });
+    const first = await retrieveAll(brandId, { youtube: snapshot, social });
     const yt = first.sources.find((s) => s.channel === "youtube");
     assert.equal(yt?.status, "synced");
     assert.deepEqual(yt?.stats, { impressions: 1000, engagements: 50, posts: 2, followers: 250 });
@@ -78,7 +93,7 @@ describe("retrieval sync", () => {
     assert.equal(read().connections.find((c) => c.id === "con_yt")?.followers, 250);
 
     // Same day again: refreshed in place, never duplicated.
-    await retrieveAll(brandId, { youtube: snapshot });
+    await retrieveAll(brandId, { youtube: snapshot, social });
     assert.equal(read().dailyStats.filter((s) => s.connectionId === "con_yt").length, 1);
 
     // And the dashboards' aggregate sees it.
@@ -94,7 +109,7 @@ describe("retrieval sync", () => {
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
     // Yesterday's sync was the first ever: its row carries the lifetime figures.
-    await retrieveAll(brandId, { youtube: snapshot });
+    await retrieveAll(brandId, { youtube: snapshot, social });
     mutate((d) => {
       const row = d.dailyStats.find((s) => s.connectionId === "con_yt")!;
       row.date = yesterday;
@@ -102,7 +117,7 @@ describe("retrieval sync", () => {
 
     // Today the channel is unchanged: the new row must book zero movement, not
     // a second copy of the lifetime numbers.
-    await retrieveAll(brandId, { youtube: snapshot });
+    await retrieveAll(brandId, { youtube: snapshot, social });
     const rows = read().dailyStats.filter((s) => s.connectionId === "con_yt").sort((a, b) => a.date.localeCompare(b.date));
     assert.deepEqual(rows.map((r) => r.date), [yesterday, today]);
     assert.equal(rows[1].impressions, 0);
@@ -120,8 +135,8 @@ describe("retrieval sync", () => {
       const s = await snapshot();
       return { ...s, channel: { ...s.channel, stats: { ...s.channel.stats, subscribers: 260 } }, videos: [...s.videos, { id: "v3", title: "New", publishedAt: "2026-03-01T00:00:00Z", views: 150, likes: 7, comments: 3 }] };
     };
-    await retrieveAll(brandId, { youtube: grown });
-    await retrieveAll(brandId, { youtube: grown });
+    await retrieveAll(brandId, { youtube: grown, social });
+    await retrieveAll(brandId, { youtube: grown, social });
     const todayRow = read().dailyStats.find((s) => s.connectionId === "con_yt" && s.date === today)!;
     assert.equal(todayRow.impressions, 150);
     assert.equal(todayRow.engagements, 10);
@@ -135,7 +150,7 @@ describe("retrieval sync", () => {
 
   test("YouTube with no snapshot is reported as an error for that source only", async () => {
     const brandId = stage();
-    const res = await retrieveAll(brandId, { youtube: async () => null });
+    const res = await retrieveAll(brandId, { youtube: async () => null, social });
     const yt = res.sources.find((s) => s.channel === "youtube");
     assert.equal(yt?.status, "error");
     assert.match(yt?.error ?? "", /YouTube stats unavailable/);

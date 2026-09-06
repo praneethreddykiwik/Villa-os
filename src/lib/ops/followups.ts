@@ -274,14 +274,18 @@ export function dueFollowUps(orgId: string, now = Date.now()): TickResult {
     // Until then it is not "due": attempting it would fail before delivery,
     // never count as an attempt, and write a send_failed audit row per tick —
     // forever. The window is judged against real time, like the transport does.
-    if (f.kind === "TEMPLATE_REQUIRED") {
-      const lastInbound = db.opsMessages
-        .filter((m) => m.customerId === f.customerId && m.direction === "inbound")
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-      if (!isWithinServiceWindow(lastInbound?.createdAt)) {
-        result.skipped.push({ id: f.id, reason: "24h window closed" });
-        continue;
-      }
+    const lastInbound = db.opsMessages
+      .filter((m) => m.customerId === f.customerId && m.direction === "inbound")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    if (f.kind === "TEMPLATE_REQUIRED" && !isWithinServiceWindow(lastInbound?.createdAt)) {
+      result.skipped.push({ id: f.id, reason: "24h window closed" });
+      continue;
+    }
+    // A document reminder is free text too: once the customer has gone quiet
+    // for a day it cannot be delivered, so it waits for them to write again.
+    if (["DOCUMENT_REQUEST", "DOCUMENT_REMINDER", "DOCUMENT_REJECTED"].includes(f.kind) && lastInbound && !isWithinServiceWindow(lastInbound.createdAt)) {
+      result.skipped.push({ id: f.id, reason: "24h window closed" });
+      continue;
     }
 
     if (f.attempts >= f.maxAttempts) {
@@ -359,7 +363,7 @@ export function markSent(followUpId: string): FollowUp | null {
   const schedule = scheduleFor(cfg, cfg0.kind);
   const now = new Date();
 
-  return mutate((db) => {
+  const updated = mutate((db) => {
     const f = db.followUps.find((x) => x.id === followUpId);
     if (!f) return null;
     f.attempts += 1;
@@ -375,6 +379,35 @@ export function markSent(followUpId: string): FollowUp | null {
     }
     return { ...f };
   });
+
+  // The last reminder went out and the documents are still missing: the
+  // chase is exhausted, and a person takes over rather than silence.
+  if (
+    updated &&
+    updated.status === "SENT" &&
+    updated.loanCaseId &&
+    ["DOCUMENT_REQUEST", "DOCUMENT_REMINDER", "DOCUMENT_REJECTED"].includes(updated.kind) &&
+    updated.attempts >= (schedule?.escalateAfterAttempts ?? updated.maxAttempts)
+  ) {
+    const progress = caseProgress(updated.loanCaseId);
+    if (progress.missing.length || progress.rejected.length) {
+      escalate({
+        orgId: updated.orgId,
+        customerId: updated.customerId,
+        ruleId: "followups_exhausted",
+        lane: "LOAN",
+        severity: "MEDIUM",
+        reason: "Follow-up attempts exhausted",
+        detail: `${updated.attempts} reminders sent; still missing: ${[...progress.rejected, ...progress.missing].map((i) => i.customerLabel).join(", ")}.`,
+      });
+      mutate((d) => {
+        const f = d.followUps.find((x) => x.id === followUpId);
+        if (f) f.status = "ESCALATED";
+      });
+      return read().followUps.find((x) => x.id === followUpId) ?? updated;
+    }
+  }
+  return updated;
 }
 
 /* -------------------------------------------------------------------------- */

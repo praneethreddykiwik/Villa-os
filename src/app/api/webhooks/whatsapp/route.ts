@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { mutate, read } from "@/lib/db";
 import { uid } from "@/lib/ids";
-import { fetchWhatsAppMedia, parseWebhook } from "@/lib/platforms/whatsapp";
+import { fetchWhatsAppMedia, parseStatuses, parseWebhook } from "@/lib/platforms/whatsapp";
+import { applyDeliveryStatuses } from "@/lib/ops/inbox";
 import { handleInbound } from "@/lib/ops/agent";
 import { ensureOpsSeed, resolveDefaultOrgId, syncTeamMembers } from "@/lib/ops/seed";
 
@@ -87,8 +88,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
   }
 
+  // Delivery receipts share the endpoint. Apply them to the outbound rows they
+  // belong to before deciding whether there is anything else to do.
+  const statuses = parseStatuses(payload);
+  const statusesApplied = statuses.length ? applyDeliveryStatuses(statuses) : 0;
+
   const messages = parseWebhook(payload);
-  if (!messages.length) return NextResponse.json({ ok: true, ignored: "no messages in payload" });
+  if (!messages.length) {
+    return NextResponse.json({ ok: true, ignored: "no messages in payload", statuses: statuses.length, statusesApplied });
+  }
 
   const db = read();
   const conn = db.connections.find((c) => c.channel === "whatsapp");
@@ -173,5 +181,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, received: messages.length, created, ops: outcomes });
+  return NextResponse.json({ ok: true, received: messages.length, created, ops: outcomes, statusesApplied });
 }
