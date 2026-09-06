@@ -141,7 +141,7 @@ export function FacebookPosts({ brandId }: { brandId: string }) {
               <span className="text-[11px] font-medium uppercase tracking-wider text-mist-500">Target Page</span>
             </div>
             <p className="mt-1 text-[15px] font-bold text-mist-100">{page?.name ?? "Kiwik.One"}</p>
-            <p className="text-[11px] text-mist-400">Page ID: {page?.id ?? "1368849489636077"}</p>
+            <p className="text-[11px] text-mist-400">Page ID: {page?.id ?? "61594222312601"}</p>
           </div>
 
           <div className="rounded-xl border border-ink-800 bg-ink-900/40 p-3.5">
@@ -169,7 +169,7 @@ export function FacebookPosts({ brandId }: { brandId: string }) {
           <span>
             <strong className="text-mist-200">Where Facebook posts appear: </strong>
             Automated videos and reels are published directly to your Facebook Page (
-            <a href={page?.url || "https://www.facebook.com/1368849489636077"} target="_blank" rel="noreferrer" className="text-brand-400 hover:underline">
+            <a href={page?.url || "https://www.facebook.com/profile.php?id=61594222312601"} target="_blank" rel="noreferrer" className="text-brand-400 hover:underline">
               {page?.name || "Kiwik.One"}
             </a>
             ) under the <strong className="text-mist-200">Reels</strong> tab. Meta Graph API policy restricts automated posting to business Pages and does not publish to personal user timelines.

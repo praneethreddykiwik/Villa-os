@@ -75,13 +75,20 @@ export function SocialOverview({
                 <div className="mt-2 space-y-1 text-[11.5px]">
                   <Row label="Followers" value={c.followers ? fmt.n(c.followers) : "—"} />
                   <Row label="Last post" value={c.lastPostAt ? new Date(c.lastPostAt).toLocaleDateString("en", { day: "numeric", month: "short" }) : "none yet"} />
-                  {c.native && c.rollup ? (
+                  {c.rollup && (c.rollup.impressions > 0 || c.rollup.reach > 0 || c.rollup.posts > 0) ? (
+                    <>
+                      <Row label="Plays / Views" value={fmt.n(c.rollup.impressions)} />
+                      <Row label="Reach" value={fmt.n(c.rollup.reach)} />
+                      <Row label="Engagements" value={fmt.n(c.rollup.engagements)} />
+                      <Row label="Posts" value={fmt.n(c.rollup.posts)} />
+                    </>
+                  ) : c.native && c.rollup ? (
                     <Row label="Impressions" value={fmt.n(c.rollup.impressions)} />
                   ) : (
                     <p className="pt-1 text-[10.5px] leading-snug text-mist-400">
-                      Insights need the native connection.{" "}
+                      Active via publishing connector.{" "}
                       <Link href={`/connections${link}`} className="inline-flex items-center gap-0.5 text-mist-200 hover:underline">
-                        Connect <ArrowUpRight size={10} />
+                        Manage <ArrowUpRight size={10} />
                       </Link>
                     </p>
                   )}

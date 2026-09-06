@@ -97,7 +97,7 @@ export function buildBootstrap(): Database {
         id: "con_mtpltlcb809u",
         brandId: DEFAULT_BRAND_ID,
         channel: "facebook",
-        handle: "Kiwik.One (Praneeth Ramaswamy)",
+        handle: "Kiwik.One",
         externalId: "uploadpost:default:facebook",
         status: "connected",
         scopes: ["upload-post"],

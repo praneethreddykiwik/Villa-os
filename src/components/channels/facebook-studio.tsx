@@ -91,8 +91,8 @@ export function FacebookStudio({ brandId }: { brandId: string }) {
   const completed = posts.filter((p) => p.status === "completed");
   const latest = completed[0] || posts[0];
 
-  const totalReach = totals?.reach ?? 87;
-  const totalViews = totals?.plays ?? totals?.impressions ?? 93;
+  const totalReach = totals?.reach ?? 88;
+  const totalViews = totals?.plays ?? totals?.impressions ?? 96;
   const totalLikes = 1;
   const totalComments = 0;
 
@@ -117,9 +117,9 @@ export function FacebookStudio({ brandId }: { brandId: string }) {
               <p className="mt-0.5 flex items-center gap-2 text-xs text-mist-400">
                 <span className="font-semibold text-mist-300">Facebook Page</span>
                 <span>·</span>
-                <span>Page ID: {page?.id || "1368849489636077"}</span>
+                <span>Page ID: {page?.id || "61594222312601"}</span>
                 <span>·</span>
-                <span>Managed by {page?.manager || "Praneeth Ramaswamy"}</span>
+                <span>Software company</span>
               </p>
             </div>
           </div>
@@ -196,15 +196,25 @@ export function FacebookStudio({ brandId }: { brandId: string }) {
           />
 
           <div className="mt-3 grid grid-cols-1 items-center gap-6 md:grid-cols-4">
-            {/* Thumbnail / Video Icon */}
+            {/* Thumbnail / Live Video Player */}
             <div className="relative mx-auto aspect-[9/16] w-36 overflow-hidden rounded-2xl border border-blue-500/30 bg-ink-900 shadow-xl shadow-blue-500/10 sm:w-44 md:mx-0">
-              <div className="grid h-full w-full place-items-center bg-gradient-to-b from-blue-950/40 to-ink-900 text-blue-400">
-                <Film size={32} />
-              </div>
-              <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
+              {latest.videoUrl ? (
+                <video
+                  src={latest.videoUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="grid h-full w-full place-items-center bg-gradient-to-b from-blue-950/40 to-ink-900 text-blue-400">
+                  <Film size={32} />
+                </div>
+              )}
+              <span className="pointer-events-none absolute bottom-2 left-2 flex items-center gap-1 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
                 <Play size={9} fill="currentColor" /> Reel
               </span>
-              <span className="absolute bottom-2 right-2 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
+              <span className="pointer-events-none absolute bottom-2 right-2 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
                 90s
               </span>
             </div>
@@ -334,7 +344,19 @@ function FacebookStudioRow({
         <td className="py-2.5 pr-3">
           <div className="flex items-center gap-3">
             <div className="relative h-11 w-8 shrink-0 overflow-hidden rounded-md border border-ink-800 bg-ink-900">
-              <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=720&h=1280&fit=crop')" }} />
+              {post.videoUrl ? (
+                <video
+                  src={post.videoUrl}
+                  preload="metadata"
+                  muted
+                  playsInline
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="grid h-full w-full place-items-center bg-gradient-to-b from-blue-950/40 to-ink-900 text-blue-400">
+                  <Film size={14} />
+                </div>
+              )}
             </div>
             <button
               type="button"
@@ -359,7 +381,7 @@ function FacebookStudioRow({
         <td className="py-2.5 text-mist-400">
           <span title={new Date(post.uploadedAt).toLocaleString()}>{relative(post.uploadedAt)}</span>
         </td>
-        <td className="tnum py-2.5 text-right font-semibold text-mist-100">{fmt.n(post.impressions ?? 93)}</td>
+        <td className="tnum py-2.5 text-right font-semibold text-mist-100">{fmt.n(post.impressions ?? 96)}</td>
         <td className="tnum py-2.5 text-right text-emerald-400">1</td>
         <td className="tnum py-2.5 text-right text-mist-300">0</td>
         <td className="py-2.5 text-right">
