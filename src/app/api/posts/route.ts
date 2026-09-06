@@ -52,6 +52,11 @@ export async function POST(req: Request) {
    * other route in this codebase does.
    */
   const brandId = resolveBrandId(db, body.brandId ?? null);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
   if (!brandId) {
     return NextResponse.json(
       { ok: false, error: "No brand is configured to file this post under." },
@@ -164,6 +169,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const db = read();
   const brandId = resolveBrandId(db, url.searchParams.get("brand"));
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
   const posts = db.posts.filter((p) => !brandId || p.brandId === brandId);
 
   return NextResponse.json({ ok: true, posts });

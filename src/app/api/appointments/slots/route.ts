@@ -24,6 +24,11 @@ export async function GET(req: Request) {
     const requested = url.searchParams.get("brandId") ?? url.searchParams.get("brand");
     const db = read();
     const brandId = resolveBrandId(db, requested);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     if (!brandId) return apiFail("No brand is configured yet, so there are no slots.", 400);
     if (requested && requested !== brandId) return apiFail(`No brand ${requested} exists.`, 404);
 

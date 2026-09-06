@@ -105,7 +105,8 @@ export default async function CustomersPage({
                       <Bar value={paid} max={total} color="var(--color-good-500)" />
                     </div>
 
-                    <table className="mt-3 w-full text-[11.5px]">
+                    <div className="overflow-x-auto">
+                    <table className="mt-3 w-full text-[11.5px] min-w-[500px]">
                       <thead>
                         <tr className="border-b border-ink-700 text-left text-[9.5px] uppercase tracking-wider text-mist-400">
                           <th className="py-1.5 font-medium">Milestone</th>
@@ -133,6 +134,7 @@ export default async function CustomersPage({
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </Card>
                 );
               })}

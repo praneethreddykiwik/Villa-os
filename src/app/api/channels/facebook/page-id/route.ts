@@ -20,6 +20,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "A Facebook Page id is a number (5–25 digits)." }, { status: 400 });
   }
   const brandId = resolveBrandId(read(), body.brandId);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
   mutate((d) => {
     const b = d.brands.find((x) => x.id === brandId);
     if (b) b.facebookPageId = pageId;

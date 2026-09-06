@@ -41,8 +41,8 @@ export default async function AnalyticsPage({
   const maxHeat = Math.max(...heat.map((c) => c.score), 0.001);
 
   const published = db.posts
-    .filter((p) => p.brandId === brandId && p.status === "published" && p.metrics && p.publishedAt! >= `${range.from}T00:00:00`)
-    .sort((a, b) => b.metrics!.reach - a.metrics!.reach);
+    .filter((p) => p.brandId === brandId && p.status === "published" && p.metrics && p.publishedAt && p.publishedAt >= `${range.from}T00:00:00`)
+    .sort((a, b) => (b.metrics?.reach ?? 0) - (a.metrics?.reach ?? 0));
 
   // Format performance table — reach and engagement per format.
   const formatRows = new Map<string, { n: number; reach: number; er: number; retention: number }>();
@@ -50,9 +50,9 @@ export default async function AnalyticsPage({
     for (const tg of p.targets) {
       const row = formatRows.get(tg.format) ?? { n: 0, reach: 0, er: 0, retention: 0 };
       row.n += 1;
-      row.reach += p.metrics!.reach;
-      row.er += p.metrics!.engagementRate;
-      row.retention += p.metrics!.retention3s;
+      row.reach += p.metrics?.reach ?? 0;
+      row.er += p.metrics?.engagementRate ?? 0;
+      row.retention += p.metrics?.retention3s ?? 0;
       formatRows.set(tg.format, row);
     }
   }
@@ -117,7 +117,8 @@ export default async function AnalyticsPage({
                       <div key={day} className="mb-[2px] grid grid-cols-[34px_repeat(24,1fr)] gap-[2px]">
                         <span className="text-[9.5px] leading-4 text-mist-400">{DAY_NAMES[day]}</span>
                         {Array.from({ length: 24 }).map((_, hour) => {
-                          const c = heat.find((x) => x.day === day && x.hour === hour)!;
+                          const c = heat.find((x) => x.day === day && x.hour === hour);
+                          if (!c) return <span key={hour} className="h-4 rounded-[2px]" style={{ background: "rgba(91,108,255,0.08)" }} />;
                           const intensity = c.score / maxHeat;
                           return (
                             <span
@@ -171,7 +172,8 @@ export default async function AnalyticsPage({
                   No channel reported any activity in this period.
                 </p>
               ) : (
-                <table className="w-full text-[11.5px]">
+                <div className="overflow-x-auto">
+                <table className="w-full text-[11.5px] min-w-[500px]">
                   <thead>
                     <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-mist-400">
                       <th className="py-1.5 font-medium">Channel</th>
@@ -200,6 +202,7 @@ export default async function AnalyticsPage({
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </Card>
@@ -213,7 +216,8 @@ export default async function AnalyticsPage({
               composer and results land here once each channel reports back.
             </p>
           ) : (
-            <table className="w-full text-[12px]">
+            <div className="overflow-x-auto">
+            <table className="w-full text-[12px] min-w-[600px]">
               <thead>
                 <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-mist-400">
                   <th className="py-2 font-medium">Post</th>
@@ -251,6 +255,7 @@ export default async function AnalyticsPage({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
 

@@ -50,8 +50,8 @@ export default async function ReportsPage({
     : null;
 
   const topPosts = db.posts
-    .filter((p) => p.brandId === brandId && p.status === "published" && p.metrics && p.publishedAt! >= `${range.from}T00:00:00`)
-    .sort((a, b) => b.metrics!.reach - a.metrics!.reach)
+    .filter((p) => p.brandId === brandId && p.status === "published" && p.metrics && p.publishedAt && p.publishedAt >= `${range.from}T00:00:00`)
+    .sort((a, b) => (b.metrics?.reach ?? 0) - (a.metrics?.reach ?? 0))
     .slice(0, 5);
 
   return (
@@ -108,7 +108,8 @@ export default async function ReportsPage({
 
           <Card>
             <SectionTitle title="Channel breakdown" />
-            <table className="w-full text-[12px]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px] min-w-[500px]">
               <thead>
                 <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-mist-400">
                   <th className="py-2 font-medium">Channel</th>
@@ -132,6 +133,7 @@ export default async function ReportsPage({
                 ))}
               </tbody>
             </table>
+            </div>
           </Card>
 
           <Card>

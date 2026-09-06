@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
   const result = await sendWhatsApp({
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? conn?.externalId ?? "",
-    token: conn?.accessToken ?? process.env.META_SYSTEM_USER_TOKEN ?? "",
+    token: conn?.accessToken ?? process.env.WHATSAPP_ACCESS_TOKEN ?? process.env.META_SYSTEM_USER_TOKEN ?? "",
     to,
     text: body.text,
     template: body.template,

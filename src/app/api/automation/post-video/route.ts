@@ -226,6 +226,11 @@ export async function POST(req: Request) {
     submission = null;
 
     const brandId = resolveBrandId(read(), null);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     if (brandId) {
       logActivity(brandId, "integrations", `Video "${fields.title}" handed to the publishing workflow for ${fields.platforms.join(", ")} (${settled.elapsedMs ?? 0} ms)`, actorLabel(session));
     }

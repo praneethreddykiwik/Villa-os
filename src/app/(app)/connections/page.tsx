@@ -94,6 +94,11 @@ export default async function ConnectionsPage({
                     <div className={expiring ? "text-warn-400" : ""}>
                       Token {c.tokenExpiresAt ? `expires ${new Date(c.tokenExpiresAt).toLocaleDateString()}` : "n/a"}
                     </div>
+                    {c.channel === "linkedin" && !c.accessToken && (
+                      <div className="mt-1.5 inline-block">
+                        <Badge tone="warn">Token required for analytics</Badge>
+                      </div>
+                    )}
                     <div>Last synced {c.lastSyncedAt ? new Date(c.lastSyncedAt).toLocaleString() : "never"}</div>
                   </div>
 

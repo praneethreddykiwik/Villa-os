@@ -3,6 +3,7 @@ import { mutate, read, resolveBrandId } from "@/lib/db";
 import { uid } from "@/lib/ids";
 import type { CrmTask } from "@/lib/crm/types";
 import { guard } from "@/lib/auth/guard";
+import { getSession } from "@/lib/auth/session";
 
 export async function POST(req: Request) {
   const denied = await guard("customers.write");
@@ -33,37 +34,75 @@ export async function POST(req: Request) {
  * what stops the rules engine from resurrecting something a person closed.
  */
 export async function PATCH(req: Request) {
-  const denied = await guard("customers.write");
-  if (denied) return denied;
+  try {
+    const denied = await guard("customers.write");
+    if (denied) return denied;
 
-  const body = (await req.json()) as { taskId: string; status?: CrmTask["status"]; dueAt?: string };
-  const task = mutate((db) => {
-    const t = db.crmTasks.find((x) => x.id === body.taskId);
-    if (!t) return null;
-    if (body.status) {
-      t.status = body.status;
-      t.completedAt = body.status === "done" ? new Date().toISOString() : undefined;
+    const body = (await req.json()) as { taskId: string; status?: CrmTask["status"]; dueAt?: string };
+    if (!body.taskId) {
+      return NextResponse.json({ ok: false, error: "taskId is required" }, { status: 400 });
     }
-    if (body.dueAt) t.dueAt = body.dueAt;
-    return t;
-  });
-  if (!task) return NextResponse.json({ ok: false, error: "task not found" }, { status: 404 });
-  return NextResponse.json({ ok: true, task });
+
+    const dbData = read();
+    const targetTask = dbData.crmTasks.find((x) => x.id === body.taskId);
+    if (!targetTask) {
+      return NextResponse.json({ ok: false, error: "task not found" }, { status: 404 });
+    }
+
+    const sessionUser = await getSession();
+    const userBrand = dbData.brands.find(b => b.workspaceId === sessionUser?.orgId && b.id === targetTask.brandId);
+    if (!userBrand) {
+      return NextResponse.json({ ok: false, error: "Unauthorized for this brand" }, { status: 403 });
+    }
+
+    const task = mutate((db) => {
+      const t = db.crmTasks.find((x) => x.id === body.taskId);
+      if (!t) return null;
+      if (body.status) {
+        t.status = body.status;
+        t.completedAt = body.status === "done" ? new Date().toISOString() : undefined;
+      }
+      if (body.dueAt) t.dueAt = body.dueAt;
+      return t;
+    });
+    if (!task) return NextResponse.json({ ok: false, error: "task not found" }, { status: 404 });
+    return NextResponse.json({ ok: true, task });
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function GET(req: Request) {
-  const denied = await guard("customers.read");
-  if (denied) return denied;
+  try {
+    const denied = await guard("customers.read");
+    if (denied) return denied;
 
-  const url = new URL(req.url);
-  const db = read();
-  const brandId = resolveBrandId(db, url.searchParams.get("brand"));
-  const status = url.searchParams.get("status");
+    const url = new URL(req.url);
+    const db = read();
+    const session = await getSession();
+    const requestedBrandId = url.searchParams.get("brand");
+    const brandId = resolveBrandId(db, requestedBrandId);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
+    const status = url.searchParams.get("status");
+    
+    if (brandId) {
+      const userBrand = db.brands.find(b => b.workspaceId === session?.orgId && b.id === brandId);
+      if (!userBrand) {
+        return NextResponse.json({ ok: false, error: "Unauthorized for this brand" }, { status: 403 });
+      }
+    }
 
-  let tasks = db.crmTasks;
-  if (brandId) tasks = tasks.filter((t) => t.brandId === brandId);
-  if (status) tasks = tasks.filter((t) => t.status === status);
+    let tasks = db.crmTasks;
+    if (brandId) tasks = tasks.filter((t) => t.brandId === brandId);
+    if (status) tasks = tasks.filter((t) => t.status === status);
 
-  return NextResponse.json({ ok: true, tasks });
+    return NextResponse.json({ ok: true, tasks });
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
+  }
 }
 

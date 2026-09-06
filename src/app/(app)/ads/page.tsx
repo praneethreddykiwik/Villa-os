@@ -158,7 +158,8 @@ export default async function AdsPage({
                     <Bar value={ct.spend} max={maxSpend} color={meta.color} />
                   </div>
 
-                  <table className="w-full text-[12px]">
+                  <div className="overflow-x-auto">
+                  <table className="w-full text-[12px] min-w-[600px]">
                     <thead>
                       <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-mist-400">
                         <th className="px-4 py-2 font-medium">Ad set / creative</th>
@@ -193,6 +194,7 @@ export default async function AdsPage({
                       })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               );
             })}

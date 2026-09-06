@@ -50,6 +50,15 @@ describe("status parsing", () => {
     assert.equal(out[2].error, "Re-engagement message");
   });
 
+  test("a status without a usable timestamp does not throw", () => {
+    const out = parseStatuses({ entry: [{ changes: [{ value: { statuses: [
+      { id: "wamid.1", status: "delivered" },
+      { id: "wamid.2", status: "read", timestamp: "not-a-number" },
+    ] } }] }] });
+    assert.equal(out.length, 2);
+    for (const s of out) assert.ok(!Number.isNaN(Date.parse(s.timestamp)));
+  });
+
   test("a payload with only messages yields no statuses", () => {
     assert.deepEqual(parseStatuses({ entry: [{ changes: [{ value: { messages: [{ id: "x" }] } }] }] }), []);
   });

@@ -109,7 +109,7 @@ export function snapshotFor(
         inRange(p.publishedAt.slice(0, 10), range) &&
         p.targets.some((t) => t.channel === channel),
     )
-    .sort((a, b) => b.metrics!.reach - a.metrics!.reach);
+    .sort((a, b) => (b.metrics?.reach ?? 0) - (a.metrics?.reach ?? 0));
 
   // Only the formats this network actually accepts, straight off the adapter —
   // offering an Instagram "short" or a LinkedIn "story" row would be a breakdown
@@ -118,10 +118,10 @@ export function snapshotFor(
 
   const formats = supportedFormats.map<FormatRow>((format) => {
     const inFormat = posts.filter((p) => p.targets.some((t) => t.channel === channel && t.format === format));
-    const reach = inFormat.reduce((n, p) => n + p.metrics!.reach, 0);
-    const impressions = inFormat.reduce((n, p) => n + p.metrics!.impressions, 0);
+    const reach = inFormat.reduce((n, p) => n + (p.metrics?.reach ?? 0), 0);
+    const impressions = inFormat.reduce((n, p) => n + (p.metrics?.impressions ?? 0), 0);
     const engagements = inFormat.reduce(
-      (n, p) => n + p.metrics!.likes + p.metrics!.comments + p.metrics!.shares + p.metrics!.saves,
+      (n, p) => n + (p.metrics?.likes ?? 0) + (p.metrics?.comments ?? 0) + (p.metrics?.shares ?? 0) + (p.metrics?.saves ?? 0),
       0,
     );
     return {
@@ -131,7 +131,7 @@ export function snapshotFor(
       impressions,
       engagements,
       engagementRate: impressions ? (engagements / impressions) * 100 : 0,
-      retention3s: inFormat.length ? inFormat.reduce((n, p) => n + p.metrics!.retention3s, 0) / inFormat.length : 0,
+      retention3s: inFormat.length ? inFormat.reduce((n, p) => n + (p.metrics?.retention3s ?? 0), 0) / inFormat.length : 0,
     };
   });
 

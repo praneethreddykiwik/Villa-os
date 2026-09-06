@@ -20,6 +20,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const db = read();
   const brandId = resolveBrandId(db, url.searchParams.get("brandId") ?? url.searchParams.get("brand"));
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
   const conn = db.connections.find((c) => c.brandId === brandId && c.channel === "youtube" && c.status !== "disconnected");
   if (!conn?.handle) {
     return NextResponse.json({ ok: false, code: "not_connected", error: "No YouTube account is connected for this brand." }, { status: 404 });

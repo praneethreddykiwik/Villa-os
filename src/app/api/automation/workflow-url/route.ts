@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, url });
   } catch (e) {
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : String(e) },
+      { ok: false, error: "An internal error occurred." },
       { status: 500 },
     );
   }

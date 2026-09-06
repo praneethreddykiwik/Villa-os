@@ -134,7 +134,7 @@ async function withRefreshedSession(
       cookies: {
         getAll: () => req.cookies.getAll(),
         setAll: (list) => {
-          for (const c of list) out.cookies.set(c.name, c.value, c.options);
+          for (const c of list) out.cookies.set(c.name, c.value, { ...c.options, httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" });
         },
       },
     },
@@ -166,6 +166,7 @@ export async function middleware(req: NextRequest) {
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", securityHeaders(nonce, isDev)["Content-Security-Policy"]);
   // Layouts cannot read the pathname directly; publish it so the page guard can.
   requestHeaders.set("x-pathname", pathname);
 

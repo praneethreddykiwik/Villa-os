@@ -98,6 +98,11 @@ export async function POST(req: Request) {
 
     const db = read();
     const brandId = resolveBrandId(db, str(body.brandId) || undefined);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
 
     // A lead is optional — the desk sometimes has a number and no record yet —
     // but when one is named it must exist in this brand, or the call would be

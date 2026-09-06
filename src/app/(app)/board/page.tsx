@@ -22,7 +22,7 @@ export default async function BoardPage({
     mutate((d) => void d.boards.push(created));
     board = created;
   }
-  const cards = db.boardCards.filter((c) => c.boardId === board!.id);
+  const cards = db.boardCards.filter((c) => c.boardId === board?.id);
 
   return (
     <>

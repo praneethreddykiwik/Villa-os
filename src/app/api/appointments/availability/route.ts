@@ -96,6 +96,11 @@ export async function GET(req: Request) {
     const params = new URL(req.url).searchParams;
     const requested = params.get("brandId") ?? params.get("brand");
     const brandId = resolveBrandId(read(), requested);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     if (!brandId) return apiFail("No brand is configured yet.", 400);
     if (requested && requested !== brandId) return apiFail(`No brand ${requested} exists.`, 404);
 
@@ -120,6 +125,11 @@ export async function PATCH(req: Request) {
 
     const requested = typeof body.brandId === "string" && body.brandId ? body.brandId : null;
     const brandId = resolveBrandId(read(), requested);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     if (!brandId) return apiFail("No brand is configured yet.", 400);
     if (requested && requested !== brandId) return apiFail(`No brand ${requested} exists.`, 404);
 

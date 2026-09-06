@@ -703,16 +703,20 @@ async function linkedinUploadVideo(url: string, owner: string, token: string): P
  */
 async function linkedinPublish(req: PublishRequest): Promise<PublishResult> {
   const token = req.connection.accessToken;
-  const author = req.connection.externalId;
   if (!token) {
     return { ok: false, error: "LinkedIn connection has no access token — reconnect it.", retryable: false };
   }
+  let author = req.connection.externalId;
   if (!author?.startsWith("urn:li:")) {
-    return {
-      ok: false,
-      error: `LinkedIn publishes as an organisation URN; this connection carries "${author}". Set LINKEDIN_ORG_URN and reconnect.`,
-      retryable: false,
-    };
+    if (process.env.LINKEDIN_ORG_URN) {
+      author = process.env.LINKEDIN_ORG_URN;
+    } else {
+      return {
+        ok: false,
+        error: `LinkedIn publishes as an organisation URN; this connection carries "${author}". Set LINKEDIN_ORG_URN and reconnect.`,
+        retryable: false,
+      };
+    }
   }
 
   const isVideo = (u: string) => /\.(mp4|mov|m4v|webm)(\?|$)/i.test(u);

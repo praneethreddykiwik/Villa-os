@@ -23,6 +23,11 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const brandId = resolveBrandId(read(), url.searchParams.get("brand") ?? url.searchParams.get("brandId"));
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     const requested = Number(url.searchParams.get("range") ?? 30);
     const days = RANGES.has(requested) ? requested : 30;
     const session = await getSession();

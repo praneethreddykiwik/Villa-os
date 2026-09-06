@@ -14,6 +14,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const db = read();
   const brandId = resolveBrandId(db, url.searchParams.get("brand"));
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
   let board = db.boards.find((b) => b.brandId === brandId);
   if (!board) {
     const created = makeBoard(brandId, `${db.brands.find((b) => b.id === brandId)?.name ?? "New"} Board`);

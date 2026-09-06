@@ -11,7 +11,7 @@ import { guard } from "@/lib/auth/guard";
  * there is no legitimate reason to reset a live business database over HTTP.
  */
 export async function POST() {
-  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DESTRUCTIVE_RESET !== "true") {
+  if (process.env.NODE_ENV === "production") {
     return NextResponse.json(
       { ok: false, error: "Destructive reset is disabled in production." },
       { status: 403 },

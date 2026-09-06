@@ -325,7 +325,7 @@ function ThreadPane({ thread, error, onDismissError, onControl, onSent, onError 
 
 function Bubble({ m, onDownload }: { m: ThreadMessage; onDownload: (id: string) => void }) {
   const mine = m.direction === "outbound";
-  const isImage = m.document?.mimeType.startsWith("image/");
+  const isImage = m.document?.mimeType?.startsWith("image/");
   const time = new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return (
     <div className={clsx("flex", mine ? "justify-end" : "justify-start")}>

@@ -101,6 +101,11 @@ export async function POST(req: Request) {
   const db = read();
   const conn = db.connections.find((c) => c.channel === "whatsapp");
   const brandId = conn?.brandId ?? db.brands[0]?.id;
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
   if (!brandId) return NextResponse.json({ ok: true, ignored: "no brand" });
 
   const created = mutate((d) => {

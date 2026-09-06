@@ -128,7 +128,8 @@ export default async function Customer360({ params }: { params: Promise<{ id: st
             <span className="shrink-0 text-[11px] text-mist-400">{progress.requiredAccepted}/{progress.requiredTotal} required accepted</span>
           </div>
 
-          <table className="w-full text-[11.5px]">
+          <div className="overflow-x-auto">
+          <table className="w-full text-[11.5px] min-w-[600px]">
             <thead>
               <tr className="border-b border-ink-700 text-left text-[10px] uppercase tracking-wider text-mist-400">
                 <th className="py-2 font-medium">Document</th>
@@ -154,6 +155,7 @@ export default async function Customer360({ params }: { params: Promise<{ id: st
               ))}
             </tbody>
           </table>
+          </div>
 
           <div className="mt-4">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-mist-400">Documents</div>

@@ -115,6 +115,11 @@ export async function POST(req: Request) {
      */
     const db = read();
     const brandId = resolveBrandId(db, null);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     mutate((d) => {
       d.media.push({
         id: asset.id,

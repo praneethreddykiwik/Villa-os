@@ -65,6 +65,11 @@ export async function POST(req: Request) {
 
     const db = read();
     const brandId = resolveBrandId(db, new URL(req.url).searchParams.get("brand"));
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     if (!brandId) return apiFail("No brand is configured to attach the call to.", 409);
     const orgId = await resolveDefaultOrgId();
 

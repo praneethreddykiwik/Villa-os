@@ -68,7 +68,7 @@ export default async function DashboardPage({
   const maxImpr = Math.max(...channels.map((c) => c.impressions), 1);
   const upcoming = db.posts
     .filter((p) => p.brandId === brandId && p.scheduledAt && new Date(p.scheduledAt) > new Date(`${range.to}T00:00:00Z`))
-    .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!))
+    .sort((a, b) => (a.scheduledAt || "").localeCompare(b.scheduledAt || ""))
     .slice(0, 5);
 
   return (

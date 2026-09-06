@@ -20,6 +20,11 @@ export async function GET(req: Request) {
   try {
     const db = read();
     const brandId = resolveBrandId(db, new URL(req.url).searchParams.get("brand"));
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     const brand = db.brands.find((b) => b.id === brandId);
     if (!brand) return apiFail("No brand is configured.", 409);
     return apiOk({ config: getConfig(brandId, brand.name) });
@@ -43,6 +48,11 @@ export async function PUT(req: Request) {
 
     const db = read();
     const brandId = resolveBrandId(db, typeof b.brandId === "string" ? b.brandId : null);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     const brand = db.brands.find((x) => x.id === brandId);
     if (!brand) return apiFail("No brand is configured.", 409);
 

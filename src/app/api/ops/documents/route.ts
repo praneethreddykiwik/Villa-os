@@ -91,6 +91,15 @@ export async function POST(req: Request) {
     const customerId = String(form.get("customerId") ?? "");
     const checklistItemId = form.get("checklistItemId") ? String(form.get("checklistItemId")) : undefined;
     if (!(file instanceof File) || !customerId) return fail("file and customerId are required", 400);
+    
+    if (file.size > 10 * 1024 * 1024) {
+      return fail("File too large (max 10MB)", 400);
+    }
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+      return fail("Invalid file type (only pdf, jpeg, png allowed)", 400);
+    }
+
     await assertCustomerAccess(session, customerId);
 
     const result = await receiveDocument({

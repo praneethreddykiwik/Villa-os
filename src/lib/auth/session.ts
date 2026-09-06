@@ -61,7 +61,7 @@ export type SessionResult =
   | { status: "active"; session: Session };
 
 export class AuthError extends Error {
-  constructor(message: string, readonly status: 401 | 403 | 503) {
+  constructor(message: string, readonly status: 401 | 403 | 404 | 503) {
     super(message);
   }
 }
@@ -103,7 +103,7 @@ async function supabaseFromCookies() {
         getAll: () => store.getAll(),
         setAll: (list) => {
           try {
-            for (const c of list) store.set(c.name, c.value, c.options);
+            for (const c of list) store.set(c.name, c.value, { ...c.options, httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" });
           } catch {
             /* read-only rendering context */
           }
@@ -269,4 +269,11 @@ export async function assertCustomerAccess(session: Session, customerId: string)
   if (!data || data.org_id !== session.orgId) throw new AuthError("Not found.", 403);
   const mine = [data.owner_id, data.loan_officer_id, data.created_by].includes(session.userId);
   if (!mine) throw new AuthError("This record is not assigned to you.", 403);
+}
+
+export function assertBrandAccess(session: Session, brandId: string): void {
+  const db = require("../db").read();
+  const brand = db.brands.find((b: import("../types").Brand) => b.id === brandId);
+  if (!brand) throw new AuthError("Brand not found", 403);
+  if (brand.workspaceId !== session.orgId) throw new AuthError("Not found", 403);
 }

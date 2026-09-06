@@ -182,6 +182,11 @@ export async function POST(req: Request) {
 
     // Log activity
     const brandId = resolveBrandId(read(), null);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     if (brandId) {
       logActivity(
         brandId,

@@ -9,6 +9,7 @@ import clsx from "clsx";
 import type { VoiceClientCall, VoiceOverview } from "@/lib/voice/overview";
 import { dateTime } from "@/lib/crm/format";
 import { Badge, Card, LiquidSegmentedControl, SectionTitle, Stat } from "../ui";
+import { StartCallDialog } from "./start-call";
 
 /**
  * Voice agent — the client's view.
@@ -283,6 +284,9 @@ export function VoicePanel({ initial, brandId, canEditSettings }: { initial: Voi
             <a href={`/voice/settings?brand=${encodeURIComponent(brandId)}`} className="flex items-center gap-1.5 rounded-full border border-brand-500/40 bg-brand-500/15 px-3 py-1.5 text-[12px] font-medium text-brand-300 hover:bg-brand-500/25">
               <Settings2 size={13} /> Agent settings
             </a>
+          )}
+          {data.diagnostics?.agentId && (
+            <StartCallDialog brandId={brandId} agentId={data.diagnostics.agentId} onComplete={() => load(range)} />
           )}
         </div>
       </div>

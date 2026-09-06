@@ -11,6 +11,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const db = read();
   const brandId = resolveBrandId(db, url.searchParams.get("brand"));
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
   const channel = (url.searchParams.get("channel") as ChannelId) || undefined;
   const count = Number(url.searchParams.get("count") ?? 5);
   return NextResponse.json({ ok: true, slots: suggestSlots(db, brandId, { count, channel }) });

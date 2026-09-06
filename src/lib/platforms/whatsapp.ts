@@ -78,7 +78,7 @@ export const TOO_LARGE_ERROR = `File is larger than ${Math.round(MAX_DOCUMENT_BY
  */
 export async function fetchWhatsAppMedia(
   mediaId: string | undefined,
-  token = process.env.META_SYSTEM_USER_TOKEN,
+  token = process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN,
   hint: { mimeType?: string; filename?: string } = {},
 ): Promise<InboundMedia | null> {
   if (!mediaId || !token || DRIVER !== "live") return null;
@@ -355,11 +355,12 @@ export function parseStatuses(payload: unknown): WhatsAppStatus[] {
         if (!s?.id) continue;
         if (!["sent", "delivered", "read", "failed"].includes(s.status)) continue;
         const err = s.errors?.[0];
+        const ms = Number(s.timestamp) * 1000;
         out.push({
           messageId: s.id,
           status: s.status as WhatsAppStatus["status"],
           recipient: s.recipient_id,
-          timestamp: new Date(Number(s.timestamp) * 1000).toISOString(),
+          timestamp: Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : new Date().toISOString(),
           error: err ? (err.title ?? err.message ?? (err.code != null ? `error ${err.code}` : undefined)) : undefined,
         });
       }

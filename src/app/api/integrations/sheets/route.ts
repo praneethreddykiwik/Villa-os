@@ -84,6 +84,11 @@ export async function POST(req: Request) {
 
     const db = read();
     const brandId = resolveBrandId(db, body.brandId);
+  {
+    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
+    const session = await getSession();
+    if (session) assertBrandAccess(session, brandId);
+  }
     const now = new Date().toISOString();
 
     const newLeads: Lead[] = parsed.map((p) => ({
