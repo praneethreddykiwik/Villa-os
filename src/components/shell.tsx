@@ -42,10 +42,8 @@ const NAV: NavSection[] = [
   ]},
   { group: "Create & publish", items: [
     { href: "/composer", label: "Composer", icon: PenSquare },
-    // The video form lives next to Composer because that is what it is to the
-    // person posting: another way to publish, not an "automation" they set up.
     { href: "/automation", label: "Publish video", icon: Workflow },
-    { href: "/publish-v2", label: "Version 2", icon: Sparkles },
+    { href: "/publish-v2", label: "Video Pipeline", icon: Sparkles },
     { href: "/studio", label: "Video Studio", icon: Film },
     { href: "/board", label: "Board", icon: KanbanSquare },
     { href: "/calendar", label: "Calendar", icon: CalendarDays },

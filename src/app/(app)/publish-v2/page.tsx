@@ -18,9 +18,9 @@ export default async function PublishV2Page({
       <TopBar
         brands={db.brands}
         brandId={brandId}
-        title="Publish v2"
-        subtitle={`Autonomous workflow · ${brand.name}`}
-        right={<Badge tone="good">v2 pipeline ready</Badge>}
+        title="Video Pipeline"
+        subtitle={`Autonomous video publishing · ${brand.name}`}
+        right={<Badge tone="good">pipeline active</Badge>}
       />
 
       <div className="p-7">
