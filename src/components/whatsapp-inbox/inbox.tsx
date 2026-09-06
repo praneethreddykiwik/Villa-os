@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import {
-  AlertTriangle, Bot, Check, CheckCheck, Download, FileText, Loader2, Pause, Play, Search, Send, User, X,
+  AlertTriangle, Bot, Check, CheckCheck, Download, FileText, FlaskConical, Loader2, Pause, Play, Search, Send, User, X,
 } from "lucide-react";
 import type { ConversationSummary, InboxFilter, ThreadEvent, ThreadMessage, ThreadPayload } from "@/lib/ops/inbox";
+import { WhatsAppSimulator } from "./simulator";
 
 type Thread = ThreadPayload & { documentsRedacted: boolean; viewer: { memberId: string; name: string } };
 
@@ -50,6 +51,7 @@ export function WhatsAppInbox() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(true);
+  const [showSimulator, setShowSimulator] = useState(false);
 
   useEffect(() => {
     const onVis = () => setVisible(document.visibilityState === "visible");
@@ -101,6 +103,13 @@ export function WhatsAppInbox() {
       {/* Left: conversations */}
       <div className="flex w-[300px] shrink-0 flex-col border-r border-ink-700">
         <div className="space-y-2 border-b border-ink-700 p-3">
+          <button
+            type="button"
+            onClick={() => setShowSimulator(true)}
+            className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 py-1.5 text-[11.5px] font-semibold text-emerald-300 hover:bg-emerald-500/25 transition-colors shadow-sm"
+          >
+            <FlaskConical size={13} /> Test Agent Simulator
+          </button>
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mist-400" />
             <input
@@ -163,6 +172,20 @@ export function WhatsAppInbox() {
         </div>
       ) : (
         <ThreadPane thread={thread} error={error} onDismissError={() => setError(null)} onControl={onControl} onSent={() => { void loadThread(thread.customer.id); void loadList(); }} onError={setError} />
+      )}
+
+      {showSimulator && (
+        <WhatsAppSimulator
+          onSelectCustomer={(id) => {
+            setActiveId(id);
+            void loadThread(id);
+            void loadList();
+          }}
+          onClose={() => {
+            setShowSimulator(false);
+            void loadList();
+          }}
+        />
       )}
     </div>
   );
