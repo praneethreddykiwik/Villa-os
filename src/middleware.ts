@@ -144,11 +144,17 @@ async function withRefreshedSession(
     // getUser() re-validates with Supabase and triggers the refresh when the
     // access token is stale. getSession() would trust the cookie and never
     // rotate anything.
-    const { data } = await supabase.auth.getUser();
-    return { res: out, signedIn: Boolean(data.user) };
-  } catch {
-    // A Supabase outage must not lock everyone out of a page they are entitled
-    // to; fall back to the cheap cookie presence check below.
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      return { res: out, signedIn: false };
+    }
+    return { res: out, signedIn: Boolean(data?.user) };
+  } catch (err: any) {
+    // An explicit auth error (e.g. invalid/expired refresh token) means unauthenticated
+    if (err?.status === 400 || err?.code === "refresh_token_not_found" || err?.__isAuthError) {
+      return { res: out, signedIn: false };
+    }
+    // A genuine Supabase network failure must not lock everyone out; fall back to cookie presence
     return { res: out, signedIn: hasSessionCookie(req) };
   }
 }
