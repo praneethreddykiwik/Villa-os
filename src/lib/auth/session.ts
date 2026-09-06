@@ -103,7 +103,7 @@ async function supabaseFromCookies() {
         getAll: () => store.getAll(),
         setAll: (list) => {
           try {
-            for (const c of list) store.set(c.name, c.value, { ...c.options, httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" });
+            for (const c of list) store.set(c.name, c.value, c.options);
           } catch {
             /* read-only rendering context */
           }

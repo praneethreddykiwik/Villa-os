@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       cookies: {
         getAll: () => store.getAll(),
         setAll: (list) => {
-          for (const c of list) store.set(c.name, c.value, { ...c.options, httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" });
+          for (const c of list) store.set(c.name, c.value, c.options);
         },
       },
     },

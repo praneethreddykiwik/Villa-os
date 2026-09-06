@@ -134,7 +134,7 @@ async function withRefreshedSession(
       cookies: {
         getAll: () => req.cookies.getAll(),
         setAll: (list) => {
-          for (const c of list) out.cookies.set(c.name, c.value, { ...c.options, httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" });
+          for (const c of list) out.cookies.set(c.name, c.value, c.options);
         },
       },
     },
