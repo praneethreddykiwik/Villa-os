@@ -35,6 +35,9 @@ const SELF_AUTHENTICATING = [
   // an entry that only exists implicitly is one nobody audits. It authenticates
   // with N8N_WEBHOOK_SECRET, constant-time compared, failing closed when unset.
   "/api/webhooks/n8n",
+  // Voice-agent execution updates. Shared secret in x-voice-secret, compared
+  // constant-time against VOICE_WEBHOOK_SECRET, failing closed when unset.
+  "/api/webhooks/bolna",
   "/api/ops/session",      // the sign-in endpoint itself
   "/api/publish/tick",     // worker secret, constant-time compared
   "/api/ops/followups",    // worker secret or session, checked in-route
@@ -160,10 +163,12 @@ export async function middleware(req: NextRequest) {
   // Layouts cannot read the pathname directly; publish it so the page guard can.
   requestHeaders.set("x-pathname", pathname);
 
-  // ---- Authentication gate --------------------------------------------
-  //
-  // The response is created FIRST so the refresh can write rotated cookies onto
-  // the object that is actually returned.
+  // Large multipart video uploads stream directly to the route handler, which enforces
+  // its own requirePermission("marketing.publish") session check.
+  if (pathname === "/api/automation/post-video" || pathname === "/api/automation/v2/post-video") {
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   const base = NextResponse.next({ request: { headers: requestHeaders } });
   const publicPath = isPublic(pathname);
   const { res: refreshed, signedIn } = publicPath
@@ -191,6 +196,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Everything except static assets; the header set must apply to documents too.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Everything except static assets and large multipart video streaming routes.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/automation/post-video|api/automation/v2/post-video).*)"],
 };

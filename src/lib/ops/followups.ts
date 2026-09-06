@@ -4,6 +4,7 @@ import { audit, notify } from "./audit";
 import { getConfig } from "./config";
 import { automationAllowed, getCustomer } from "./customers";
 import { caseProgress, checklistFor, getCase } from "./loan";
+import { isWithinServiceWindow } from "../platforms/whatsapp";
 import type { Escalation, FollowUp, FollowUpKind, WorkflowConfig } from "./types";
 
 /**
@@ -267,6 +268,20 @@ export function dueFollowUps(orgId: string, now = Date.now()): TickResult {
     if (!allowed.allowed) {
       result.skipped.push({ id: f.id, reason: allowed.reason! });
       continue;
+    }
+
+    // A window-blocked reply can only go out once the customer writes again.
+    // Until then it is not "due": attempting it would fail before delivery,
+    // never count as an attempt, and write a send_failed audit row per tick —
+    // forever. The window is judged against real time, like the transport does.
+    if (f.kind === "TEMPLATE_REQUIRED") {
+      const lastInbound = db.opsMessages
+        .filter((m) => m.customerId === f.customerId && m.direction === "inbound")
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      if (!isWithinServiceWindow(lastInbound?.createdAt)) {
+        result.skipped.push({ id: f.id, reason: "24h window closed" });
+        continue;
+      }
     }
 
     if (f.attempts >= f.maxAttempts) {

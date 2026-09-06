@@ -4,14 +4,17 @@ import { uid } from "../ids";
 import { validateUpload } from "../media/store";
 import {
   FIELDS,
+  FORM_INACTIVE_MESSAGE,
   LIMITS,
   MAX_IMAGE_BYTES,
   MAX_REFERENCE_PHOTOS,
   N8N_PLATFORMS,
   VIDEO_FORM_URL_SETTING,
+  WORKFLOW_ERROR_MESSAGE,
   YES_NO,
   isN8nPlatform,
   type N8nPlatform,
+  type N8nPlatformResult,
   type N8nSubmission,
   type YesNo,
 } from "./types";
@@ -33,6 +36,13 @@ const MAX_SUBMISSION_LOG = 200;
 
 /** The configured workflow URL, or "" when the setting is unset or blank. */
 export function videoFormUrl(): string {
+  try {
+    const db = read() as unknown as Record<string, unknown>;
+    const dbUrl = db.workflowFormUrl;
+    if (typeof dbUrl === "string" && dbUrl.trim()) return dbUrl.trim();
+  } catch {
+    /* fallback to environment */
+  }
   return (process.env[VIDEO_FORM_URL_SETTING] ?? "").trim();
 }
 
@@ -48,10 +58,10 @@ export function videoFormUrl(): string {
 export function videoFormUrlProblem(): string | null {
   const url = videoFormUrl();
   if (!url) {
-    return `No n8n workflow URL is configured. Set ${VIDEO_FORM_URL_SETTING} to your workflow's form or webhook URL and restart the app.`;
+    return `Publishing workflow URL is not configured. Set ${VIDEO_FORM_URL_SETTING} in the environment or save one under "Configure Endpoint".`;
   }
   const problem = checkWebhookUrl(url);
-  return problem ? `${VIDEO_FORM_URL_SETTING} is not usable: ${problem}` : null;
+  return problem ? `Workflow URL is not usable: ${problem}` : null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -175,6 +185,83 @@ export function checkReferenceCount(n: number): string | null {
 }
 
 /* -------------------------------------------------------------------------- */
+/* The outbound body and the workflow's answer                                */
+/* -------------------------------------------------------------------------- */
+
+export interface OutboundFile {
+  blob: Blob;
+  name: string;
+}
+
+/**
+ * Build the multipart body the workflow receives — every label exactly once.
+ *
+ * An earlier version also appended each value under guessed aliases
+ * (`field-0`, `videoFile`, …) "in case" the form keyed on them. It does not:
+ * an n8n Form trigger keys on the label, and the duplicates tripled the body
+ * (the video went across three times) for no gain.
+ */
+export function buildOutbound(
+  fields: VideoPostFields,
+  files: { video: OutboundFile; thumbnail?: OutboundFile; references: OutboundFile[] },
+  submissionId: string,
+): FormData {
+  const out = new FormData();
+  out.append(FIELDS.title, fields.title);
+  out.append(FIELDS.description, fields.description);
+  out.append(FIELDS.thumbnailText, fields.thumbnailText);
+  out.append(FIELDS.extraInstructions, fields.extraInstructions);
+  // n8n's own form posts a multi-checkbox as one comma-separated value.
+  out.append(FIELDS.platforms, fields.platforms.join(","));
+  out.append(FIELDS.driveFolder, fields.driveFolder);
+  out.append(FIELDS.createFolder, fields.createFolder);
+  out.append(FIELDS.publicLink, fields.publicLink);
+  out.append(FIELDS.telegramChatId, fields.telegramChatId);
+  out.append(FIELDS.submissionId, submissionId);
+  out.append(FIELDS.video, files.video.blob, files.video.name);
+  if (files.thumbnail) out.append(FIELDS.finalThumbnail, files.thumbnail.blob, files.thumbnail.name);
+  for (const r of files.references) out.append(FIELDS.referencePhotos, r.blob, r.name);
+  return out;
+}
+
+export type ForwardVerdict =
+  | { status: "forwarded" }
+  | { status: "failed" | "received_workflow_error"; error: string };
+
+/** Does this look like n8n's "form not active" page rather than a workflow fault? */
+export function looksInactive(status: number, body: string): boolean {
+  return status === 404 || /Problem loading form|deactivated or no longer exist/i.test(body);
+}
+
+/**
+ * Turn the workflow's HTTP answer into a submission outcome.
+ *
+ * `bodySent` is whether fetch completed the upload before the reply came. A
+ * Form trigger answers 499 (or 5xx) only *after* it has run the workflow on the
+ * received submission and a later node threw — so with the body fully sent
+ * that status means "got the video, then broke", and the fix is in the
+ * workflow's execution history, not in the connection.
+ */
+export function classifyForwardResponse(status: number, body: string, bodySent: boolean): ForwardVerdict {
+  // The inactive page is checked first: n8n has served it with a 200 before.
+  if (looksInactive(status, body)) return { status: "failed", error: FORM_INACTIVE_MESSAGE };
+  if (status >= 200 && status < 400) return { status: "forwarded" };
+  if (bodySent && (status === 499 || status >= 500)) {
+    return { status: "received_workflow_error", error: WORKFLOW_ERROR_MESSAGE };
+  }
+  return { status: "failed", error: `The publishing workflow answered ${status}. Check its execution history.` };
+}
+
+export type ProbeVerdict = { state: "active" | "inactive" | "unreachable"; detail: string };
+
+/** Classify a GET of the form URL — no video is sent. */
+export function classifyProbe(status: number, body: string): ProbeVerdict {
+  if (looksInactive(status, body)) return { state: "inactive", detail: FORM_INACTIVE_MESSAGE };
+  if (status >= 200 && status < 400) return { state: "active", detail: "The publishing workflow's form is active and reachable." };
+  return { state: "unreachable", detail: `The publishing workflow answered ${status} to a connection test.` };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Submission log                                                             */
 /* -------------------------------------------------------------------------- */
 
@@ -207,10 +294,47 @@ export function settleSubmission(
   return mutate((d) => {
     const row = (d.n8nSubmissions ?? []).find((s) => s.id === id);
     if (!row) return null;
+    const now = new Date();
     row.status = patch.status;
     row.n8nStatus = patch.n8nStatus;
     row.error = patch.error;
+    row.settledAt = now.toISOString();
+    row.elapsedMs = Math.max(0, now.getTime() - new Date(row.at).getTime());
     return row;
+  });
+}
+
+/**
+ * Record what the workflow reported back for one platform.
+ *
+ * Keyed on platform, so a workflow that retries and reports twice overwrites
+ * rather than duplicates. Refuses a platform the submission never asked for:
+ * a callback claiming "published to X" on a YouTube-only post is a bug in the
+ * workflow, and a row that shows it would be a lie.
+ */
+export function recordPlatformResult(
+  id: string,
+  result: Omit<N8nPlatformResult, "at">,
+): { ok: true; submission: N8nSubmission } | { ok: false; error: string; status: number } {
+  return mutate((d) => {
+    const row = (d.n8nSubmissions ?? []).find((s) => s.id === id);
+    if (!row) return { ok: false as const, error: "Unknown submission id.", status: 404 };
+    if (!row.platforms.includes(result.platform)) {
+      return { ok: false as const, error: `This submission was not sent to ${result.platform}.`, status: 409 };
+    }
+    const entry: N8nPlatformResult = { ...result, at: new Date().toISOString() };
+    row.results = [...(row.results ?? []).filter((r) => r.platform !== result.platform), entry];
+    // A callback proves the workflow ran, whatever the HTTP answer said.
+    if (row.status === "queued" || row.status === "received_workflow_error") {
+      // Drop the stale "stopped with an error" text and the 499/5xx code: the
+      // panel would otherwise show them under a row whose badge says forwarded.
+      if (row.status === "received_workflow_error") {
+        row.error = undefined;
+        row.n8nStatus = undefined;
+      }
+      row.status = "forwarded";
+    }
+    return { ok: true as const, submission: row };
   });
 }
 

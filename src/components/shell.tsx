@@ -42,6 +42,10 @@ const NAV: NavSection[] = [
   ]},
   { group: "Create & publish", items: [
     { href: "/composer", label: "Composer", icon: PenSquare },
+    // The video form lives next to Composer because that is what it is to the
+    // person posting: another way to publish, not an "automation" they set up.
+    { href: "/automation", label: "Publish video", icon: Workflow },
+    { href: "/publish-v2", label: "Version 2", icon: Sparkles },
     { href: "/studio", label: "Video Studio", icon: Film },
     { href: "/board", label: "Board", icon: KanbanSquare },
     { href: "/calendar", label: "Calendar", icon: CalendarDays },
@@ -58,9 +62,12 @@ const NAV: NavSection[] = [
     { href: "/crm/appointments", label: "Site visits", icon: CalendarCheck },
     { href: "/crm/tasks", label: "Tasks", icon: ListTodo },
     { href: "/crm/follow-ups", label: "Follow-ups", icon: BellRing },
-    // Voice sits in CRM rather than Grow because every call on it is made to a
-    // lead in this list, and it is gated on customers.read like the directory.
-    { href: "/voice", label: "Voice agent", icon: PhoneCall },
+  ]},
+  // Conversations with leads, as opposed to records about them. Both are gated
+  // on customers.read like the directory, so they filter with the CRM group.
+  { group: "Engage", items: [
+    { href: "/voice", label: "Voice calls", icon: PhoneCall },
+    { href: "/voice/whatsapp-training", label: "WhatsApp AI", icon: MessageSquare },
   ]},
   { group: "Grow", items: [
     { href: "/ads", label: "Ads · Meta + Google", icon: Megaphone },
@@ -75,12 +82,8 @@ const NAV: NavSection[] = [
     { href: "/ops/loans", label: "Loan cases", icon: Wallet },
     { href: "/ops/admin", label: "Control centre", icon: ShieldCheck },
   ]},
-  { group: "Deliver", items: [
+  { group: "System", items: [
     { href: "/reports", label: "Reports", icon: FileText },
-    // Reachable on marketing.read, matching /^\/automation/ in the access map:
-    // the screen's everyday half is the video-posting form, and the webhook
-    // registry on it is gated by its own API rather than by this link.
-    { href: "/automation", label: "Automation", icon: Workflow },
     { href: "/activity", label: "Activity", icon: Activity },
     { href: "/connections", label: "Connections", icon: PlugZap },
     { href: "/settings", label: "Settings", icon: Settings },
@@ -289,7 +292,7 @@ export function LiquidDock() {
   const items = [
     { href: "/dashboard", label: "Dashboard", icon: Gauge },
     { href: "/crm/pipeline", label: "Pipeline", icon: GitBranch },
-    { href: "/voice", label: "Voice AI", icon: PhoneCall, isCenter: true },
+    { href: "/voice", label: "Voice calls", icon: PhoneCall, isCenter: true },
     { href: "/composer", label: "Composer", icon: PenSquare },
     { href: "/setup", label: "System", icon: Settings },
   ];

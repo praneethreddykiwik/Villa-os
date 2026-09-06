@@ -35,7 +35,8 @@ export type LeadSource =
   | "referral"
   | "broker"
   | "walk_in"
-  | "website";
+  | "website"
+  | "voice";
 
 export type KycStatus = "not_started" | "pending" | "verified" | "rejected";
 export type HnwiTier = "none" | "affluent" | "hnwi" | "uhnwi";
@@ -169,6 +170,7 @@ export const SOURCE_LABELS: Record<LeadSource, string> = {
   broker: "Broker",
   walk_in: "Walk-in",
   website: "Website",
+  voice: "Voice agent",
 };
 
 /** Filter bands, in rupees. The floor matches the cheapest inventory. */

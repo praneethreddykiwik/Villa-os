@@ -81,7 +81,7 @@ export async function checkUploadPostStatus(): Promise<UploadPostStatusResult> {
       activeProfile: profileUser,
       profiles: [],
       connectedAccounts: {},
-      error: "UPLOAD_POST_API_KEY is not configured",
+      error: "The publishing connector is not configured",
     };
   }
 
@@ -173,7 +173,7 @@ export async function uploadPostVideo(opts: UploadVideoOptions): Promise<{
   error?: string;
 }> {
   const key = uploadPostApiKey();
-  if (!key) return { ok: false, error: "UPLOAD_POST_API_KEY is not configured" };
+  if (!key) return { ok: false, error: "The publishing connector is not configured" };
 
   const targetUser = opts.user || uploadPostUser();
   const form = new FormData();
@@ -227,7 +227,7 @@ export async function uploadPostPhotos(opts: UploadPhotosOptions): Promise<{
   error?: string;
 }> {
   const key = uploadPostApiKey();
-  if (!key) return { ok: false, error: "UPLOAD_POST_API_KEY is not configured" };
+  if (!key) return { ok: false, error: "The publishing connector is not configured" };
 
   const targetUser = opts.user || uploadPostUser();
   const form = new FormData();

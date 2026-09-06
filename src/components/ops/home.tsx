@@ -61,10 +61,10 @@ const DESTINATIONS: Array<{
   {
     href: "/voice",
     label: "AI Voice Agents",
-    description: "Bolna outbound calling agents, automated Hindi/Telugu scripts & transcripts",
+    description: "Outbound AI calling, automated multilingual scripts & call transcripts",
     icon: PhoneCall,
     needs: "customers.read",
-    badge: "Bolna Voice",
+    badge: "AI Voice",
     color: "from-purple-500/20 to-pink-500/20 text-purple-400 border-purple-500/30",
   },
   {

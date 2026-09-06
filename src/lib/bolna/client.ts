@@ -98,6 +98,8 @@ export interface BolnaExecution {
   hangupReason: string | null;
   answeredByVoicemail: boolean | null;
   recordingUrl: string | null;
+  /** Platform summary, only when the agent's summary toggle is on. */
+  summary: string | null;
   /** Free-text transcript, when Bolna returned one string. */
   transcript: string | null;
   /** Turn-by-turn transcript, when Bolna returned a structured one. */
@@ -207,6 +209,11 @@ function apiKey(): string | null {
 
 export function isConfigured(): boolean {
   return apiKey() !== null;
+}
+
+/** The one agent the client's settings page edits. Null until the operator sets it. */
+export function configuredAgentId(): string | null {
+  return process.env.BOLNA_AGENT_ID?.trim() || null;
 }
 
 /**
@@ -403,6 +410,23 @@ export function normaliseAgent(input: unknown): BolnaAgent | null {
   };
 }
 
+/**
+ * The documented transcript is one string, "assistant: …\nuser: …". Lines that
+ * do not start with a speaker label continue the previous turn — providers
+ * wrap long utterances.
+ */
+export function turnsFromText(input: unknown): BolnaTranscriptTurn[] | null {
+  const text = str(input);
+  if (!text) return null;
+  const turns: BolnaTranscriptTurn[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z_ ]{2,20}):\s*(.*)$/.exec(line);
+    if (m && m[2].trim()) turns.push({ role: m[1].trim().toLowerCase(), text: m[2].trim() });
+    else if (line.trim() && turns.length) turns[turns.length - 1].text += ` ${line.trim()}`;
+  }
+  return turns.length ? turns : null;
+}
+
 function turnsFrom(input: unknown): BolnaTranscriptTurn[] | null {
   const raw = list(input);
   if (!raw.length) return null;
@@ -437,17 +461,23 @@ export function normaliseExecution(input: unknown): BolnaExecution | null {
     // conversation_time is the agent's own measure; telephony duration is the
     // carrier's. They disagree by the ring time, and the agent's is the one the
     // cost is computed against, so it wins where both are present.
-    durationSeconds: pickNum([r], "conversation_time", "duration") ?? pickNum([telephony], "duration"),
+    durationSeconds:
+      pickNum([r], "conversation_duration", "conversation_time", "duration") ?? pickNum([telephony], "duration"),
     cost: pickNum([r], "total_cost", "cost"),
     currency: pickStr([r], "currency"),
-    toNumber: pickStr([telephony, r], "to_number", "recipient_phone_number"),
-    fromNumber: pickStr([telephony, r], "from_number"),
+    // user_number/agent_number are the top-level names on the execution
+    // payload; telephony_data carries to/from from the carrier's point of view.
+    toNumber: pickStr([telephony, r], "to_number", "recipient_phone_number", "user_number"),
+    fromNumber: pickStr([telephony, r], "from_number", "agent_number"),
     callType: pickStr([telephony, r], "call_type", "direction"),
     hangupBy: pickStr([telephony], "hangup_by"),
     hangupReason: pickStr([telephony], "hangup_reason", "hangup_provider_reason"),
     answeredByVoicemail: bool(r.answered_by_voice_mail ?? r.answered_by_voicemail),
     recordingUrl: safeUrl(telephony?.recording_url ?? r.recording_url),
+    summary: str(r.summary),
     transcript: str(r.transcript) ?? pickStr([transcriptRecord], "text", "content"),
+    // Structured turns only. A string transcript stays a string here; the voice
+    // module splits it with turnsFromText() so this contract does not change.
     turns: turnsFrom(r.transcript) ?? turnsFrom(transcriptRecord?.turns) ?? turnsFrom(r.messages),
     extractedData: rec(r.extracted_data),
   };
@@ -506,6 +536,34 @@ export async function startCall(input: StartCallInput): Promise<BolnaResult<Boln
       message: pickStr([r], "message", "detail"),
     },
   };
+}
+
+export interface AgentPatch {
+  name?: string;
+  welcomeMessage?: string;
+  systemPrompt?: string;
+  webhookUrl?: string | null;
+}
+
+/**
+ * PATCH /v2/agent/{agent_id} — partial update. Only the documented patchable
+ * attributes are sent: agent_name / agent_welcome_message / webhook_url inside
+ * agent_config, and agent_prompts.task_1.system_prompt at the top level. The
+ * agent's voice, model and telephony are never touched from here.
+ */
+export async function updateAgent(agentId: string, patch: AgentPatch): Promise<BolnaResult<{ state: string | null }>> {
+  const agentConfig: Record<string, unknown> = {};
+  if (patch.name !== undefined) agentConfig.agent_name = patch.name;
+  if (patch.welcomeMessage !== undefined) agentConfig.agent_welcome_message = patch.welcomeMessage;
+  if (patch.webhookUrl !== undefined) agentConfig.webhook_url = patch.webhookUrl;
+  const body: Record<string, unknown> = {};
+  if (Object.keys(agentConfig).length) body.agent_config = agentConfig;
+  if (patch.systemPrompt !== undefined) body.agent_prompts = { task_1: { system_prompt: patch.systemPrompt } };
+  if (!Object.keys(body).length) return { ok: true, data: { state: "unchanged" } };
+
+  const res = await request(`/v2/agent/${encodeURIComponent(agentId)}`, { method: "PATCH", body });
+  if (!res.ok) return res;
+  return { ok: true, data: { state: pickStr([rec(res.data)], "state", "message") } };
 }
 
 /** GET /call/{execution_id} — status, duration, cost, transcript, recording. */

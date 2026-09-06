@@ -4,6 +4,7 @@ import { pageContext, qs } from "@/lib/page-context";
 import {
   adStatsFor, adTotals, rollupByChannel, statsFor, timeseries, totals, pctChange,
 } from "@/lib/metrics/aggregate";
+import { ensureFreshStats } from "@/lib/engine/freshness";
 import { generateSuggestions } from "@/lib/ai/signals";
 import { deterministicSummary } from "@/lib/ai/narrative";
 import { channelMeta } from "@/lib/platforms/registry";
@@ -11,6 +12,9 @@ import { TopBar } from "@/components/shell";
 import { Card, SectionTitle, Stat, Badge, Dot, Bar, fmt } from "@/components/ui";
 import { ComboChart, DonutChart, TrendArea, VIZ } from "@/components/charts";
 import { SuggestionCard } from "@/components/suggestion-card";
+import { YouTubeSnapshotBlock } from "@/components/analytics/youtube-snapshot-block";
+import { SocialOverview } from "@/components/analytics/social-overview";
+import { AdsCard } from "@/components/analytics/ads-card";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +24,11 @@ export default async function DashboardPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { db, brand, brandId, range, prev, days } = pageContext(sp);
+  // Refresh YouTube rows older than ten minutes before reading; a failed
+  // refresh renders the stale store rather than an error.
+  const pre = pageContext(sp);
+  const fresh = await ensureFreshStats(pre.brandId);
+  const { db, brand, brandId, range, prev, days } = fresh.refreshed ? pageContext(sp) : pre;
   const link = qs(sp);
 
   const stats = statsFor(db, brandId);
@@ -115,6 +123,8 @@ export default async function DashboardPage({
           <Stat label="ROAS" value={fmt.x(ads.roas)} delta={pctChange(ads.roas, adsPrev.roas)} sub={`${fmt.money(ads.conversionValue)} revenue`} />
           <Stat label="Cost / conversion" value={fmt.money(ads.cpa)} delta={pctChange(ads.cpa, adsPrev.cpa)} invertDelta sub={`${Math.round(ads.conversions)} conversions`} />
         </div>
+
+        <SocialOverview db={db} brandId={brandId} range={range} lastSyncedAt={fresh.lastSyncedAt} link={link} />
 
         <div className="grid gap-5 xl:grid-cols-3">
           <Card className="xl:col-span-2">
@@ -235,6 +245,11 @@ export default async function DashboardPage({
             </div>
           </div>
         </div>
+
+        <AdsCard rows={adStatsFor(db, brandId, range)} days={days} link={link} />
+
+        {/* YouTube live overview — only renders when YouTube channel is connected */}
+        <YouTubeSnapshotBlock brandId={brandId} />
       </div>
     </>
   );

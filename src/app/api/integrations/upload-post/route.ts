@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   if (denied) return denied;
 
   if (!isUploadPostConfigured()) {
-    return apiFail("UPLOAD_POST_API_KEY is not configured.", 503);
+    return apiFail("The publishing connector is not configured.", 503);
   }
 
   try {
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
           description,
         });
 
-        if (!res.ok) return apiFail(res.error || "Upload-Post publish failed", 502);
+        if (!res.ok) return apiFail(res.error || "Publishing connector publish failed", 502);
         return apiOk((res.data as Record<string, unknown>) ?? { success: true });
       }
 
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
           description,
         });
 
-        if (!res.ok) return apiFail(res.error || "Upload-Post photo publish failed", 502);
+        if (!res.ok) return apiFail(res.error || "Publishing connector photo publish failed", 502);
         return apiOk((res.data as Record<string, unknown>) ?? { success: true });
       }
 
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
         description: body.description,
       });
 
-      if (!res.ok) return apiFail(res.error || "Upload-Post publish failed", 502);
+      if (!res.ok) return apiFail(res.error || "Publishing connector publish failed", 502);
       return apiOk((res.data as Record<string, unknown>) ?? { success: true });
     }
 
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
         description: body.description,
       });
 
-      if (!res.ok) return apiFail(res.error || "Upload-Post photo publish failed", 502);
+      if (!res.ok) return apiFail(res.error || "Publishing connector photo publish failed", 502);
       return apiOk((res.data as Record<string, unknown>) ?? { success: true });
     }
 

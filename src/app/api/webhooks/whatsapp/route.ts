@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { mutate, read } from "@/lib/db";
 import { uid } from "@/lib/ids";
-import { parseWebhook } from "@/lib/platforms/whatsapp";
+import { fetchWhatsAppMedia, parseWebhook } from "@/lib/platforms/whatsapp";
 import { handleInbound } from "@/lib/ops/agent";
-import { ensureOpsSeed, defaultOrgId } from "@/lib/ops/seed";
-import { receiveDocument } from "@/lib/ops/documents";
-import { activeCase, caseProgress } from "@/lib/ops/loan";
-import { findByPhone } from "@/lib/ops/customers";
+import { ensureOpsSeed, resolveDefaultOrgId, syncTeamMembers } from "@/lib/ops/seed";
 
 /**
  * Meta verifies a webhook by GETting it with a challenge and expects the raw
@@ -19,11 +16,27 @@ export async function GET(req: Request) {
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge") ?? "";
 
-  if (mode === "subscribe" && token === (process.env.WHATSAPP_VERIFY_TOKEN ?? "dev-verify")) {
-    return new Response(challenge, { status: 200, headers: { "content-type": "text/plain" } });
+  // Fail closed when unset. The old "dev-verify" fallback let anyone complete
+  // Meta's subscription handshake against an unconfigured deployment, i.e.
+  // point their own Meta app at this URL. Constant-time, like the POST check.
+  const expected = process.env.WHATSAPP_VERIFY_TOKEN;
+  if (mode === "subscribe" && expected && token) {
+    const { timingSafeEqual } = await import("node:crypto");
+    const a = Buffer.from(token);
+    const b = Buffer.from(expected);
+    if (a.length === b.length && timingSafeEqual(a, b)) {
+      return new Response(challenge, { status: 200, headers: { "content-type": "text/plain" } });
+    }
   }
   return new Response("forbidden", { status: 403 });
 }
+
+/**
+ * Meta's webhook bodies are a few KB. Anything larger is not Meta, and the body
+ * is read in full before the signature can be checked, so the cap is the only
+ * thing between an anonymous POST and an arbitrarily large allocation.
+ */
+const MAX_WEBHOOK_BYTES = 1024 * 1024;
 
 /**
  * Inbound messages. Meta retries anything that is not answered quickly with a
@@ -54,8 +67,15 @@ async function verifySignature(raw: string, header: string | null): Promise<bool
 }
 
 export async function POST(req: Request) {
+  const declared = Number(req.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > MAX_WEBHOOK_BYTES) {
+    return NextResponse.json({ ok: false, error: "payload too large" }, { status: 413 });
+  }
   // Read the body once as text so the signature covers the exact bytes received.
   const raw = await req.text();
+  if (raw.length > MAX_WEBHOOK_BYTES) {
+    return NextResponse.json({ ok: false, error: "payload too large" }, { status: 413 });
+  }
   if (!(await verifySignature(raw, req.headers.get("x-hub-signature-256")))) {
     return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
   }
@@ -117,39 +137,22 @@ export async function POST(req: Request) {
   // additionally driven through the customer lifecycle agent. Failures here are
   // captured per message rather than failing the webhook: returning non-2xx to
   // Meta triggers redelivery, which would replay every message in the batch.
-  const orgId = defaultOrgId();
+  const orgId = await resolveDefaultOrgId();
   ensureOpsSeed(orgId);
+  await syncTeamMembers(orgId);
 
   const outcomes: Array<Record<string, unknown>> = [];
   for (const m of messages) {
     try {
-      let documentId: string | undefined;
-
-      // Media arrives as an id that must be downloaded from the Graph API. In
-      // mock mode there is no media to fetch, so the message is handled as text
-      // and the document path is exercised by the upload endpoint and tests.
-      if (m.type !== "text" && m.type !== "interactive") {
-        const customer = findByPhone(orgId, m.from);
-        const loanCase = customer ? activeCase(customer.id) : undefined;
-        const media = await fetchWhatsAppMedia(m.mediaId);
-        if (media && customer && loanCase) {
-          const progress = caseProgress(loanCase.id);
-          // Attribute to the item we most recently asked for; if a rejected item
-          // is outstanding it takes precedence, since that is what we chased.
-          const target = progress.rejected[0] ?? progress.missing[0];
-          const stored = await receiveDocument({
-            orgId,
-            customerId: customer.id,
-            filename: media.filename,
-            mimeType: media.mimeType,
-            data: media.data,
-            checklistItemId: target?.id,
-            loanCaseId: loanCase.id,
-            uploadedBy: "customer",
-          });
-          if (stored.ok) documentId = stored.document.id;
-        }
-      }
+      // Media arrives as an id that must be downloaded from the Graph API.
+      // The bytes are fetched here (the only place with the request context)
+      // and everything else — storing, attributing to a checklist item,
+      // acknowledging — happens in the agent, for every customer, case or not.
+      // In mock mode there is nothing to fetch and the agent says so.
+      const media =
+        m.type === "image" || m.type === "document"
+          ? await fetchWhatsAppMedia(m.mediaId, undefined, { mimeType: m.mimeType, filename: m.filename })
+          : undefined;
 
       const outcome = await handleInbound({
         orgId,
@@ -157,8 +160,11 @@ export async function POST(req: Request) {
         name: m.name,
         body: m.text,
         externalId: m.id,
-        documentId,
         receivedAt: m.timestamp,
+        type: m.type,
+        media: media ?? undefined,
+        location: m.location,
+        interactive: m.interactive,
       });
       outcomes.push({ id: m.id, customerId: outcome.customerId, replied: Boolean(outcome.reply), silent: outcome.silentReason });
     } catch (e) {
@@ -168,32 +174,4 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, received: messages.length, created, ops: outcomes });
-}
-
-/** Media download. Returns null in mock mode or when no token is configured. */
-async function fetchWhatsAppMedia(
-  mediaId?: string,
-): Promise<{ data: Buffer; mimeType: string; filename: string } | null> {
-  const token = process.env.META_SYSTEM_USER_TOKEN;
-  if (!mediaId || !token || process.env.PLATFORM_DRIVER !== "live") return null;
-  const version = process.env.META_GRAPH_VERSION ?? "v23.0";
-  try {
-    const meta = await fetch(`https://graph.facebook.com/${version}/${mediaId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!meta.ok) return null;
-    const info = (await meta.json()) as { url?: string; mime_type?: string };
-    if (!info.url) return null;
-    const bin = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!bin.ok) return null;
-    const mimeType = info.mime_type ?? "application/octet-stream";
-    const ext = mimeType === "application/pdf" ? "pdf" : (mimeType.split("/")[1] ?? "bin");
-    return {
-      data: Buffer.from(await bin.arrayBuffer()),
-      mimeType,
-      filename: `whatsapp-${mediaId}.${ext}`,
-    };
-  } catch {
-    return null;
-  }
 }

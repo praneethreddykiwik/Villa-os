@@ -5,6 +5,8 @@ import { TopBar } from "@/components/shell";
 import { Card, SectionTitle, Badge, fmt } from "@/components/ui";
 import { ConnectPanel, type ConnectRow } from "@/components/connect-panel";
 import { CONNECT_SPECS } from "@/lib/platforms/oauth";
+import { UPLOAD_POST_PREFIX } from "@/lib/uploadpost/connections";
+import { getSession, hasPermission } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,8 @@ export default async function ConnectionsPage({
   const sp = await searchParams;
   const { db, brand, brandId } = pageContext(sp);
   const connections = db.connections.filter((c) => c.brandId === brandId);
+  // Connector-backed rows carry a vendor-prefixed id; only admins see the raw value.
+  const isAdmin = hasPermission(await getSession(), "users.manage");
 
   return (
     <>
@@ -82,7 +86,11 @@ export default async function ConnectionsPage({
                   {c.lastError && <p className="mt-2 rounded-lg bg-bad-500/10 px-2 py-1.5 text-[11px] text-bad-400">{c.lastError}</p>}
 
                   <div className="mt-3 space-y-1 text-[10.5px] text-mist-400">
-                    <div>ID <span className="text-mist-300">{c.externalId}</span></div>
+                    {c.externalId?.startsWith(UPLOAD_POST_PREFIX) ? (
+                      <div>Via <span className="text-mist-300">Publishing connector</span>{isAdmin && <span className="ml-1 font-mono">{c.externalId}</span>}</div>
+                    ) : (
+                      <div>ID <span className="text-mist-300">{c.externalId}</span></div>
+                    )}
                     <div className={expiring ? "text-warn-400" : ""}>
                       Token {c.tokenExpiresAt ? `expires ${new Date(c.tokenExpiresAt).toLocaleDateString()}` : "n/a"}
                     </div>

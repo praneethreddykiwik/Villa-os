@@ -7,6 +7,10 @@ import { channelMeta, isUsableConnection, connectionProblem } from "@/lib/platfo
 import { TopBar } from "@/components/shell";
 import { Badge, Bar, Card, Dot, Empty, SectionTitle, Stat, fmt } from "@/components/ui";
 import { TrendArea, VIZ } from "@/components/charts";
+import { YouTubeVideos } from "@/components/channels/youtube-videos";
+import { FacebookStudio } from "@/components/channels/facebook-studio";
+import { InstagramStudio } from "@/components/channels/instagram-studio";
+import { LinkedInStudio } from "@/components/channels/linkedin-studio";
 import { formatsOn, hasSignal, isChannelTab, snapshotFor, toChannelId } from "../_data";
 
 export const dynamic = "force-dynamic";
@@ -122,7 +126,19 @@ export default async function ChannelPage({
           </Card>
         )}
 
-        {!hasSignal(snap) ? (
+        {/* YouTube Studio */}
+        {channel === "youtube" && snap.connections.length > 0 && <YouTubeVideos brandId={brandId} />}
+
+        {/* Facebook Studio */}
+        {channel === "facebook" && snap.connections.length > 0 && <FacebookStudio brandId={brandId} />}
+
+        {/* Instagram Studio */}
+        {channel === "instagram" && snap.connections.length > 0 && <InstagramStudio brandId={brandId} />}
+
+        {/* LinkedIn Studio */}
+        {channel === "linkedin" && snap.connections.length > 0 && <LinkedInStudio brandId={brandId} />}
+
+        {channel !== "youtube" && channel !== "facebook" && channel !== "instagram" && channel !== "linkedin" && (!hasSignal(snap) ? (
           <Empty
             title={`No ${meta.label} figures for ${brand.name} yet`}
             hint={
@@ -283,7 +299,7 @@ export default async function ChannelPage({
               </Card>
             </div>
           </>
-        )}
+        ))}
       </div>
     </>
   );

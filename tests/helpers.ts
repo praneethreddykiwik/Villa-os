@@ -17,7 +17,21 @@ export function isolate(name: string): string {
   process.env.WHATSAPP_TRANSPORT = "stub";
   process.env.WORKER_SECRET = "test-secret";
   process.env.OPS_SESSION_SECRET = "test-session-secret";
-  delete process.env.ANTHROPIC_API_KEY; // deterministic extraction in tests
+  // Deterministic extraction in tests: no provider key may leak in from the shell.
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.GROQ_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  // Notification suites stub fetch; nothing else may reach Resend or a real inbox.
+  delete process.env.RESEND_API_KEY;
+  // Org resolution must stay local: with a service-role key present it would
+  // ask Supabase over the network and every fixture would land in another org.
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  delete process.env.NOTIFY_FROM_EMAIL;
+  delete process.env.NOTIFY_EMAILS;
+  // The WhatsApp knowledge base seeds from docs/glentree-facts.md on first use;
+  // suites must not depend on what that file says today. A suite that wants
+  // file seeding points KB_FACTS_PATH at its own fixture.
+  process.env.KB_FACTS_PATH = "";
   return dir;
 }
 

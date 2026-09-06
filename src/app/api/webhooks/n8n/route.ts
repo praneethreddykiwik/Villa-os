@@ -10,6 +10,8 @@ import type { AppointmentChannel } from "@/lib/appointments/types";
 import { rememberReceipt, replayReceipt } from "@/lib/events/bus";
 import { clientKey, rateLimit } from "@/lib/ops/ratelimit";
 import type { Lead, LeadSource } from "@/lib/crm/types";
+import { isN8nPlatform } from "@/lib/automation/types";
+import { recordPlatformResult } from "@/lib/automation/video-post";
 
 /**
  * INBOUND AUTOMATION — the endpoint n8n calls to act on this system.
@@ -26,7 +28,7 @@ import type { Lead, LeadSource } from "@/lib/crm/types";
  */
 
 /** Every action this endpoint will perform, named in the 400 for an unknown one. */
-const ACTIONS = ["create_lead", "book_appointment", "send_message"] as const;
+const ACTIONS = ["create_lead", "book_appointment", "send_message", "post_result"] as const;
 type Action = (typeof ACTIONS)[number];
 
 const LEAD_SOURCES: LeadSource[] = [
@@ -214,6 +216,53 @@ function sendMessage(p: Record<string, unknown>): ActionResult {
   return { ok: true, data: { conversationId, queued: true, awaiting: "staff release" } };
 }
 
+/**
+ * post_result — the video workflow reporting one platform's outcome.
+ *
+ * The hand-off (`/api/automation/post-video`) only learns whether the form
+ * *accepted* the upload; publishing happens minutes later inside the
+ * workflow. This closes the loop: `submissionId` is the "Submission ID" hidden
+ * field the app sent with the video, so the row can move to published/failed
+ * per platform. No idempotency receipt is needed — a repeat overwrites the same
+ * platform slot.
+ */
+function postResult(p: Record<string, unknown>): ActionResult {
+  const submissionId = str(p.submissionId, 80);
+  const platform = str(p.platform, 40);
+  const status = str(p.status, 20);
+  if (!submissionId) return { ok: false, error: "A submissionId is required.", status: 400 };
+  if (!isN8nPlatform(platform)) {
+    return { ok: false, error: `Unknown platform "${platform}". Use the label from the form's platform checkboxes.`, status: 400 };
+  }
+  if (status !== "published" && status !== "failed") {
+    return { ok: false, error: `status must be "published" or "failed".`, status: 400 };
+  }
+  const externalUrl = str(p.externalUrl, 500);
+  if (externalUrl && !/^https:\/\//.test(externalUrl)) {
+    return { ok: false, error: "externalUrl must be an https URL.", status: 400 };
+  }
+  const outcome = recordPlatformResult(submissionId, {
+    platform,
+    status,
+    externalUrl: externalUrl || undefined,
+    error: str(p.error, 1000) || undefined,
+  });
+  if (!outcome.ok) return outcome;
+
+  const brandId = resolveBrandId(read(), null);
+  if (brandId) {
+    logActivity(
+      brandId,
+      "integrations",
+      status === "published"
+        ? `"${outcome.submission.title}" published to ${platform}`
+        : `"${outcome.submission.title}" failed on ${platform}: ${str(p.error, 200) || "no reason given"}`,
+      ACTOR,
+    );
+  }
+  return { ok: true, data: { submission: outcome.submission } };
+}
+
 /* -------------------------------------------------------------------------- */
 
 export async function POST(req: Request) {
@@ -251,7 +300,15 @@ export async function POST(req: Request) {
       // arrives twice whenever the *next* node errored. Replaying the first
       // answer keeps that from becoming two site visits.
       const seen = replayReceipt(idempotencyKey);
-      if (seen) return apiOk({ ...seen.result, idempotent: true, firstSeenAt: seen.at });
+      if (seen) {
+        // A key is bound to the action it first performed. Replaying a lead
+        // as the answer to a booking would tell the workflow its visit is
+        // confirmed when nothing was booked; a 409 says "pick a new key".
+        if (seen.action !== action) {
+          return apiFail(`idempotencyKey was already used for "${seen.action}"; use a new key for "${action}".`, 409);
+        }
+        return apiOk({ action, ...seen.result, idempotent: true, firstSeenAt: seen.at });
+      }
     }
 
     const payload =
@@ -269,6 +326,9 @@ export async function POST(req: Request) {
         break;
       case "send_message":
         result = sendMessage(payload);
+        break;
+      case "post_result":
+        result = postResult(payload);
         break;
     }
 

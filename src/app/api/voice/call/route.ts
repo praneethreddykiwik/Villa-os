@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     // operator out of the feature for a quarter of an hour the moment it worked.
     if (!isConfigured()) {
       return apiFail(
-        "Bolna is not connected. Set BOLNA_API_KEY in .env.local to place calls.",
+        "The voice agent is not connected. Ask an administrator to configure it before placing calls.",
         503,
       );
     }
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     const phone = toE164(requested);
     if (!phone) {
       return apiFail(
-        `Bolna dials E.164 numbers only. "${requested}" needs its country code, e.g. +91${requested.replace(/[^\d]/g, "").slice(-10)}.`,
+        `The voice agent dials E.164 numbers only. "${requested}" needs its country code, e.g. +91${requested.replace(/[^\d]/g, "").slice(-10)}.`,
       );
     }
 

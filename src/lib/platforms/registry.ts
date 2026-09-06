@@ -63,9 +63,14 @@ export function isUsableConnection(c: {
   status?: string;
   accessToken?: string;
   channel?: string;
+  externalId?: string;
 }): boolean {
   if (c.status !== "connected") return false;
   if (c.accessToken?.trim()) return true;
+  // Upload-Post-backed rows carry no token of their own; the API key publishes.
+  if (c.externalId?.startsWith("uploadpost:") && Boolean(process.env.UPLOAD_POST_API_KEY?.trim())) {
+    return true;
+  }
   if ((c.channel === "youtube" || c.channel === "instagram") && Boolean(process.env.UPLOAD_POST_API_KEY?.trim())) {
     return true;
   }
@@ -77,9 +82,13 @@ export function connectionProblem(c: {
   status?: string;
   accessToken?: string;
   channel?: string;
+  externalId?: string;
 }): string | null {
   if (c.status !== "connected") return null;
   if (!c.accessToken?.trim()) {
+    if (c.externalId?.startsWith("uploadpost:")) {
+      return process.env.UPLOAD_POST_API_KEY?.trim() ? null : "The publishing connector is not configured — this channel publishes through it.";
+    }
     if ((c.channel === "youtube" || c.channel === "instagram") && Boolean(process.env.UPLOAD_POST_API_KEY?.trim())) {
       return null;
     }

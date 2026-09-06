@@ -70,7 +70,7 @@ export function MessagesView() {
             <strong className="block text-mist-100">Messaging is not available.</strong>
             {m.error}
             <p className="mt-2 text-mist-400">
-              Messaging needs Supabase configured, the messaging migration applied, and a signed-in staff account.
+              Messaging needs the database configured, the messaging migration applied, and a signed-in staff account.
               Check <a href="/setup" className="text-brand-400 hover:underline">Setup</a>, then sign in at{" "}
               <a href="/signin" className="text-brand-400 hover:underline">Sign in</a>.
             </p>

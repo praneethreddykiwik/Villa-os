@@ -20,10 +20,10 @@
 
 /** Exactly the checkboxes the workflow offers, spelled the way it spells them. */
 export const N8N_PLATFORMS = ["YouTube", "Instagram", "Facebook", "X (Twitter)"] as const;
-export type N8nPlatform = (typeof N8N_PLATFORMS)[number];
+export type N8nPlatform = (typeof N8N_PLATFORMS)[number] | "X";
 
 export function isN8nPlatform(v: unknown): v is N8nPlatform {
-  return typeof v === "string" && (N8N_PLATFORMS as readonly string[]).includes(v);
+  return typeof v === "string" && ((N8N_PLATFORMS as readonly string[]).includes(v) || v === "X");
 }
 
 /**
@@ -44,6 +44,11 @@ export const FIELDS = {
   createFolder: "Create the folder if it does not exist?",
   publicLink: "Enable Anyone with link can view on the Drive folder?",
   telegramChatId: "Telegram Chat ID for thumbnail review",
+  /**
+   * Hidden text field carrying our submission id, so the workflow can call
+   * back with `post_result`. A form without this field ignores the part.
+   */
+  submissionId: "Submission ID",
 } as const;
 
 /** The two-option selects. Sent as the literal strings the workflow branches on. */
@@ -90,12 +95,42 @@ export interface N8nSubmission {
   by: string;
   title: string;
   platforms: N8nPlatform[];
-  status: "queued" | "forwarded" | "failed";
+  /**
+   * queued → forwarded (the workflow accepted the upload) → published/failed
+   * per platform via `post_result`. `received_workflow_error` is the workflow
+   * answering 499/5xx *after* the whole body crossed: it got the video, then a
+   * downstream node failed — a different repair from "never arrived".
+   */
+  status: "queued" | "forwarded" | "failed" | "received_workflow_error";
+  /** System version for the publishing route (e.g. "v1" | "v2"). */
+  version?: string;
   /** The HTTP status the workflow answered with, when it answered at all. */
   n8nStatus?: number;
+  /** Time from opening the row to the workflow's answer. */
+  elapsedMs?: number;
+  /** When the row was settled (answered, or failed before the forward). */
+  settledAt?: string;
   /** Why it failed. Present whenever `status` is "failed". */
   error?: string;
+  /** Per-platform outcomes reported back by the workflow through `post_result`. */
+  results?: N8nPlatformResult[];
 }
+
+export interface N8nPlatformResult {
+  platform: N8nPlatform;
+  status: "published" | "failed";
+  at: string;
+  externalUrl?: string;
+  error?: string;
+}
+
+/** Shown when the workflow took the upload and then broke on a later step. */
+export const WORKFLOW_ERROR_MESSAGE =
+  "Your publishing workflow received the video but stopped with an error. Open the workflow's execution history to see which step failed (usually a Drive/YouTube credential).";
+
+/** Shown when the form URL answers 404 / "Problem loading form". */
+export const FORM_INACTIVE_MESSAGE =
+  "The publishing workflow's form is not active or its URL is different. Open the form trigger, copy the exact production form URL, and make sure the workflow is switched on.";
 
 /**
  * The environment setting holding the workflow's form/webhook URL.

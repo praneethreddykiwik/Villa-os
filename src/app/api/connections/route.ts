@@ -2,12 +2,15 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { mutate, read, resolveBrandId } from "@/lib/db";
 import { specFor } from "@/lib/platforms/oauth";
-import { channelMeta } from "@/lib/platforms/registry";
+import { CHANNEL_ORDER, channelMeta } from "@/lib/platforms/registry";
 import { logActivity } from "@/lib/engine/publisher";
 import type { ChannelId } from "@/lib/types";
 import { guard } from "@/lib/auth/guard";
 import { actorLabel, getSession } from "@/lib/auth/session";
 import { STATE_COOKIE } from "./callback/route";
+import { uid } from "@/lib/ids";
+import { isUploadPostConfigured } from "@/lib/uploadpost/client";
+import { UPLOAD_POST_PLATFORM, uploadPostExternalId, uploadPostLinkedAccount } from "@/lib/uploadpost/connections";
 
 /**
  * Connect / reconnect / disconnect a channel.
@@ -26,7 +29,18 @@ export async function POST(req: Request) {
   // "user" did it was never an acceptable record of that.
   const actor = actorLabel(await getSession());
 
-  const body = (await req.json()) as { brandId?: string; channel: ChannelId; action?: "connect" | "disconnect" | "reconnect" };
+  let body: { brandId?: string; channel: ChannelId; action?: "connect" | "disconnect" | "reconnect" };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return NextResponse.json({ ok: false, error: "The request body must be JSON." }, { status: 400 });
+  }
+  // `channel` indexes UPLOAD_POST_PLATFORM and the adapter registry, both plain
+  // objects: an unknown or prototype key ("__proto__", "constructor") must be
+  // refused before it can look up a function and be treated as a platform.
+  if (!CHANNEL_ORDER.includes(body.channel)) {
+    return NextResponse.json({ ok: false, error: "Unknown channel." }, { status: 400 });
+  }
   const db = read();
   const brandId = resolveBrandId(db, body.brandId);
   const spec = specFor(body.channel);
@@ -46,6 +60,57 @@ export async function POST(req: Request) {
   }
 
   const missingEnv = (spec?.envVars ?? []).filter((v) => !process.env[v]);
+
+  /**
+   * Upload-Post first.
+   *
+   * When the network is linked on the Upload-Post account, connecting is a
+   * bookkeeping step rather than an OAuth dance: record a row the publisher
+   * routes through Upload-Post. The native OAuth path below still runs for
+   * networks that are not linked there, so a deployment can mix the two.
+   */
+  if (UPLOAD_POST_PLATFORM[body.channel] && isUploadPostConfigured()) {
+    const linked = await uploadPostLinkedAccount(body.channel);
+    if (linked) {
+      // Usernames get the @; a display name with spaces is shown as-is.
+      const raw = linked.handle || linked.display_name || body.channel;
+      const handle = raw.startsWith("@") || /\s/.test(raw) ? raw : `@${raw}`;
+      const externalId = uploadPostExternalId(body.channel);
+      const now = new Date().toISOString();
+      mutate((d) => {
+        const existing = d.connections.find((x) => x.brandId === brandId && x.channel === body.channel);
+        if (existing) {
+          Object.assign(existing, { status: "connected", externalId, handle, accessToken: undefined, refreshToken: undefined, tokenExpiresAt: undefined, lastError: undefined, connectedAt: now, scopes: ["upload-post"] });
+        } else {
+          d.connections.push({
+            id: uid("con"),
+            brandId,
+            channel: body.channel,
+            handle,
+            externalId,
+            status: "connected",
+            scopes: ["upload-post"],
+            avatarColor: meta.color,
+            followers: 0,
+            connectedAt: now,
+          });
+        }
+      });
+      logActivity(brandId, "connection", `${meta.label} connected via the publishing connector (${handle})`, actor);
+      return NextResponse.json({ ok: true, status: "connected", via: "upload_post", handle });
+    }
+    if (missingEnv.length) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `${meta.label} is not linked on your Upload-Post account (profile "${process.env.UPLOAD_POST_USER ?? "default"}"). Link it at upload-post.com and connect again, or set ${missingEnv.join(", ")} for the native sign-in.`,
+          missingEnv,
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   if (process.env.PLATFORM_DRIVER === "live") {
     if (missingEnv.length) {
       return NextResponse.json(

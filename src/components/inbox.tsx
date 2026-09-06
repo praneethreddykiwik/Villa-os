@@ -54,7 +54,11 @@ export function Inbox({
         setNote(json.error ?? "Could not retrieve — nothing was fetched.");
         return;
       }
-      setNote(`Retrieved ${json.totals.conversations} new message(s) from ${json.sources.length} channel(s).`);
+      const skipped = (json.sources ?? []).filter((s: { status?: string }) => s.status === "skipped");
+      setNote(
+        `Retrieved ${json.totals.conversations} new message(s) from ${json.totals.synced ?? json.sources.length} channel(s).` +
+          (skipped.length ? ` ${skipped.length} skipped: ${skipped.map((s: { channel: string }) => s.channel).join(", ")} (see Connections for why).` : ""),
+      );
       if (json.totals.conversations > 0) window.location.reload();
     } finally {
       setSyncing(false);

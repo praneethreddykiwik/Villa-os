@@ -1,6 +1,7 @@
 import { mutate, read } from "../db";
 import { uid } from "../ids";
 import { adapterFor } from "../platforms/registry";
+import { isUploadPostConnection, publishViaUploadPost } from "../uploadpost/connections";
 import type { Post, PostTarget } from "../types";
 
 /**
@@ -93,6 +94,37 @@ export async function runTick(now = new Date()): Promise<TickResult> {
       }
 
       // Ask the platform, do not guess: quotas differ per account and per day.
+      // Upload-Post-backed connection: one API key, media sent as bytes, so
+      // neither the network's quota probe nor a public media URL applies.
+      if (isUploadPostConnection(connection)) {
+        const refs = post.mediaIds
+          .map((id) => db.media.find((m) => m.id === id))
+          .filter(Boolean)
+          .map((m) => {
+            const wanted = adapter.capabilities.aspectRatios[target.format]?.[0];
+            return (wanted && m!.renders[wanted]) || m!.src;
+          });
+        const res = await publishViaUploadPost(target.channel, {
+          connection: { id: connection.id, externalId: connection.externalId, accessToken: undefined, handle: connection.handle },
+          format: target.format,
+          caption: target.caption ?? post.caption,
+          hashtags: post.hashtags,
+          mediaUrls: refs,
+          stickers: target.stickers,
+          firstComment: target.firstComment,
+        });
+        if (res.ok) {
+          recordSuccess(post.id, target.connectionId, res.externalId!, res.permalink);
+          result.published += 1;
+          result.details.push({ postId: post.id, channel: target.channel, ok: true, message: res.permalink ?? res.externalId! });
+        } else {
+          recordFailure(post.id, target.connectionId, res.error ?? "unknown error", res.retryable ?? false);
+          result.failed += 1;
+          result.details.push({ postId: post.id, channel: target.channel, ok: false, message: res.error ?? "error" });
+        }
+        continue;
+      }
+
       const quota = await adapter.rateLimit({
         id: connection.id,
         externalId: connection.externalId,

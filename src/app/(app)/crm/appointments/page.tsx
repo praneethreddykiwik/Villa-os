@@ -63,6 +63,11 @@ export default async function AppointmentsPage({
     ]),
   ].sort();
 
+  // Delivery outcomes for the visits on screen, so "was the host told" is
+  // answered where the visit is, not in a log page nobody opens.
+  const ids = new Set(appointments.map((a) => a.id));
+  const notifications = (db.notificationLog ?? []).filter((n) => n.entity === "appointment" && ids.has(n.entityId));
+
   // The CRM is per brand, and so is this. With no leads and no visits there is
   // nothing to show that would not read as a bug.
   const hasCrm = leads.length > 0 || appointments.length > 0;
@@ -93,6 +98,7 @@ export default async function AppointmentsPage({
               brandName={brand.name}
               leads={leads}
               staff={staff}
+              notifications={notifications}
             />
           </>
         )}

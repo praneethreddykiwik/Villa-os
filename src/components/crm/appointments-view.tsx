@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import {
-  AlertTriangle, CalendarPlus, Check, Clock, Loader2, MessageCircle, Phone, RefreshCw, UserRound, X,
+  AlertTriangle, CalendarDays, CalendarPlus, Check, Clock, Loader2, MessageCircle, Phone, RefreshCw, UserRound, X,
 } from "lucide-react";
 import clsx from "clsx";
 import type { Appointment, AppointmentChannel, AppointmentStatus, Slot } from "@/lib/appointments/types";
 import { HOLDS_SLOT } from "@/lib/appointments/types";
+import type { NotificationLogEntry } from "@/lib/notify";
 import { relativeDay } from "@/lib/crm/format";
 import { Badge, Card, Empty, SectionTitle } from "../ui";
 
@@ -98,13 +99,17 @@ export function AppointmentsView({
   brandName,
   leads,
   staff,
+  notifications = [],
 }: {
   appointments: Appointment[];
   brandId: string;
   brandName: string;
   leads: Array<{ id: string; name: string; phone: string }>;
   staff: string[];
+  /** Delivery outcomes for these visits; server-rendered, so a fresh send shows on reload. */
+  notifications?: NotificationLogEntry[];
 }) {
+  const [open, setOpen] = useState<string | null>(null);
   const [rows, setRows] = useState(appointments);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -346,6 +351,60 @@ export function AppointmentsView({
     );
   }
 
+  /** Source, every status move, and whether each notification actually went out. */
+  function details(a: Appointment) {
+    const sent = notifications
+      .filter((n) => n.entityId === a.id)
+      .sort((x, y) => y.createdAt.localeCompare(x.createdAt));
+    const stamp = (iso: string) =>
+      new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    return (
+      <div className="mt-2 grid gap-3 rounded-lg border border-ink-700 bg-ink-900/40 p-2.5 text-[10.5px] md:grid-cols-3">
+        <div>
+          <div className="mb-1 font-semibold uppercase tracking-wider text-mist-500">Source</div>
+          <div className="text-mist-300">{a.channel.replace("_", " ")}</div>
+          <div className="text-mist-500">by {a.createdBy} · {stamp(a.createdAt)}</div>
+          <a
+            href={`/api/appointments/${a.id}/ics`}
+            className="mt-1.5 inline-flex items-center gap-1 text-mist-400 hover:text-mist-200"
+          >
+            <CalendarDays size={10} /> Calendar file (.ics)
+          </a>
+        </div>
+        <div>
+          <div className="mb-1 font-semibold uppercase tracking-wider text-mist-500">History</div>
+          <ul className="space-y-0.5">
+            {a.history.map((h, i) => (
+              <li key={i} className="text-mist-400">
+                <span className="text-mist-300">{h.from === "created" ? "created" : label(h.from)} → {label(h.to)}</span>
+                {" "}· {h.by} · {stamp(h.at)}
+                {h.reason && <span className="text-mist-500"> · {h.reason}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div className="mb-1 font-semibold uppercase tracking-wider text-mist-500">Notifications</div>
+          {sent.length ? (
+            <ul className="space-y-0.5">
+              {sent.map((n) => (
+                <li key={n.id} className="flex items-start gap-1.5 text-mist-400">
+                  <span className={clsx("mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full", n.ok ? "bg-good-500" : "bg-bad-500")} />
+                  <span>
+                    <span className="text-mist-300">{n.event.replace("appointment.", "")} · {n.channel.replace("_", "-")}</span>
+                    {" "}· {n.detail}{n.to ? ` → ${n.to}` : ""} · {stamp(n.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-mist-500">Nothing sent yet.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   function row(a: Appointment, tone?: "overdue") {
     const closedOut = !HOLDS_SLOT.includes(a.status);
     const canComplete = a.status === "confirmed" || a.status === "rescheduled";
@@ -380,6 +439,13 @@ export function AppointmentsView({
             {a.cancelledReason && (
               <p className="mt-1 text-[10.5px] leading-relaxed text-mist-500">Reason: {a.cancelledReason}</p>
             )}
+            <button
+              onClick={() => setOpen((o) => (o === a.id ? null : a.id))}
+              className="mt-1 text-[10.5px] text-mist-500 underline-offset-2 hover:text-mist-300 hover:underline"
+            >
+              {open === a.id ? "Hide details" : "Details"}
+            </button>
+            {open === a.id && details(a)}
           </div>
 
           <Badge tone={STATUS_TONE[a.status]}>{label(a.status)}</Badge>

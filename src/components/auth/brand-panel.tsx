@@ -72,7 +72,7 @@ export function BrandPanel() {
 
       <p className="flex items-center gap-2 text-[11.5px] text-mist-500">
         <ShieldCheck size={13} />
-        Passwords are held by Supabase Auth. This application never sees one.
+        Passwords are held by the identity service. This application never sees one.
       </p>
     </div>
   );

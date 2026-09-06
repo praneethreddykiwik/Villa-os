@@ -2,6 +2,7 @@ import {
   AuthError as CoreAuthError, getSession, requirePermission,
   assertCustomerAccess as coreAssertCustomerAccess, type Permission as CorePermission, type Session as CoreSession,
 } from "../auth/session";
+import { syncTeamMembers } from "./seed";
 
 /**
  * Adapter from the ops module's permission vocabulary onto the single
@@ -82,6 +83,9 @@ function project(s: CoreSession): OpsSession {
 
 export async function authorize(_req: Request, ...required: string[]): Promise<OpsSession> {
   const session = await requirePermission(...required.map(translate));
+  // Every ops route that can assign work passes through here, so this is the
+  // one place that guarantees the roster is current before `assign()` runs.
+  await syncTeamMembers(session.orgId);
   return project(session);
 }
 

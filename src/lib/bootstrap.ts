@@ -54,6 +54,7 @@ export function buildBootstrap(): Database {
     workspaces: [workspace],
     appointments: [],
     availability: [],
+    notificationLog: [],
     webhookSubscribers: [],
     webhookDeliveries: [],
     n8nSubmissions: [],
@@ -81,6 +82,8 @@ export function buildBootstrap(): Database {
     brokers: [],
     crmContacts: [],
     crmTasks: [],
+    voiceCalls: [],
+    voiceAgentConfigs: [],
     ...EMPTY_OPS,
   };
 }

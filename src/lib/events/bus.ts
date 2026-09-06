@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
 import { mutate, read } from "../db";
 import { uid } from "../ids";
 
@@ -146,8 +147,9 @@ const MAX_RECEIPTS = 2_000;
  * so `internal.example.com` pointing at 127.0.0.1 still passes. Closing that
  * needs resolution plus a re-check after the connect (DNS can change between
  * the two), which is a networking-layer job. The literal check removes the
- * whole class of *pasted* internal addresses, which is what a config field
- * actually attracts.
+ * class of *pasted* internal addresses, which is what a config field actually
+ * attracts — including the IPv6 spellings of an IPv4 address (`::ffff:7f00:1`,
+ * NAT64 `64:ff9b::7f00:1`) that a prefix match on the dotted form misses.
  */
 export function checkWebhookUrl(raw: string): string | null {
   let u: URL;
@@ -163,25 +165,59 @@ export function checkWebhookUrl(raw: string): string | null {
   // Credentials in the URL end up in every log line that records the target.
   if (u.username || u.password) return "The webhook URL must not embed credentials.";
 
-  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  // A trailing dot is the same name to the resolver (`localhost.` == `localhost`).
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
   if (
     host === "localhost" ||
     host.endsWith(".localhost") ||
-    host === "::1" ||
-    host === "0.0.0.0" ||
-    host === "::" ||
-    /^127\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    // IPv6 unique-local (fc00::/7) and link-local (fe80::/10).
-    /^f[cd][0-9a-f]{2}:/.test(host) ||
-    /^fe[89ab][0-9a-f]:/.test(host)
+    // Reserved for private naming (RFC 6762 / cloud conventions) — never public.
+    host.endsWith(".internal") ||
+    isPrivateAddress(host)
   ) {
     return "The webhook URL must not point at a private or loopback address.";
   }
   return null;
+}
+
+/** True when `host` is an IP literal in a loopback, link-local, private or CGNAT range. */
+function isPrivateAddress(host: string): boolean {
+  const kind = isIP(host);
+  if (kind === 4) return isPrivateV4(host);
+  if (kind !== 6) return false;
+  if (host === "::1" || host === "::") return true;
+  // IPv6 unique-local (fc00::/7) and link-local (fe80::/10).
+  if (/^f[cd][0-9a-f]{2}:/.test(host) || /^fe[89ab][0-9a-f]:/.test(host)) return true;
+  // An IPv4 carried inside IPv6 — IPv4-mapped (::ffff:a.b.c.d, which Node also
+  // spells ::ffff:hex:hex) and NAT64 (64:ff9b::/96) — reaches the IPv4 host, so
+  // it inherits the IPv4 verdict.
+  const embedded = embeddedV4(host);
+  return embedded !== null && isPrivateV4(embedded);
+}
+
+function isPrivateV4(ip: string): boolean {
+  const [a, b] = ip.split(".").map(Number);
+  return (
+    a === 0 || // 0.0.0.0/8 — "this host"
+    a === 127 ||
+    a === 10 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127) // CGNAT 100.64.0.0/10
+  );
+}
+
+/** Dotted IPv4 embedded in the low 32 bits of a mapped/NAT64 IPv6 literal, else null. */
+function embeddedV4(host: string): string | null {
+  const m = /^(?:::ffff:|64:ff9b::)(.+)$/.exec(host);
+  if (!m) return null;
+  const tail = m[1];
+  if (isIP(tail) === 4) return tail;
+  // Two hex groups, e.g. `7f00:1` → 127.0.0.1.
+  const groups = tail.split(":");
+  if (groups.length !== 2 || !groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null;
+  const [hi, lo] = groups.map((g) => parseInt(g, 16));
+  return [hi >> 8, hi & 0xff, lo >> 8, lo & 0xff].join(".");
 }
 
 /* -------------------------------------------------------------------------- */

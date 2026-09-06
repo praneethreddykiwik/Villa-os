@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Check, Loader2, Send, Trash2, Upload, Zap,
+  AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Check, Loader2, Radio, Send, Trash2, Upload, Zap,
 } from "lucide-react";
 import clsx from "clsx";
 import { Badge, Card, SectionTitle } from "../ui";
@@ -13,6 +13,7 @@ import {
   MAX_REFERENCE_PHOTOS,
   N8N_PLATFORMS,
   type N8nPlatform,
+  type N8nPlatformResult,
   type N8nSubmission,
 } from "@/lib/automation/types";
 
@@ -113,11 +114,17 @@ export function N8nPanel({
   formUrlProblem: string | null;
   submissions: N8nSubmission[];
 }) {
+  const isDevMode =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("dev") === "1";
+
   return (
     <div className="space-y-5">
-      <ConnectionHalf inboundUrl={inboundUrl} inboundSecretConfigured={inboundSecretConfigured} />
       <VideoPostHalf formUrlProblem={formUrlProblem} />
       <SubmissionHistory rows={submissions} />
+      {isDevMode && (
+        <ConnectionHalf inboundUrl={inboundUrl} inboundSecretConfigured={inboundSecretConfigured} />
+      )}
     </div>
   );
 }
@@ -204,7 +211,7 @@ function ConnectionHalf({
       // it sitting in an input is the one copy of it a shoulder can read.
       setSecret("");
       setUrl("");
-      setNote(`Registered ${host(json.subscriber.url)}. Copy the signing secret into your n8n workflow now — it is never shown again.`);
+      setNote(`Registered ${host(json.subscriber.url)}. Copy the signing secret into your automation workflow now — it is never shown again.`);
       await load();
     } finally {
       setBusy(null);
@@ -259,7 +266,7 @@ function ConnectionHalf({
     <Card>
       <SectionTitle
         title="Connection"
-        hint="Where this system sends events, and how n8n calls back into it"
+        hint="Where this system sends events, and how automation calls back into it"
       />
 
       <div className="grid gap-4 xl:grid-cols-2">
@@ -267,13 +274,13 @@ function ConnectionHalf({
         <div className="rounded-xl border border-ink-700 p-3.5">
           <div className="mb-2 flex items-center gap-2">
             <ArrowDownToLine size={14} className="text-mist-400" />
-            <span className="text-[12.5px] font-medium text-mist-100">n8n → Glentree</span>
+            <span className="text-[12.5px] font-medium text-mist-100">Automation → Glentree</span>
             <Badge tone={inboundSecretConfigured ? "good" : "bad"}>
               {inboundSecretConfigured ? "secret set" : "secret not set"}
             </Badge>
           </div>
           <p className="mb-2.5 text-[11px] leading-relaxed text-mist-400">
-            Point an n8n HTTP Request node at this URL to create a lead, book a site visit or queue a
+            Point an HTTP Request node at this URL to create a lead, book a site visit or queue a
             message. Authenticate it with the header below — the value lives in the server environment
             and is never displayed here.
           </p>
@@ -287,14 +294,14 @@ function ConnectionHalf({
             <div>
               <dt className="text-mist-400">Header</dt>
               <dd className="mt-0.5 rounded-lg bg-ink-850 px-2 py-1.5 font-mono text-[11px] text-mist-200">
-                {INBOUND_SECRET_HEADER}: &lt;N8N_WEBHOOK_SECRET&gt;
+                {INBOUND_SECRET_HEADER}: &lt;inbound webhook secret&gt;
               </dd>
             </div>
           </dl>
           {!inboundSecretConfigured && (
             <p className="mt-2 rounded-lg bg-bad-500/10 px-2 py-1.5 text-[11px] text-bad-400">
-              N8N_WEBHOOK_SECRET is unset, so this endpoint refuses every request rather than
-              accepting unauthenticated writes. Set it in the environment and restart.
+              The inbound webhook secret is not set, so this endpoint refuses every request rather
+              than accepting unauthenticated writes. Ask an administrator to configure it.
             </p>
           )}
         </div>
@@ -303,7 +310,7 @@ function ConnectionHalf({
         <div className="rounded-xl border border-ink-700 p-3.5">
           <div className="mb-2 flex items-center gap-2">
             <ArrowUpFromLine size={14} className="text-mist-400" />
-            <span className="text-[12.5px] font-medium text-mist-100">Glentree → n8n</span>
+            <span className="text-[12.5px] font-medium text-mist-100">Glentree → Automation</span>
           </div>
 
           {denied ? (
@@ -313,7 +320,7 @@ function ConnectionHalf({
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://your-n8n.example.com/webhook/orbit"
+                placeholder="https://your-automation.example.com/webhook/orbit"
                 className={INPUT}
               />
               <input
@@ -473,6 +480,71 @@ function VideoPostHalf({ formUrlProblem }: { formUrlProblem: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
+  // Workflow URL management
+  const [activeUrl, setActiveUrl] = useState<string>("");
+  const [editUrl, setEditUrl] = useState<string>("");
+  const [showEditUrl, setShowEditUrl] = useState(false);
+  const [savingUrl, setSavingUrl] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [probe, setProbe] = useState<{ state: string; detail: string; elapsedMs?: number } | null>(null);
+
+  // A GET of the form URL through the server — reports active/inactive without
+  // sending a video, so it can be pressed freely.
+  async function testConnection() {
+    setTesting(true);
+    setProbe(null);
+    try {
+      const res = await fetch("/api/automation/test", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setProbe({ state: "unreachable", detail: json.error ?? "The connection test could not run." });
+        return;
+      }
+      setProbe(json);
+    } catch {
+      setProbe({ state: "unreachable", detail: "The connection test could not run." });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  useEffect(() => {
+    fetch("/api/automation/workflow-url")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.ok && data.url) {
+          setActiveUrl(data.url);
+          setEditUrl(data.url);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleSaveUrl() {
+    if (!editUrl.trim()) return;
+    setSavingUrl(true);
+    try {
+      const res = await fetch("/api/automation/workflow-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: editUrl.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setActiveUrl(data.url);
+        setShowEditUrl(false);
+        setNote("Workflow URL updated successfully.");
+        router.refresh();
+      } else {
+        setError(data.error || "Could not save workflow URL.");
+      }
+    } catch {
+      setError("Failed to save workflow URL.");
+    } finally {
+      setSavingUrl(false);
+    }
+  }
+
   function togglePlatform(p: N8nPlatform) {
     setPlatforms((list) => (list.includes(p) ? list.filter((x) => x !== p) : [...list, p]));
   }
@@ -509,7 +581,9 @@ function VideoPostHalf({ formUrlProblem }: { formUrlProblem: string | null }) {
         router.refresh();
         return;
       }
-      setNote(`"${json.submission.title}" was handed to the workflow for ${json.submission.platforms.join(", ")}.`);
+      setNote(
+        `"${json.submission.title}" was handed to the publishing workflow for ${json.submission.platforms.join(", ")} in ${Math.round((json.submission.elapsedMs ?? 0) / 1000)}s. Results per platform appear below as the workflow reports back.`,
+      );
       formRef.current?.reset();
       setPlatforms([]);
       router.refresh();
@@ -522,17 +596,85 @@ function VideoPostHalf({ formUrlProblem }: { formUrlProblem: string | null }) {
 
   return (
     <Card>
-      <SectionTitle
-        title="Post a video"
-        hint="Goes to your n8n workflow exactly as its own form would — this app does not upload to any network itself"
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-[15px] font-bold text-mist-100">Publish Video to Channels</h2>
+          <p className="text-[12px] text-mist-400 mt-0.5">
+            Dispatches video, thumbnail and metadata to your multi-channel automation workflow.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {activeUrl && (
+            <span className="text-[11px] font-mono text-mist-400 max-w-[220px] truncate" title={activeUrl}>
+              {activeUrl}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={testConnection}
+            disabled={testing}
+            className="flex items-center gap-1.5 text-[11.5px] rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1 text-mist-300 hover:text-mist-100 hover:border-ink-600 transition-colors disabled:opacity-50"
+          >
+            {testing ? <Loader2 size={12} className="animate-spin" /> : <Radio size={12} />}
+            Test connection
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowEditUrl((v) => !v)}
+            className="text-[11.5px] rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1 text-mist-300 hover:text-mist-100 hover:border-ink-600 transition-colors"
+          >
+            {showEditUrl ? "Close" : "Configure Endpoint"}
+          </button>
+        </div>
+      </div>
 
-      {formUrlProblem && (
+      {probe && (
+        <p
+          className={clsx(
+            "mb-4 flex items-start gap-2 rounded-lg px-3 py-2 text-[12px]",
+            probe.state === "active" ? "bg-good-500/10 text-good-400" : "bg-bad-500/10 text-bad-400",
+          )}
+        >
+          {probe.state === "active" ? <Check size={14} className="mt-0.5 shrink-0" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
+          <span>
+            {probe.detail}
+            {probe.elapsedMs != null && ` (${probe.elapsedMs} ms)`}
+          </span>
+        </p>
+      )}
+
+      {showEditUrl && (
+        <div className="mb-4 rounded-xl border border-brand-500/30 bg-ink-900/70 p-3.5 space-y-2">
+          <p className="text-[11.5px] text-mist-300 font-medium">
+            Automation Workflow URL (Form or Webhook):
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={editUrl}
+              onChange={(e) => setEditUrl(e.target.value)}
+              placeholder="https://your-workflow-host/form/..."
+              className="flex-1 rounded-xl border border-ink-700 bg-ink-950 px-3 py-1.5 text-[12px] text-mist-100 outline-none focus:border-brand-500/50 font-mono"
+            />
+            <button
+              type="button"
+              onClick={handleSaveUrl}
+              disabled={savingUrl || !editUrl.trim()}
+              className="rounded-xl border border-brand-500/40 bg-brand-500/20 px-3.5 py-1.5 text-[12px] font-semibold text-brand-300 hover:bg-brand-500/30 disabled:opacity-50"
+            >
+              {savingUrl ? "Saving…" : "Save URL"}
+            </button>
+          </div>
+          <p className="text-[10.5px] text-mist-400 leading-relaxed">
+            In your publishing workflow, open the <strong>On form submission</strong> (or Webhook) node, copy the <strong>Production URL</strong> (or Test URL), and paste it above.
+          </p>
+        </div>
+      )}
+
+      {formUrlProblem && !activeUrl && (
         <p className="mb-4 flex items-start gap-2 rounded-lg bg-bad-500/10 px-3 py-2 text-[12px] text-bad-400">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span>
-            {formUrlProblem} Until then this form will refuse rather than accept a video it cannot deliver.
-          </span>
+          <span>{formUrlProblem}</span>
         </p>
       )}
 
@@ -639,11 +781,11 @@ function VideoPostHalf({ formUrlProblem }: { formUrlProblem: string | null }) {
             className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-3.5 py-2 text-[12.5px] font-medium text-[var(--a-on)] hover:bg-brand-600 disabled:opacity-50"
           >
             {sending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {sending ? "Sending to n8n…" : "Submit"}
+            {sending ? "Sending…" : "Submit"}
           </button>
           {sending && (
             <span className="text-[11px] text-mist-400">
-              The whole file is uploaded twice — to here, then to n8n. Leave this tab open.
+              The whole file is uploaded twice — to here, then to the publishing workflow. Leave this tab open.
             </span>
           )}
         </div>
@@ -656,47 +798,95 @@ function VideoPostHalf({ formUrlProblem }: { formUrlProblem: string | null }) {
 /* Submission history                                                         */
 /* -------------------------------------------------------------------------- */
 
+function elapsed(ms?: number): string {
+  if (ms == null) return "";
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`;
+}
+
+/**
+ * One submission's timeline: queued → forwarded → per-platform result.
+ *
+ * Each platform gets its own final step, because the workflow reports them
+ * one at a time and "published" on YouTube says nothing about Instagram.
+ */
+function Timeline({ s }: { s: N8nSubmission }) {
+  const results = new Map<N8nPlatform, N8nPlatformResult>((s.results ?? []).map((r) => [r.platform, r]));
+  const forwarded = s.status === "forwarded" || results.size > 0;
+  const receivedButErrored = s.status === "received_workflow_error";
+  const steps: Array<{ label: string; tone: "good" | "bad" | "warn" | "neutral"; detail?: string; href?: string }> = [
+    { label: "queued", tone: "good", detail: when(s.at) },
+    forwarded
+      ? { label: "forwarded", tone: "good", detail: `accepted${s.n8nStatus ? ` (${s.n8nStatus})` : ""} · ${elapsed(s.elapsedMs)}` }
+      : receivedButErrored
+        ? { label: "received, workflow error", tone: "bad", detail: `${s.n8nStatus ?? ""} · ${elapsed(s.elapsedMs)}` }
+        : s.status === "failed"
+          ? { label: "not forwarded", tone: "bad", detail: elapsed(s.elapsedMs) }
+          : { label: "forwarding…", tone: "warn" },
+  ];
+  if (forwarded || receivedButErrored) {
+    for (const p of s.platforms) {
+      const r = results.get(p);
+      steps.push(
+        !r
+          ? { label: `${p}: awaiting result`, tone: "neutral" }
+          : r.status === "published"
+            ? { label: `${p}: published`, tone: "good", detail: when(r.at), href: r.externalUrl }
+            : { label: `${p}: failed`, tone: "bad", detail: r.error ?? when(r.at) },
+      );
+    }
+  }
+  return (
+    <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      {steps.map((st, i) => (
+        <li key={i} className="flex items-center gap-1.5">
+          {i > 0 && <span className="text-mist-500">→</span>}
+          <Badge tone={st.tone}>{st.label}</Badge>
+          {st.detail && (
+            <span className="max-w-[220px] truncate text-[10.5px] text-mist-400" title={st.detail}>
+              {st.href ? (
+                <a href={st.href} target="_blank" rel="noreferrer" className="underline decoration-dotted hover:text-mist-200">
+                  open
+                </a>
+              ) : (
+                st.detail
+              )}
+            </span>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function SubmissionHistory({ rows }: { rows: N8nSubmission[] }) {
   return (
     <Card>
-      <SectionTitle title="Submitted videos" hint="Every hand-off to the workflow, and what it answered" />
+      <SectionTitle title="Submitted videos" hint="Every hand-off to the publishing workflow, and what it reported back" />
       {!rows.length ? (
         <p className="py-8 text-center text-[12.5px] text-mist-400">
-          No video has been sent to the workflow from here yet. Submissions made in n8n&apos;s own form are
-          not visible to this app, so this list only shows what went through this screen.
+          No video has been sent to the publishing workflow from here yet. Submissions made in the
+          workflow&apos;s own form are not visible to this app, so this list only shows what went through this screen.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[620px] text-[11.5px]">
-            <thead>
-              <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-mist-400">
-                <th className="py-1.5 font-medium">When</th>
-                <th className="py-1.5 font-medium">Title</th>
-                <th className="py-1.5 font-medium">Platforms</th>
-                <th className="py-1.5 font-medium">By</th>
-                <th className="py-1.5 text-right font-medium">Status</th>
-                <th className="py-1.5 font-medium">Detail</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((s) => (
-                <tr key={s.id} className="border-b border-ink-800/60 last:border-0">
-                  <td className="tnum py-1.5 text-mist-300">{when(s.at)}</td>
-                  <td className="max-w-[220px] truncate py-1.5 text-mist-100">{s.title}</td>
-                  <td className="py-1.5 text-mist-400">{s.platforms.join(", ")}</td>
-                  <td className="max-w-[160px] truncate py-1.5 text-mist-400">{s.by}</td>
-                  <td className="py-1.5 text-right">
-                    <Badge tone={s.status === "forwarded" ? "good" : s.status === "failed" ? "bad" : "warn"}>
-                      {s.status}
-                    </Badge>
-                  </td>
-                  <td className="max-w-[240px] truncate py-1.5 text-mist-400" title={s.error}>
-                    {s.error ?? (s.n8nStatus ? `n8n answered ${s.n8nStatus}` : "")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-2">
+          {rows.map((s) => (
+            <div key={s.id} className="rounded-xl border border-ink-700 p-3">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                <span className="max-w-[320px] truncate text-[12.5px] text-mist-100">{s.title}</span>
+                <span className="text-[10.5px] text-mist-400">{s.platforms.join(", ")}</span>
+                <span className="text-[10.5px] text-mist-400">by {s.by}</span>
+                <span className="ml-auto font-mono text-[10px] text-mist-500" title="Submission ID">{s.id}</span>
+              </div>
+              <div className="mt-2">
+                <Timeline s={s} />
+              </div>
+              {s.error && (
+                <p className="mt-2 rounded-lg bg-bad-500/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-bad-400">
+                  {s.error}
+                </p>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </Card>

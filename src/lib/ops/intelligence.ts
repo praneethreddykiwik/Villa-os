@@ -160,6 +160,8 @@ export async function extractInsight(input: ExtractionInput): Promise<Conversati
       .map((m) => `${m.direction === "inbound" ? "CUSTOMER" : "US"}: ${m.body}`)
       .join("\n");
 
+    // A provider that throws (stubbed, or a transport error surfacing past the
+    // chain) must degrade to the rule-based read, not fail the inbound message.
     const raw = await complete({
       system: SYSTEM,
       prompt: `Conversation:\n${transcript}\n\nReturn JSON:
@@ -169,6 +171,9 @@ export async function extractInsight(input: ExtractionInput): Promise<Conversati
 "facts":{},"summary":""}`,
       maxTokens: 1200,
       temperature: 0.2,
+    }).catch((e: Error) => {
+      console.warn(`[intelligence] extraction failed: ${e.message}`);
+      return null;
     });
 
     const parsed = extractJson<Record<string, unknown>>(raw);

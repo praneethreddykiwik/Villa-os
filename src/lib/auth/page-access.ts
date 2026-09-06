@@ -31,6 +31,9 @@ const RULES: Array<[RegExp, Permission]> = [
   // The voice tab shows who was called, what was said and what it cost — that
   // is customer information, so it sits with the other customer surfaces.
   // Starting a call needs customers.write, enforced at the route, not here.
+  // Editing what the agent says is configuration, so it sits with the other
+  // config screens. Listed before the general /voice rule because first match wins.
+  [/^\/voice\/settings/, "workflows.manage"],
   [/^\/voice/, "customers.read"],
 
   // Marketing surfaces
@@ -40,7 +43,8 @@ const RULES: Array<[RegExp, Permission]> = [
   // because an unmapped path is denied: without this line the Channels group
   // would render for nobody.
   [/^\/channels/, "marketing.read"],
-  // The automation screen is `marketing.read` rather than `workflows.manage`
+  // The "Publish video" screen (still /automation — the path never changed) is
+  // `marketing.read` rather than `workflows.manage`
   // because its everyday half is the video-posting form, and the people who
   // post videos are not the people who administer integrations. Nothing is
   // weakened by that: the webhook registry it displays is fetched from an API
@@ -48,6 +52,7 @@ const RULES: Array<[RegExp, Permission]> = [
   // submitting a video needs `marketing.publish` at the route. One gate per
   // capability, each on the data rather than on the door.
   [/^\/automation/, "marketing.read"],
+  [/^\/publish-v2/, "marketing.read"],
 
   // Configuration
   [/^\/(connections|settings)/, "workflows.manage"],

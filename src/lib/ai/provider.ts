@@ -84,6 +84,12 @@ export interface CompleteOptions {
   temperature?: number;
   /** Ask the provider for strict JSON rather than hoping the prose parses. */
   json?: boolean;
+  /**
+   * Per-call deadline. The default suits a person waiting on a caption; a
+   * customer waiting on WhatsApp needs a much shorter one, and a slow answer
+   * must degrade to the deterministic reply rather than stall the webhook.
+   */
+  timeoutMs?: number;
 }
 
 const TIMEOUT_MS = 30_000;
@@ -130,7 +136,7 @@ async function callGroq(spec: ProviderSpec, opts: CompleteOptions): Promise<stri
       // extractJson() recovers the value; a hard 400 on the common case is worse
       // than parsing prose on the rare one.
     }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Groq HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
@@ -166,7 +172,7 @@ async function callGemini(spec: ProviderSpec, opts: CompleteOptions): Promise<st
           ...(opts.json ? { responseMimeType: "application/json" } : {}),
         },
       }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS),
     },
   );
   if (!res.ok) throw new Error(`Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -201,7 +207,7 @@ async function callAnthropic(spec: ProviderSpec, opts: CompleteOptions): Promise
       system: opts.system,
       messages: [{ role: "user", content: opts.prompt }],
     }),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Anthropic HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const json = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
@@ -233,10 +239,22 @@ export async function complete(opts: CompleteOptions): Promise<string | null> {
       if (text && text.trim()) return text;
       console.warn(`[ai] ${spec.label} returned an empty completion; trying the next provider.`);
     } catch (e) {
-      console.warn(`[ai] ${spec.label} failed: ${(e as Error).message}`);
+      const message = (e as Error).message;
+      // complete() swallows errors by contract, so a caller that wants to retry
+      // a rate limit (and only a rate limit) reads the status from here.
+      lastFailure = { status: Number(message.match(/HTTP (\d{3})/)?.[1]) || undefined, at: Date.now() };
+      console.warn(`[ai] ${spec.label} failed: ${message}`);
     }
   }
   return null;
+}
+
+/** The most recent provider failure, for callers deciding whether to retry. */
+export let lastFailure: { status?: number; at: number } | null = null;
+
+/** True when the last completion failed with a 429 within the last few seconds. */
+export function rateLimitedRecently(withinMs = 5_000): boolean {
+  return lastFailure?.status === 429 && Date.now() - lastFailure.at < withinMs;
 }
 
 /** Parse a JSON array out of a model response that may be fenced or chatty. */

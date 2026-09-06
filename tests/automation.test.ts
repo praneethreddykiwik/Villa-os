@@ -17,7 +17,7 @@ const dir = isolate("automation");
 after(() => cleanup(dir));
 
 const V = require("../src/lib/automation/video-post") as typeof import("../src/lib/automation/video-post");
-const { FIELDS, MAX_IMAGE_BYTES } = require("../src/lib/automation/types") as typeof import("../src/lib/automation/types");
+const { FIELDS, MAX_IMAGE_BYTES, WORKFLOW_ERROR_MESSAGE } = require("../src/lib/automation/types") as typeof import("../src/lib/automation/types");
 const { read } = require("../src/lib/db") as typeof import("../src/lib/db");
 
 /** Minimal ISO-BMFF header — enough for the magic-byte check, as a real mp4 is. */
@@ -161,5 +161,114 @@ describe("submission log", () => {
   test("history is newest first, so the last attempt is the one on screen", () => {
     const recent = V.recentSubmissions(10);
     assert.equal(recent[0]?.title, "Failed one");
+  });
+});
+
+describe("outbound body", () => {
+  test("every label is sent exactly once — the video is not tripled under alias names", () => {
+    const parsed = V.readFields(form({ [FIELDS.platforms]: ["YouTube", "Instagram"] }));
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) return;
+    const part = (b: Buffer, type: string) => new Blob([new Uint8Array(b)], { type });
+    const out = V.buildOutbound(
+      parsed.fields,
+      {
+        video: { blob: part(mp4(), "video/mp4"), name: "tour.mp4" },
+        thumbnail: { blob: part(jpeg(), "image/jpeg"), name: "thumb.jpg" },
+        references: [{ blob: part(jpeg(), "image/jpeg"), name: "a.jpg" }],
+      },
+      "n8nsub_test",
+    );
+    const names = [...out.keys()];
+    const counts = new Map<string, number>();
+    for (const n of names) counts.set(n, (counts.get(n) ?? 0) + 1);
+    for (const [n, c] of counts) assert.equal(c, 1, `${n} appears ${c} times`);
+    assert.deepEqual(new Set(names), new Set(Object.values(FIELDS)));
+    // No guessed aliases.
+    for (const alias of ["field-0", "field-1", "videoFile", "videoTitle", "platforms"]) {
+      assert.equal(out.has(alias), false, alias);
+    }
+    assert.equal(out.get(FIELDS.platforms), "YouTube,Instagram");
+    assert.equal(out.get(FIELDS.submissionId), "n8nsub_test");
+    assert.equal((out.get(FIELDS.video) as File).name, "tour.mp4");
+  });
+
+  test("the route builds the body through buildOutbound and no alias append survives", () => {
+    const route = require("node:fs").readFileSync("src/app/api/automation/post-video/route.ts", "utf8") as string;
+    assert.match(route, /buildOutbound\(/);
+    assert.doesNotMatch(route, /"field-0"|"videoFile"|"videoTitle"/);
+    assert.doesNotMatch(route, /outbound\.append/);
+  });
+});
+
+describe("workflow answer classification", () => {
+  test("2xx and 3xx are forwarded", () => {
+    assert.equal(V.classifyForwardResponse(200, "", true).status, "forwarded");
+    assert.equal(V.classifyForwardResponse(302, "", true).status, "forwarded");
+  });
+
+  test("499 after a complete upload is 'received, workflow errored' with the user-facing message", () => {
+    const v = V.classifyForwardResponse(499, "", true);
+    assert.equal(v.status, "received_workflow_error");
+    assert.equal(v.status === "received_workflow_error" && v.error, WORKFLOW_ERROR_MESSAGE);
+    assert.equal(V.classifyForwardResponse(500, "", true).status, "received_workflow_error");
+    // The same status before the body crossed is a plain failure, not a receipt.
+    assert.equal(V.classifyForwardResponse(499, "", false).status, "failed");
+  });
+
+  test("404 and the 'Problem loading form' page mean the form is not active", () => {
+    for (const [status, body] of [[404, ""], [200, "<h1>Problem loading form</h1>"], [500, "deactivated or no longer exist"]] as const) {
+      const v = V.classifyForwardResponse(status, body, true);
+      assert.equal(v.status, "failed");
+      assert.match(v.status === "failed" ? v.error : "", /not active/i);
+    }
+  });
+
+  test("the connection test classifies without sending anything", () => {
+    assert.equal(V.classifyProbe(200, "<form>").state, "active");
+    assert.equal(V.classifyProbe(404, "").state, "inactive");
+    assert.equal(V.classifyProbe(200, "Problem loading form").state, "inactive");
+    assert.equal(V.classifyProbe(503, "").state, "unreachable");
+    const route = require("node:fs").readFileSync("src/app/api/automation/test/route.ts", "utf8") as string;
+    assert.match(route, /guard\("workflows\.manage"\)/);
+    assert.match(route, /method: "GET"/);
+  });
+});
+
+describe("post_result callback", () => {
+  test("a platform result updates the row, keyed per platform, and refuses unknown ids or platforms", () => {
+    const row = V.openSubmission({ by: "someone@test.invalid", title: "Callback one", platforms: ["YouTube", "Instagram"] });
+    V.settleSubmission(row.id, { status: "forwarded", n8nStatus: 200 });
+    assert.ok((read().n8nSubmissions.find((s) => s.id === row.id)?.elapsedMs ?? -1) >= 0);
+
+    const first = V.recordPlatformResult(row.id, { platform: "YouTube", status: "failed", error: "quota" });
+    assert.equal(first.ok, true);
+    const again = V.recordPlatformResult(row.id, { platform: "YouTube", status: "published", externalUrl: "https://youtu.be/x" });
+    assert.equal(again.ok, true);
+    const stored = read().n8nSubmissions.find((s) => s.id === row.id);
+    assert.equal(stored?.results?.length, 1);
+    assert.equal(stored?.results?.[0]?.status, "published");
+    assert.equal(stored?.results?.[0]?.externalUrl, "https://youtu.be/x");
+
+    const wrong = V.recordPlatformResult(row.id, { platform: "Facebook", status: "published" });
+    assert.equal(wrong.ok, false);
+    assert.equal(V.recordPlatformResult("n8nsub_nope", { platform: "YouTube", status: "published" }).ok, false);
+  });
+
+  test("a callback on a 'received, workflow errored' row proves it ran and moves it to forwarded", () => {
+    const row = V.openSubmission({ by: "someone@test.invalid", title: "Recovered", platforms: ["YouTube"] });
+    V.settleSubmission(row.id, { status: "received_workflow_error", n8nStatus: 499, error: WORKFLOW_ERROR_MESSAGE });
+    V.recordPlatformResult(row.id, { platform: "YouTube", status: "published" });
+    const after = read().n8nSubmissions.find((s) => s.id === row.id);
+    assert.equal(after?.status, "forwarded");
+    // The stale workflow-error text and 499 must not linger under a forwarded badge.
+    assert.equal(after?.error, undefined);
+    assert.equal(after?.n8nStatus, undefined);
+  });
+
+  test("the inbound route exposes post_result", () => {
+    const route = require("node:fs").readFileSync("src/app/api/webhooks/n8n/route.ts", "utf8") as string;
+    assert.match(route, /"post_result"/);
+    assert.match(route, /recordPlatformResult\(/);
   });
 });

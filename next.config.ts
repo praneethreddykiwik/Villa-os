@@ -7,13 +7,10 @@ const nextConfig: NextConfig = {
   ...(process.env.VERCEL ? {} : { outputFileTracingRoot: __dirname }),
 
   experimental: {
-    /**
-     * These three are barrel packages: `import { Gauge } from "lucide-react"`
-     * nominally reaches for one icon but resolves a module that re-exports about
-     * fifteen hundred of them, and the bundler has to walk all of them before it
-     * can prove the rest are unused. Rewriting each named import to its own deep
-     * path removes that work from every compile and drops what actually ships.
-     */
+    middlewareClientMaxBodySize: "500mb",
+    serverActions: {
+      bodySizeLimit: "500mb",
+    },
     optimizePackageImports: ["lucide-react", "recharts", "date-fns"],
   },
 };

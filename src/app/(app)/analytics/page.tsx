@@ -1,12 +1,18 @@
-import { pageContext } from "@/lib/page-context";
+import { pageContext, qs } from "@/lib/page-context";
 import {
-  previousRange, pctChange, rollupByChannel, statsFor, timeseries, totals,
+  adStatsFor, previousRange, pctChange, rollupByChannel, statsFor, timeseries, totals,
 } from "@/lib/metrics/aggregate";
+import { ensureFreshStats } from "@/lib/engine/freshness";
 import { buildHeatmap, DAY_NAMES } from "@/lib/engine/besttime";
 import { channelMeta } from "@/lib/platforms/registry";
 import { TopBar } from "@/components/shell";
 import { Card, SectionTitle, Stat, Badge, Dot, Bar, fmt } from "@/components/ui";
 import { TrendArea, VIZ } from "@/components/charts";
+import { YouTubeSnapshotBlock } from "@/components/analytics/youtube-snapshot-block";
+import { YouTubeSection } from "@/components/analytics/youtube-section";
+import { SocialOverview } from "@/components/analytics/social-overview";
+import { AdsCard } from "@/components/analytics/ads-card";
+import { UploadPostLiveStudio } from "@/components/analytics/uploadpost-live-studio";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +22,12 @@ export default async function AnalyticsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { db, brand, brandId, range, days } = pageContext(sp);
+  // Refresh YouTube rows older than ten minutes before reading; a failed
+  // refresh renders the stale store rather than an error.
+  const pre = pageContext(sp);
+  const fresh = await ensureFreshStats(pre.brandId);
+  const { db, brand, brandId, range, days } = fresh.refreshed ? pageContext(sp) : pre;
+  const link = qs(sp);
 
   const stats = statsFor(db, brandId);
   const t = totals(stats, range);
@@ -52,9 +63,11 @@ export default async function AnalyticsPage({
 
   return (
     <>
-      <TopBar brands={db.brands} brandId={brandId} title="Analytics" subtitle={`${brand.name} · last ${days} days`} />
+      <TopBar brands={db.brands} brandId={brandId} title="Analytics" subtitle={`${brand.name} · live multi-platform performance`} />
 
       <div className="space-y-6 p-7">
+        <UploadPostLiveStudio brandId={brandId} />
+
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Stat label="Impressions" value={fmt.n(t.impressions)} delta={pctChange(t.impressions, tPrev.impressions)} />
           <Stat label="Reach" value={fmt.n(t.reach)} delta={pctChange(t.reach, tPrev.reach)} />
@@ -62,6 +75,8 @@ export default async function AnalyticsPage({
           <Stat label="Link clicks" value={fmt.n(t.linkClicks)} delta={pctChange(t.linkClicks, tPrev.linkClicks)} />
           <Stat label="Posts" value={String(t.posts)} delta={pctChange(t.posts, tPrev.posts)} sub={`${(t.posts / days * 7).toFixed(1)}/week`} />
         </div>
+
+        <SocialOverview db={db} brandId={brandId} range={range} lastSyncedAt={fresh.lastSyncedAt} link={link} />
 
         <Card>
           <SectionTitle title="Everything over time" hint="All channels combined" />
@@ -221,21 +236,31 @@ export default async function AnalyticsPage({
                         ))}
                       </span>
                     </td>
-                    <td className="tnum py-2 text-right">{fmt.n(p.metrics!.reach)}</td>
-                    <td className="tnum py-2 text-right text-mist-300">{fmt.n(p.metrics!.likes + p.metrics!.comments + p.metrics!.shares + p.metrics!.saves)}</td>
-                    <td className="tnum py-2 text-right">{fmt.pct(p.metrics!.engagementRate, 1)}</td>
+                    <td className="tnum py-2 text-right">{fmt.n(p.metrics?.reach ?? 0)}</td>
+                    <td className="tnum py-2 text-right text-mist-300">
+                      {fmt.n((p.metrics?.likes ?? 0) + (p.metrics?.comments ?? 0) + (p.metrics?.shares ?? 0) + (p.metrics?.saves ?? 0))}
+                    </td>
+                    <td className="tnum py-2 text-right">{fmt.pct(p.metrics?.engagementRate ?? 0, 1)}</td>
                     <td className="py-2 text-right">
-                      <Badge tone={p.metrics!.retention3s >= 0.65 ? "good" : p.metrics!.retention3s >= 0.45 ? "warn" : "bad"}>
-                        {fmt.pct(p.metrics!.retention3s * 100, 0)}
+                      <Badge tone={(p.metrics?.retention3s ?? 0) >= 0.65 ? "good" : (p.metrics?.retention3s ?? 0) >= 0.45 ? "warn" : "bad"}>
+                        {fmt.pct((p.metrics?.retention3s ?? 0) * 100, 0)}
                       </Badge>
                     </td>
-                    <td className="tnum py-2 text-right text-mist-300">{fmt.n(p.metrics!.saves)}</td>
+                    <td className="tnum py-2 text-right text-mist-300">{fmt.n(p.metrics?.saves ?? 0)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </Card>
+
+        {/* YouTube: synced series + live totals; renders nothing when not connected */}
+        <YouTubeSection db={db} brandId={brandId} range={range} days={days} lastSyncedAt={fresh.lastSyncedAt} />
+
+        <AdsCard rows={adStatsFor(db, brandId, range)} days={days} link={link} />
+
+        {/* YouTube live overview — renders itself only when YouTube is connected */}
+        <YouTubeSnapshotBlock brandId={brandId} />
       </div>
     </>
   );

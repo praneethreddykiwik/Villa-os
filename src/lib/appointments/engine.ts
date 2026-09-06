@@ -2,6 +2,7 @@ import { mutate, read } from "../db";
 import { normalisePhone } from "../ops/customers";
 import { emit } from "../events/bus";
 import { uid } from "../ids";
+import { notifyAppointment, type AppointmentEvent } from "../notify";
 import {
   DEFAULT_AVAILABILITY,
   HOLDS_SLOT,
@@ -46,8 +47,46 @@ function minutes(hhmm: string): number {
   return h * 60 + (m || 0);
 }
 
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+/**
+ * Calendar date of an instant in the brand's timezone, as "YYYY-MM-DD".
+ *
+ * Slots are wall-clock in the *brand's* zone, never the host's: a UTC or
+ * US-hosted server generating "10:00" with setHours() offered buyers 9:30 pm
+ * IST site visits and the WhatsApp day/time matcher (which reads slots in the
+ * brand zone) then found nothing on a "Sunday morning".
+ */
+export function zonedDate(d: Date, timeZone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(d);
+    const get = (k: string) => parts.find((x) => x.type === k)?.value ?? "";
+    return `${get("year")}-${get("month")}-${get("day")}`;
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+/** Zone offset (ms east of UTC) in effect at an instant. */
+function offsetAt(t: number, timeZone: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(new Date(t));
+    const n = (k: string) => Number(parts.find((x) => x.type === k)?.value ?? "0");
+    const asUtc = Date.UTC(n("year"), n("month") - 1, n("day"), n("hour") % 24, n("minute"), n("second"));
+    return asUtc - Math.floor(t / 1000) * 1000;
+  } catch {
+    return 0;
+  }
+}
+
+/** The instant of "YYYY-MM-DD" at `minutesFromMidnight` on the brand's wall clock. */
+export function zonedInstant(ymd: string, minutesFromMidnight: number, timeZone: string): Date {
+  const [y, mo, d] = ymd.split("-").map(Number);
+  const wall = Date.UTC(y, mo - 1, d, 0, minutesFromMidnight);
+  // Two passes settle the guess across a DST boundary; IST has none, but the config is per-brand.
+  let t = wall - offsetAt(wall, timeZone);
+  t = wall - offsetAt(t, timeZone);
+  return new Date(t);
 }
 
 /** Live bookings currently holding a place at this exact start time. */
@@ -79,18 +118,18 @@ export function slots(
   const latest = now + cfg.maxAdvanceDays * 86400_000;
 
   const out: Slot[] = [];
-  const start = new Date(fromISO);
-  start.setHours(0, 0, 0, 0);
+  const tz = cfg.timezone || DEFAULT_AVAILABILITY.timezone;
+  // Walk calendar days in the brand zone; UTC noon on the date is a DST-safe day cursor.
+  const [y0, m0, d0] = zonedDate(new Date(fromISO), tz).split("-").map(Number);
 
   for (let day = 0; day < days; day++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + day);
-    if (cfg.blackoutDates.includes(isoDate(d))) continue;
+    const cursor = new Date(Date.UTC(y0, m0 - 1, d0 + day, 12));
+    const ymd = cursor.toISOString().slice(0, 10);
+    if (cfg.blackoutDates.includes(ymd)) continue;
 
-    for (const window of cfg.openHours[d.getDay()] ?? []) {
+    for (const window of cfg.openHours[cursor.getUTCDay()] ?? []) {
       for (let m = minutes(window.start); m + cfg.slotMinutes <= minutes(window.end); m += cfg.slotMinutes) {
-        const slot = new Date(d);
-        slot.setHours(0, m, 0, 0);
+        const slot = zonedInstant(ymd, m, tz);
         const t = slot.getTime();
         if (t < earliest || t > latest) continue;
 
@@ -214,6 +253,8 @@ export function book(input: BookInput): BookResult {
   // their slot. emit() returns void precisely so this line cannot be awaited
   // into the booking path — a dead n8n must not cost anybody a site visit.
   emit("appointment.booked", eventPayload(appointment));
+  // Same contract: the visit is written; telling people about it must not undo it.
+  void notifyAppointment(appointment, "booked").catch(() => {});
 
   return { ok: true, appointment };
 }
@@ -260,6 +301,14 @@ const ALLOWED: Record<AppointmentStatus, AppointmentStatus[]> = {
   cancelled: [],
 };
 
+/** Moves worth telling people about. "completed" is a record, not news. */
+const NOTIFY_ON: Partial<Record<AppointmentStatus, AppointmentEvent>> = {
+  confirmed: "confirmed",
+  rescheduled: "rescheduled",
+  cancelled: "cancelled",
+  no_show: "no_show",
+};
+
 export function transition(input: TransitionInput): BookResult {
   const db = read();
   const current = (db.appointments ?? []).find((a) => a.id === input.id);
@@ -290,6 +339,8 @@ export function transition(input: TransitionInput): BookResult {
   }
 
   const now = new Date().toISOString();
+  // `current` is the cached record itself, so its startsAt changes below.
+  const previousStartsAt = current.startsAt;
   let updated: Appointment | undefined;
   mutate((d) => {
     const a = (d.appointments ?? []).find((x) => x.id === input.id);
@@ -298,6 +349,8 @@ export function transition(input: TransitionInput): BookResult {
     a.status = input.to;
     a.startsAt = target;
     a.updatedAt = now;
+    // A moved visit needs a fresh reminder for the new time.
+    if (input.to === "rescheduled" && target !== previousStartsAt) a.reminderSentAt = undefined;
     if (input.to === "cancelled") a.cancelledReason = input.reason;
     if (a.leadId) {
       const lead = d.leads.find((l) => l.id === a.leadId);
@@ -311,10 +364,12 @@ export function transition(input: TransitionInput): BookResult {
   // keying on a name this codebase never promised to keep.
   if (updated) {
     if (input.to === "rescheduled") {
-      emit("appointment.rescheduled", { ...eventPayload(updated), previousStartsAt: current.startsAt });
+      emit("appointment.rescheduled", { ...eventPayload(updated), previousStartsAt });
     } else if (input.to === "cancelled") {
       emit("appointment.cancelled", { ...eventPayload(updated), reason: input.reason });
     }
+    const notice = NOTIFY_ON[input.to];
+    if (notice) void notifyAppointment(updated, notice).catch(() => {});
   }
 
   return { ok: true, appointment: updated };

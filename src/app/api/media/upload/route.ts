@@ -48,6 +48,15 @@ export async function POST(req: Request) {
       return apiFail("Send the file as multipart/form-data.", 415);
     }
 
+    // `req.formData()` buffers the whole body before `file.size` can be read, so
+    // the declared length is checked first. A client can lie about it, which is
+    // why the real size is still checked below — but an honest 2 GB upload is
+    // refused here instead of after it has been held in memory.
+    const declared = Number(req.headers.get("content-length") ?? "");
+    if (Number.isFinite(declared) && declared > MAX_BYTES + 1024 * 1024) {
+      return apiFail(`That upload is ${(declared / 1048576).toFixed(0)} MB. The limit is ${MAX_BYTES / 1048576} MB.`, 413);
+    }
+
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) {
@@ -74,7 +83,7 @@ export async function POST(req: Request) {
     const rawTags = form.get("tags");
     const tags =
       typeof rawTags === "string" && rawTags.trim()
-        ? rawTags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 20)
+        ? rawTags.split(",").map((t) => t.trim().slice(0, 40)).filter(Boolean).slice(0, 20)
         : [];
 
     const projectId = typeof form.get("projectId") === "string" ? String(form.get("projectId")) : null;

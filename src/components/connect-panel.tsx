@@ -6,6 +6,15 @@ import clsx from "clsx";
 import type { ChannelId } from "@/lib/types";
 import { Badge, Card, SectionTitle } from "./ui";
 
+interface SyncSource {
+  channel: ChannelId;
+  handle: string;
+  status: "synced" | "skipped" | "error";
+  fetched: number;
+  detail?: string;
+  error?: string;
+}
+
 export interface ConnectRow {
   channel: ChannelId;
   label: string;
@@ -32,6 +41,10 @@ export function ConnectPanel({ rows, brandId }: { rows: ConnectRow[]; brandId: s
   const [expanded, setExpanded] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  // Per-channel outcome of the last "Retrieve everything", so the operator sees
+  // which channels actually synced and why the rest did not — one summary line
+  // hid that the Upload-Post rows never sync at all.
+  const [syncSources, setSyncSources] = useState<SyncSource[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   async function toggle(channel: ChannelId, connected: boolean) {
@@ -62,6 +75,7 @@ export function ConnectPanel({ rows, brandId }: { rows: ConnectRow[]; brandId: s
   async function sync() {
     setSyncing(true);
     setSyncResult(null);
+    setSyncSources([]);
     setError(null);
     try {
       const res = await fetch("/api/sync", {
@@ -77,11 +91,12 @@ export function ConnectPanel({ rows, brandId }: { rows: ConnectRow[]; brandId: s
         setError(json.error ?? "Could not retrieve — nothing was fetched.");
         return;
       }
-      const failed = (json.sources ?? []).filter((s: { error?: string }) => s.error);
+      const sources: SyncSource[] = json.sources ?? [];
+      const t = json.totals;
       setSyncResult(
-        `${json.totals.conversations} new message(s), ${json.totals.reviews} review(s) across ${json.sources.length} channel(s)` +
-          (failed.length ? ` · ${failed.length} channel(s) errored` : ""),
+        `${t.conversations} new message(s), ${t.reviews} review(s) · ${t.synced ?? 0} synced, ${t.skipped ?? 0} skipped, ${t.errored ?? 0} errored`,
       );
+      setSyncSources(sources);
     } finally {
       setSyncing(false);
     }
@@ -106,6 +121,18 @@ export function ConnectPanel({ rows, brandId }: { rows: ConnectRow[]; brandId: s
       />
 
       {syncResult && <p className="mb-3 rounded-lg bg-good-500/10 px-3 py-2 text-[12px] text-good-400">{syncResult}</p>}
+      {syncSources.length > 0 && (
+        <ul className="mb-3 space-y-1 rounded-lg border border-ink-700 px-3 py-2 text-[11.5px]">
+          {syncSources.map((s) => (
+            <li key={s.channel + s.handle} className="flex flex-wrap items-baseline gap-2">
+              <Badge tone={s.status === "synced" ? "good" : s.status === "error" ? "bad" : "neutral"}>{s.status}</Badge>
+              <span className="font-medium text-mist-200">{s.channel}</span>
+              <span className="text-mist-400">{s.handle}</span>
+              <span className="text-mist-400">{s.error ?? s.detail ?? (s.status === "synced" ? `${s.fetched} item(s) fetched` : "")}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {error && <p className="mb-3 rounded-lg bg-bad-500/10 px-3 py-2 text-[12px] text-bad-400">{error}</p>}
 
       <div className="space-y-2">

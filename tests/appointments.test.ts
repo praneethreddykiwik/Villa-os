@@ -8,9 +8,10 @@ after(() => cleanup(dir));
 /* Imports must follow isolate() so the store points at the temp directory. */
 const { read, mutate, resetToBootstrap } = require("../src/lib/db") as typeof import("../src/lib/db");
 const { uid } = require("../src/lib/ids") as typeof import("../src/lib/ids");
-const { availabilityFor, saveAvailability, slots, book, transition, listAppointments } =
+const { availabilityFor, saveAvailability, slots, book, transition, listAppointments, zonedDate, zonedInstant } =
   require("../src/lib/appointments/engine") as typeof import("../src/lib/appointments/engine");
 const { DEFAULT_AVAILABILITY, HOLDS_SLOT } = require("../src/lib/appointments/types") as typeof import("../src/lib/appointments/types");
+const { sendDueReminders } = require("../src/lib/notify/reminders") as typeof import("../src/lib/notify/reminders");
 import type { AppointmentStatus, AvailabilityConfig } from "../src/lib/appointments/types";
 import type { BookResult } from "../src/lib/appointments/engine";
 
@@ -25,9 +26,9 @@ before(() => {
 /*                                                                             */
 /* Availability is written whole rather than merged, so no test inherits a      */
 /* narrowed window or a leftover blackout from the one above it. Slot maths is  */
-/* wall-clock local (the engine builds each slot with setHours), so every       */
-/* expected time is built the same way instead of hard-coding a UTC instant     */
-/* that would only be right in one timezone.                                    */
+/* wall-clock in the brand timezone (not the host's), so every expected time    */
+/* is built through the same zone helpers instead of setHours() or a UTC        */
+/* instant that would only be right on one host.                               */
 /* -------------------------------------------------------------------------- */
 
 const BUSINESS_HOURS = [{ start: "10:00", end: "18:00" }];
@@ -56,19 +57,16 @@ function clearAppointments(): void {
   });
 }
 
-/** Local midnight, n days from today — the same anchor `slots()` starts from. */
+const TZ = DEFAULT_AVAILABILITY.timezone;
+
+/** Brand-zone midnight, n days from today — the same anchor `slots()` starts from. */
 function dayAhead(n: number): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + n);
-  return d;
+  return zonedInstant(zonedDate(new Date(Date.now() + n * 86400_000), TZ), 0, TZ);
 }
 
 /** The ISO instant of a whole hour on that day, as the engine would emit it. */
 function at(day: Date, hour: number): string {
-  const d = new Date(day);
-  d.setHours(hour, 0, 0, 0);
-  return d.toISOString();
+  return zonedInstant(zonedDate(day, TZ), hour * 60, TZ).toISOString();
 }
 
 function bookAt(startsAt: string, phone: string, extra: Partial<Parameters<typeof book>[0]> = {}): BookResult {
@@ -162,9 +160,9 @@ describe("slot generation", () => {
     configure();
     assert.ok(slots(BRAND, day.toISOString(), 1).length > 0, "the day must be open before it is closed");
 
-    // Keyed exactly as the engine keys it, so the assertion is about the
-    // blackout rule rather than about which side of midnight UTC the host is on.
-    configure({ blackoutDates: [day.toISOString().slice(0, 10)] });
+    // Keyed exactly as the engine keys it (brand-zone calendar date), so the
+    // assertion is about the blackout rule rather than the host's clock.
+    configure({ blackoutDates: [zonedDate(day, TZ)] });
     assert.equal(slots(BRAND, day.toISOString(), 1).length, 0);
   });
 });
@@ -389,5 +387,104 @@ describe("one buyer is one buyer, however the number is typed", () => {
     // The second place is still there for somebody else.
     const other = book({ ...base, customerName: "Other Buyer", customerPhone: "+91 90000 66666" });
     assert.equal(other.ok, true, "a genuinely different buyer must still fit");
+  });
+});
+
+/* ========================================================================== */
+describe("notifications", () => {
+  /** The engine notifies fire-and-forget; wait for the log to catch up. */
+  async function logged(id: string, event: string, tries = 50): Promise<number> {
+    for (let i = 0; i < tries; i++) {
+      const n = read().notificationLog.filter((x) => x.entityId === id && x.event === event).length;
+      if (n) return n;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    return 0;
+  }
+
+  test("every booking and status move writes delivery outcomes", async () => {
+    configure();
+    clearAppointments();
+    mutate((d) => { d.notificationLog = []; });
+    const day = dayAhead(10);
+    const apt = bookAt(at(day, 10), "+91 90000 31313", { assignedTo: "Nobody Known" }).appointment!;
+
+    assert.ok(await logged(apt.id, "appointment.booked"), "booking must notify");
+    // In-app is always on; email is unconfigured in tests and says so.
+    const rows = read().notificationLog.filter((n) => n.entityId === apt.id);
+    assert.ok(rows.some((n) => n.channel === "in_app" && n.ok));
+    assert.ok(rows.some((n) => n.channel === "email" && !n.ok && /not configured/.test(n.detail)));
+    assert.ok(read().opsNotifications.some((n) => n.event === "appointment.booked" && n.recipientRole === "SALES_MANAGER"));
+
+    transition({ id: apt.id, to: "rescheduled", by: "tester", newStartsAt: at(day, 12) });
+    assert.ok(await logged(apt.id, "appointment.rescheduled"));
+    transition({ id: apt.id, to: "cancelled", by: "tester", reason: "Changed plans" });
+    assert.ok(await logged(apt.id, "appointment.cancelled"));
+
+    const done = bookAt(at(day, 14), "+91 90000 31314").appointment!;
+    transition({ id: done.id, to: "completed", by: "tester" });
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(await logged(done.id, "appointment.completed", 1), 0, "completing is a record, not news");
+  });
+
+  test("reminders go once, and never to a cancelled visit", async () => {
+    configure();
+    clearAppointments();
+    mutate((d) => { d.notificationLog = []; });
+    const day = dayAhead(10);
+    const soon = bookAt(at(day, 10), "+91 90000 41414").appointment!;
+    const gone = bookAt(at(day, 11), "+91 90000 41415").appointment!;
+    const far = bookAt(at(day, 12), "+91 90000 41416").appointment!;
+    transition({ id: gone.id, to: "cancelled", by: "tester", reason: "Not coming" });
+
+    // Pull two of them inside the window without going through the slot rules.
+    const inTwoHours = new Date(Date.now() + 2 * 3600_000).toISOString();
+    mutate((d) => {
+      for (const a of d.appointments) {
+        if (a.id === soon.id || a.id === gone.id) a.startsAt = inTwoHours;
+      }
+    });
+
+    const first = await sendDueReminders();
+    assert.equal(first.considered, 1, "only the live visit inside 24h is due");
+    assert.equal(read().appointments.find((a) => a.id === soon.id)!.reminderSentAt !== undefined, true);
+    assert.equal(read().appointments.find((a) => a.id === gone.id)!.reminderSentAt, undefined, "cancelled is never reminded");
+    assert.equal(read().appointments.find((a) => a.id === far.id)!.reminderSentAt, undefined, "outside the window is not due");
+    assert.equal(read().notificationLog.filter((n) => n.entityId === soon.id && n.event === "appointment.reminder").length > 0, true);
+    assert.equal(read().notificationLog.some((n) => n.entityId === gone.id && n.event === "appointment.reminder"), false);
+
+    const second = await sendDueReminders();
+    assert.equal(second.considered, 0, "a second tick must not remind again");
+    assert.equal(
+      read().notificationLog.filter((n) => n.entityId === soon.id && n.event === "appointment.reminder" && n.channel === "in_app").length,
+      1,
+    );
+  });
+
+  test("a rescheduled visit is reminded again for its new time", async () => {
+    configure();
+    clearAppointments();
+    mutate((d) => { d.notificationLog = []; });
+    const day = dayAhead(10);
+    const apt = bookAt(at(day, 10), "+91 90000 51515").appointment!;
+    const inTwoHours = new Date(Date.now() + 2 * 3600_000).toISOString();
+    mutate((d) => { d.appointments.find((a) => a.id === apt.id)!.startsAt = inTwoHours; });
+
+    const first = await sendDueReminders();
+    assert.equal(first.considered, 1);
+    assert.ok(read().appointments.find((a) => a.id === apt.id)!.reminderSentAt);
+
+    // Moving the visit clears the stamp so the new time gets its own reminder.
+    const moved = transition({ id: apt.id, to: "rescheduled", by: "tester", newStartsAt: at(day, 12) });
+    assert.equal(moved.ok, true);
+    assert.equal(read().appointments.find((a) => a.id === apt.id)!.reminderSentAt, undefined);
+    mutate((d) => { d.appointments.find((a) => a.id === apt.id)!.startsAt = inTwoHours; });
+
+    const again = await sendDueReminders();
+    assert.equal(again.considered, 1, "the moved visit is due once more");
+    assert.equal(
+      read().notificationLog.filter((n) => n.entityId === apt.id && n.event === "appointment.reminder" && n.channel === "in_app").length,
+      2,
+    );
   });
 });

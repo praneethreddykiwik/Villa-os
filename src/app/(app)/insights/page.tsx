@@ -3,7 +3,7 @@ import { generateSuggestions } from "@/lib/ai/signals";
 import { TopBar } from "@/components/shell";
 import { Card, SectionTitle, Badge, fmt } from "@/components/ui";
 import { SuggestionCard } from "@/components/suggestion-card";
-import { activeProvider, hasLLM } from "@/lib/ai/provider";
+import { hasLLM } from "@/lib/ai/provider";
 
 export const dynamic = "force-dynamic";
 
@@ -80,8 +80,8 @@ export default async function InsightsPage({
             ))}
             <span className="ml-auto text-[11px] text-mist-400">
               {hasLLM()
-                ? `Narratives written by ${activeProvider()!.label} · numbers computed locally`
-                : "Running on the deterministic engine — set GROQ_API_KEY or GEMINI_API_KEY for written narratives"}
+                ? "Narratives written by the AI writer · numbers computed locally"
+                : "Running on the deterministic engine — connect the AI writer for written narratives"}
             </span>
           </div>
         </Card>

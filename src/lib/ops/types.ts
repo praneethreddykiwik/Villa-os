@@ -207,7 +207,8 @@ export interface OpsMessage {
   id: string;
   orgId: string;
   customerId: string;
-  channel: "whatsapp" | "phone" | "email" | "system";
+  /** "voice" = a transcript recorded by the AI voice agent. */
+  channel: "whatsapp" | "phone" | "email" | "system" | "voice";
   direction: "inbound" | "outbound";
   body: string;
   /** Set when the message carried a document. */
@@ -223,6 +224,14 @@ export interface OpsMessage {
    * them would let a conversation block the reminders that conversation is about.
    */
   automated?: boolean;
+  /**
+   * Which composition path produced an outbound reply ("clarify", "visit_slots",
+   * "media"…). Lets the agent read its own recent behaviour — e.g. count
+   * consecutive clarifications — without re-parsing prose.
+   */
+  tag?: string;
+  /** Small structured payload attached to the message, e.g. the slots offered. */
+  meta?: Record<string, string>;
   createdAt: string;
 }
 
@@ -437,7 +446,9 @@ export type FollowUpKind =
   | "PROMISED_ACTION"
   | "SALES_NUDGE"
   | "NO_RESPONSE"
-  | "OFFICER_REQUEST";
+  | "OFFICER_REQUEST"
+  /** A reply the 24h window blocked; carries `message` and retries when the window reopens. */
+  | "TEMPLATE_REQUIRED";
 
 export interface FollowUp {
   id: string;
@@ -634,6 +645,43 @@ export interface OpsDatabase {
   auditEvents: AuditEvent[];
   workflowConfigs: WorkflowConfig[];
   loanRules: LoanRule[];
+  /** WhatsApp assistant knowledge base and the questions it could not answer. */
+  kbEntries: KbEntry[];
+  kbGaps: KbGap[];
+}
+
+/** Topics the intent router keys retrieval on. */
+export type KbTopic =
+  | "pricing" | "availability" | "location" | "amenities" | "approvals"
+  | "payment" | "visit" | "contact" | "documents" | "general";
+
+export interface KbEntry {
+  id: string;
+  brandId: string;
+  topic: KbTopic;
+  question: string;
+  answer: string;
+  keywords: string[];
+  /**
+   * Only a public entry may put a figure in front of a customer. Prices are
+   * withheld unless the admin has explicitly marked the entry as quotable.
+   */
+  public?: boolean;
+  /** How the row got here — placeholder rows are replaced once docs exist. */
+  source?: "placeholder" | "docs" | "admin";
+  updatedAt: string;
+}
+
+/** A customer question nothing in the knowledge base answered. */
+export interface KbGap {
+  id: string;
+  brandId: string;
+  customerId?: string;
+  question: string;
+  intent: string;
+  count: number;
+  createdAt: string;
+  lastAskedAt: string;
 }
 
 export const EMPTY_OPS: OpsDatabase = {
@@ -655,4 +703,6 @@ export const EMPTY_OPS: OpsDatabase = {
   auditEvents: [],
   workflowConfigs: [],
   loanRules: [],
+  kbEntries: [],
+  kbGaps: [],
 };

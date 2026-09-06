@@ -3,7 +3,7 @@ import { authorize } from "@/lib/ops/auth";
 import { fail, handleError, ok } from "@/lib/ops/http";
 import { runFollowUpTick } from "@/lib/ops/agent";
 import { cancelFollowUps, dueFollowUps, resolveEscalation } from "@/lib/ops/followups";
-import { defaultOrgId } from "@/lib/ops/seed";
+import { resolveDefaultOrgId, syncTeamMembers } from "@/lib/ops/seed";
 import { requireWorkerSecret } from "@/lib/auth/session";
 
 /**
@@ -28,11 +28,12 @@ export async function POST(req: Request) {
     // The worker runs for its own org only. Taking orgId from the query string
     // let anyone holding the shared secret drive follow-ups — real WhatsApp
     // messages to real customers — against any tenant they named.
-    let orgId = defaultOrgId();
+    let orgId = await resolveDefaultOrgId();
     if (!viaSecret) {
       const session = await authorize(req, "admin:read");
       orgId = session.orgId;
     }
+    await syncTeamMembers(orgId);
 
     const dryRun = url.searchParams.get("dryRun") === "true";
     if (dryRun) {

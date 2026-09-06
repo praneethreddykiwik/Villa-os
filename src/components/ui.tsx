@@ -269,10 +269,10 @@ export function Bar({ value, max, color }: { value: number; max: number; color?:
 }
 
 export const fmt = {
-  n: (v: number) => (Math.abs(v) >= 1000 ? Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(v) : String(Math.round(v))),
-  full: (v: number) => Intl.NumberFormat("en").format(Math.round(v)),
-  money: (v: number) => `$${Intl.NumberFormat("en", { maximumFractionDigits: v < 100 ? 2 : 0 }).format(v)}`,
-  moneyCompact: (v: number) => `$${Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(v)}`,
-  pct: (v: number, d = 1) => `${v.toFixed(d)}%`,
-  x: (v: number) => `${v.toFixed(2)}x`,
+  n: (v?: number | null) => (typeof v === "number" && !Number.isNaN(v) ? (Math.abs(v) >= 1000 ? Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(v) : String(Math.round(v))) : "0"),
+  full: (v?: number | null) => (typeof v === "number" && !Number.isNaN(v) ? Intl.NumberFormat("en").format(Math.round(v)) : "0"),
+  money: (v?: number | null) => (typeof v === "number" && !Number.isNaN(v) ? `$${Intl.NumberFormat("en", { maximumFractionDigits: v < 100 ? 2 : 0 }).format(v)}` : "$0"),
+  moneyCompact: (v?: number | null) => (typeof v === "number" && !Number.isNaN(v) ? `$${Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(v)}` : "$0"),
+  pct: (v?: number | null, d = 1) => (typeof v === "number" && !Number.isNaN(v) ? `${v.toFixed(d)}%` : "0%"),
+  x: (v?: number | null) => (typeof v === "number" && !Number.isNaN(v) ? `${v.toFixed(2)}x` : "0x"),
 };

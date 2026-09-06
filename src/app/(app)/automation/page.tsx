@@ -45,9 +45,9 @@ export default async function AutomationPage({
       <TopBar
         brands={db.brands}
         brandId={brandId}
-        title="Automation"
-        subtitle={`n8n workflows for ${brand.name}`}
-        right={<Badge tone={formProblem ? "bad" : "good"}>{formProblem ? "posting not configured" : "posting configured"}</Badge>}
+        title="Publish video"
+        subtitle={`Post content to all channels · ${brand.name}`}
+        right={<Badge tone={formProblem ? "bad" : "good"}>{formProblem ? "not configured" : "configured"}</Badge>}
       />
 
       <div className="p-7">

@@ -27,6 +27,7 @@ const EMPTY: Database = {
   workspaces: [],
   appointments: [],
   availability: [],
+  notificationLog: [],
   webhookSubscribers: [],
   webhookDeliveries: [],
   n8nSubmissions: [],
@@ -52,6 +53,8 @@ const EMPTY: Database = {
   brokers: [],
   crmContacts: [],
   crmTasks: [],
+  voiceCalls: [],
+  voiceAgentConfigs: [],
   ...EMPTY_OPS,
 };
 

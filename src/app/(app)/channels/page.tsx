@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { pageContext, qs } from "@/lib/page-context";
+import { ensureFreshStats } from "@/lib/engine/freshness";
 import { channelMeta, isUsableConnection, connectionProblem } from "@/lib/platforms/registry";
 import { TopBar } from "@/components/shell";
 import { Badge, Card, Dot, Empty, SectionTitle, fmt } from "@/components/ui";
@@ -22,7 +23,11 @@ export default async function ChannelsIndexPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { db, brand, brandId, range, prev, days } = pageContext(sp);
+  // Refresh YouTube rows older than ten minutes before reading; a failed
+  // refresh renders the stale store rather than an error.
+  const pre = pageContext(sp);
+  const fresh = await ensureFreshStats(pre.brandId);
+  const { db, brand, brandId, range, prev, days } = fresh.refreshed ? pageContext(sp) : pre;
   const link = qs(sp);
 
   const snaps = CHANNEL_TABS.map((channel) => snapshotFor(db, brandId, channel, range, prev));

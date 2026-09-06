@@ -157,11 +157,11 @@ export default async function ReportsPage({
                     <span className="text-[10.5px] text-mist-400">{new Date(p.publishedAt!).toLocaleDateString()} · {p.targets.map((tg) => channelMeta(tg.channel).label).join(", ")}</span>
                   </span>
                   <span className="tnum text-right text-[12px]">
-                    <span className="block font-medium">{fmt.n(p.metrics!.reach)}</span>
+                    <span className="block font-medium">{fmt.n(p.metrics?.reach ?? 0)}</span>
                     <span className="block text-[10px] text-mist-400">reach</span>
                   </span>
                   <span className="tnum text-right text-[12px]">
-                    <span className="block font-medium">{fmt.pct(p.metrics!.engagementRate, 1)}</span>
+                    <span className="block font-medium">{fmt.pct(p.metrics?.engagementRate ?? 0, 1)}</span>
                     <span className="block text-[10px] text-mist-400">rate</span>
                   </span>
                 </div>

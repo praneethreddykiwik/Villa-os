@@ -836,3 +836,41 @@ describe("records are filed under a real brand", () => {
     );
   });
 });
+
+describe("webhook SSRF guard sees through IPv6 spellings of internal hosts", () => {
+  const { checkWebhookUrl } =
+    require("../src/lib/events/bus") as typeof import("../src/lib/events/bus");
+
+  test("IPv4-mapped, NAT64, trailing-dot, CGNAT and .internal literals are refused", () => {
+    for (const u of [
+      "https://[::ffff:127.0.0.1]/x", // Node normalises to [::ffff:7f00:1]
+      "https://[::ffff:7f00:1]:4321/x",
+      "https://[::ffff:169.254.169.254]/latest/meta-data",
+      "https://[::ffff:a9fe:a9fe]/x",
+      "https://[64:ff9b::7f00:1]/x",
+      "https://[64:ff9b::a9fe:a9fe]/x",
+      "https://localhost./x",
+      "https://100.64.0.1/x",
+      "https://100.127.255.254/x",
+      "https://0.0.0.0/x",
+      "https://metadata.google.internal/x",
+      "https://[fd00::1]/x",
+      "https://[fe80::1]/x",
+    ]) {
+      assert.notEqual(checkWebhookUrl(u), null, `${u} should be refused`);
+    }
+  });
+
+  test("public IPv6 and IPv4 literals still pass", () => {
+    for (const u of [
+      "https://[2606:4700::1111]/x",
+      "https://[::ffff:8.8.8.8]/x",
+      "https://[64:ff9b::808:808]/x",
+      "https://100.63.255.255/x",
+      "https://100.128.0.1/x",
+      "https://hooks.example.com/webhook/abc",
+    ]) {
+      assert.equal(checkWebhookUrl(u), null, `${u} should be allowed`);
+    }
+  });
+});

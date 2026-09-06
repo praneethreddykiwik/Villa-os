@@ -1,4 +1,5 @@
 import type { Appointment, AvailabilityConfig } from "./appointments/types";
+import type { NotificationLogEntry } from "./notify";
 import type { N8nSubmission } from "./automation/types";
 import type { WebhookLogEntry, WebhookSubscriber } from "./events/bus";
 /**
@@ -456,6 +457,8 @@ export interface ReportBlock {
 
 import type { Broker, CrmContact, CrmTask, Lead } from "./crm/types";
 import type { OpsDatabase } from "./ops/types";
+import type { VoiceAgentConfig, VoiceCallRecord } from "./voice/types";
+export type * from "./voice/types";
 export type * from "./crm/types";
 export type * from "./appointments/types";
 export type * from "./ops/types";
@@ -544,6 +547,8 @@ export interface Database {
   /** Site-visit bookings and the opening hours they are drawn from. */
   appointments: Appointment[];
   availability: AvailabilityConfig[];
+  /** Every notification delivery outcome (in-app, email, WhatsApp), bounded. */
+  notificationLog: NotificationLogEntry[];
   /**
    * Automation wiring: where outbound events are POSTed, and the bounded log of
    * what was sent — plus the inbound idempotency receipts, which share the log
@@ -580,6 +585,9 @@ export interface Database {
   brokers: Broker[];
   crmContacts: CrmContact[];
   crmTasks: CrmTask[];
+  /** Voice agent: normalised call log (idempotent by executionId) and per-brand agent wording. */
+  voiceCalls: VoiceCallRecord[];
+  voiceAgentConfigs: VoiceAgentConfig[];
 }
 
 /** The ops slice is merged into Database so there is one store, one mutate(). */

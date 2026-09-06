@@ -4,6 +4,9 @@ import { hasFfmpeg } from "@/lib/media/render";
 import { DRIVER } from "@/lib/platforms/types";
 import { TopBar } from "@/components/shell";
 import { Card, SectionTitle, Badge } from "@/components/ui";
+import { getSession, hasPermission } from "@/lib/auth/session";
+import { AdminDiagnostics, vendorDiagnostics } from "@/components/settings/admin-diagnostics";
+import { KnowledgeEditor } from "@/components/knowledge-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -14,20 +17,21 @@ export default async function SettingsPage({
 }) {
   const sp = await searchParams;
   const { db, brand, brandId } = pageContext(sp);
+  // Vendor names are an admin concern; everyone else sees product wording.
+  const isAdmin = hasPermission(await getSession(), "users.manage");
 
   const checks = [
     // Not "simulated": with the mock driver publishing fails outright rather than
     // faking a success, so this reads warn — the queue cannot go out in this state.
     { label: "Platform driver", value: DRIVER, ok: DRIVER === "live", hint: DRIVER === "live" ? "Publishing for real" : "Publishing is off — every post fails until PLATFORM_DRIVER=live and credentials are set" },
     {
-      label: "AI provider",
-      // Name the provider and model actually in use rather than a fixed vendor:
-      // three are supported and "configured" alone does not say which answered.
-      value: activeProvider() ? `${activeProvider()!.label} · ${activeProvider()!.model}` : "not set",
+      label: "AI writer",
+      // Which provider answered is shown in the admin diagnostics below.
+      value: hasLLM() ? "configured" : "not set",
       ok: hasLLM(),
       hint: hasLLM()
-        ? "Set AI_PROVIDER to pin one, or leave it on auto to fall through on an outage"
-        : "Optional — set GROQ_API_KEY or GEMINI_API_KEY; engines fall back to the deterministic writer",
+        ? "Written narratives and captions are on"
+        : "Optional — engines fall back to the deterministic writer until an administrator connects one",
     },
     { label: "ffmpeg", value: hasFfmpeg() ? "available" : "missing", ok: hasFfmpeg(), hint: "Needed to render edits; the Studio still shows the commands without it" },
     { label: "Worker secret", value: process.env.WORKER_SECRET ? "set" : "unset", ok: Boolean(process.env.WORKER_SECRET), hint: "Protects the publish tick endpoint" },
@@ -52,6 +56,8 @@ export default async function SettingsPage({
           </div>
         </Card>
 
+        {isAdmin && <AdminDiagnostics rows={vendorDiagnostics(activeProvider())} />}
+
         <Card>
           <SectionTitle title="Brand profile" hint="This is what every AI engine conditions on — keep it specific" />
           <dl className="space-y-3 text-[12.5px]">
@@ -68,6 +74,8 @@ export default async function SettingsPage({
             <div><dt className="text-[11px] uppercase tracking-wider text-mist-400">Timezone</dt><dd className="text-mist-300">{brand.timezone}</dd></div>
           </dl>
         </Card>
+
+        <KnowledgeEditor brandId={brandId} />
 
         <Card>
           <SectionTitle title="All brands in this workspace" hint="The dashboard is multi-tenant — add a brand and everything works for it" />

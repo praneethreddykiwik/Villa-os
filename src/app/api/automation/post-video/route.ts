@@ -5,9 +5,11 @@ import { read, resolveBrandId } from "@/lib/db";
 import { rateLimit } from "@/lib/ops/ratelimit";
 import { FIELDS, MAX_TOTAL_BYTES, type N8nSubmission } from "@/lib/automation/types";
 import {
+  buildOutbound,
   checkImage,
   checkReferenceCount,
   checkVideo,
+  classifyForwardResponse,
   openSubmission,
   readFields,
   settleSubmission,
@@ -89,7 +91,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const form = await req.formData();
+    let form: FormData;
+    try {
+      form = await req.formData();
+    } catch (err) {
+      return apiFail(
+        `Failed to parse upload: ${err instanceof Error ? err.message : String(err)}. Check that the video file is valid.`,
+        400,
+      );
+    }
 
     const parsed = readFields(form);
     if (!parsed.ok) return apiFail(parsed.error, 400);
@@ -145,47 +155,6 @@ export async function POST(req: Request) {
       referenceFiles.push({ file: photo, mime: check.mime, name: photo.name.slice(0, 200) || "reference" });
     }
 
-    /**
-     * Rebuild the multipart body rather than streaming the original through.
-     *
-     * The parts that reach n8n are then exactly the ones named in the workflow's
-     * contract and nothing else: no extra field an unofficial client tacked on,
-     * no file under a name the form does not know, and every text value already
-     * trimmed to its ceiling.
-     */
-    const outbound = new FormData();
-    outbound.append(FIELDS.title, fields.title);
-    outbound.append(FIELDS.description, fields.description);
-    outbound.append(FIELDS.thumbnailText, fields.thumbnailText);
-    outbound.append(FIELDS.extraInstructions, fields.extraInstructions);
-    // n8n's own form sends a multi-checkbox field as one comma-separated value,
-    // so that is the shape the workflow's downstream nodes already split on.
-    outbound.append(FIELDS.platforms, fields.platforms.join(","));
-    outbound.append(FIELDS.driveFolder, fields.driveFolder);
-    outbound.append(FIELDS.createFolder, fields.createFolder);
-    outbound.append(FIELDS.publicLink, fields.publicLink);
-    outbound.append(FIELDS.telegramChatId, fields.telegramChatId);
-    // Each part is re-typed from the container we proved rather than from the
-    // browser's claim, so a workflow node that branches on content type branches
-    // on something that was actually verified.
-    // The File is appended directly. `.slice(0)` re-types it to the container we
-    // proved without copying the bytes — a Blob slice is a view, not a duplicate.
-    outbound.append(
-      FIELDS.video,
-      video.slice(0, video.size, videoCheck.mime),
-      video.name.slice(0, 200) || "video.mp4",
-    );
-    if (thumbnail) {
-      outbound.append(
-        FIELDS.finalThumbnail,
-        thumbnail.file.slice(0, thumbnail.file.size, thumbnail.mime),
-        thumbnail.name,
-      );
-    }
-    for (const ref of referenceFiles) {
-      outbound.append(FIELDS.referencePhotos, ref.file.slice(0, ref.file.size, ref.mime), ref.name);
-    }
-
     // Recorded before the forward, so a crash or a redeploy mid-upload leaves a
     // `queued` row. "We do not know whether n8n received this" is a true and
     // useful statement; no row at all is neither.
@@ -194,6 +163,24 @@ export async function POST(req: Request) {
       title: fields.title,
       platforms: fields.platforms,
     });
+
+    /**
+     * Rebuild the multipart body rather than streaming the original through.
+     *
+     * The parts that reach the workflow are then exactly the ones in its
+     * contract, each label once (see `buildOutbound`), every text value already
+     * trimmed. Each file part is re-typed from the container we proved; a Blob
+     * slice is a view, not a copy.
+     */
+    const outbound = buildOutbound(
+      fields,
+      {
+        video: { blob: video.slice(0, video.size, videoCheck.mime), name: video.name.slice(0, 200) || "video.mp4" },
+        thumbnail: thumbnail && { blob: thumbnail.file.slice(0, thumbnail.file.size, thumbnail.mime), name: thumbnail.name },
+        references: referenceFiles.map((r) => ({ blob: r.file.slice(0, r.file.size, r.mime), name: r.name })),
+      },
+      submission.id,
+    );
 
     const url = videoFormUrl();
     let res: Response;
@@ -209,28 +196,27 @@ export async function POST(req: Request) {
     } catch (e) {
       const error = e instanceof Error ? e.message : "The workflow could not be reached.";
       settleSubmission(submission.id, { status: "failed", error });
-      return apiFail(`n8n could not be reached: ${error}`, 502);
+      return apiFail(`Publishing workflow could not be reached: ${error}`, 502);
     }
+    // fetch resolves only once the request body has been written (a peer that
+    // closes early rejects instead), so a status that arrives here came after
+    // the whole upload — the distinction `classifyForwardResponse` turns on.
+    const bodySent = true;
 
     /**
-     * A redirect counts as accepted, and is still not followed.
-     *
-     * An n8n Form trigger answers a completed submission with its completion
-     * page, and a workflow configured with a "redirect on completion" URL
-     * answers 3xx instead of 200. Treating that as a failure would record a
-     * video that was in fact received — and published — as one that never
-     * arrived. Following it is the part that stays refused: the redirect target
-     * is chosen by the response, not by the operator, so honouring it would send
-     * the whole upload to an address nobody configured.
+     * A redirect counts as accepted, and is still not followed: a Form trigger
+     * with "redirect on completion" answers 3xx for a submission it received
+     * and ran. 499/5xx after a complete upload is the trigger reporting that
+     * the workflow *errored downstream* — the video arrived; a later node
+     * (usually a Drive/YouTube credential) failed. That is recorded as its own
+     * status so nobody re-uploads a file the workflow already has.
      */
-    const accepted = res.ok || (res.status >= 300 && res.status < 400);
-    if (!accepted) {
-      const error = `The workflow answered ${res.status}.`;
-      settleSubmission(submission.id, { status: "failed", n8nStatus: res.status, error });
-      return apiFail(
-        `${error} Nothing was posted — check the workflow's execution log in n8n.`,
-        502,
-      );
+    // The body is read even on 200: n8n has served its "Problem loading form"
+    // page with a success status, and that page means nothing was received.
+    const verdict = classifyForwardResponse(res.status, await res.text().catch(() => ""), bodySent);
+    if (verdict.status !== "forwarded") {
+      settleSubmission(submission.id, { status: verdict.status, n8nStatus: res.status, error: verdict.error });
+      return apiFail(verdict.error, 502);
     }
 
     const settled = settleSubmission(submission.id, { status: "forwarded", n8nStatus: res.status }) ?? submission;
@@ -241,7 +227,7 @@ export async function POST(req: Request) {
 
     const brandId = resolveBrandId(read(), null);
     if (brandId) {
-      logActivity(brandId, "integrations", `Video "${fields.title}" sent to n8n for ${fields.platforms.join(", ")}`, actorLabel(session));
+      logActivity(brandId, "integrations", `Video "${fields.title}" handed to the publishing workflow for ${fields.platforms.join(", ")} (${settled.elapsedMs ?? 0} ms)`, actorLabel(session));
     }
 
     return apiOk({ submission: settled });

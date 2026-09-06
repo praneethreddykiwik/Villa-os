@@ -111,6 +111,10 @@ export function defaultConfig(orgId: string): WorkflowConfig {
       { id: "approval_question", label: "Customer asked about approval odds", condition: "asksApproval == true", severity: "HIGH", lane: "LOAN", enabled: true },
       { id: "repeated_failure", label: "Repeated document submission failures", condition: "rejections >= 2", severity: "HIGH", lane: "LOAN", enabled: true },
       { id: "followups_exhausted", label: "Follow-up attempts exhausted", condition: "attempts >= maxAttempts", severity: "MEDIUM", lane: "LOAN", enabled: true },
+      { id: "price_negotiation", label: "Customer wants to negotiate price", condition: "negotiatesPrice == true", severity: "HIGH", lane: "SALES", enabled: true },
+      { id: "legal_question", label: "Customer asked about legal terms", condition: "asksLegal == true", severity: "MEDIUM", lane: "SALES", enabled: true },
+      { id: "ai_unknown", label: "Assistant could not understand twice in a row", condition: "unknownStreak >= 2", severity: "MEDIUM", lane: "SALES", enabled: true },
+      { id: "window_closed", label: "Reply blocked by the 24h WhatsApp window", condition: "requiresTemplate == true", severity: "MEDIUM", lane: "SALES", enabled: true },
     ],
 
     assignment: { sales: "LEAST_LOADED", loan: "LEAST_LOADED" },
