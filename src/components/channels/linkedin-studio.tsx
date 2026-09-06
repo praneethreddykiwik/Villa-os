@@ -25,7 +25,7 @@ type LinkedInPost = {
 
 type LinkedInResponse = 
   | { ok: true; posts: LinkedInPost[]; handle: string; authorUrn: string; connectionId: string }
-  | { ok: false; code?: string; error: string };
+  | { ok: false; code?: string; error: string; handle?: string };
 
 const POLL_MS = 60_000;
 
@@ -50,6 +50,12 @@ export function LinkedInStudio({ brandId }: { brandId: string }) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [tokenInput, setTokenInput] = useState("");
+  const [urnInput, setUrnInput] = useState("");
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configMsg, setConfigMsg] = useState<{ text: string; success: boolean } | null>(null);
+
   const visible = useVisible();
   const inflight = useRef(false);
 
@@ -60,18 +66,18 @@ export function LinkedInStudio({ brandId }: { brandId: string }) {
     fetch(`/api/channels/linkedin/posts?brandId=${encodeURIComponent(brandId)}`, { cache: "no-store" })
       .then((r) => r.json() as Promise<LinkedInResponse>)
       .then((r) => {
+        setData(r);
         if (r.ok) {
-          setData(r);
           setError(null);
           setLastUpdated(new Date());
         } else {
           setError(r.error);
-          if (r.code === "no_token") {
-             setData(r);
-          }
         }
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+      })
       .finally(() => {
         setLoading(false);
         setRefreshing(false);
@@ -81,33 +87,133 @@ export function LinkedInStudio({ brandId }: { brandId: string }) {
 
   useInterval(load, visible ? POLL_MS : null);
 
-  if (data && !data.ok && data.code === "no_token") {
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tokenInput.trim() && !urnInput.trim()) return;
+    setSavingConfig(true);
+    setConfigMsg(null);
+    try {
+      const res = await fetch(`/api/channels/linkedin/posts?brandId=${encodeURIComponent(brandId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: tokenInput.trim() || undefined,
+          authorUrn: urnInput.trim() || undefined,
+        }),
+      });
+      const resJson = await res.json();
+      if (resJson.ok) {
+        setConfigMsg({ text: "Credentials saved! Refreshing posts...", success: true });
+        setTokenInput("");
+        setUrnInput("");
+        setTimeout(() => {
+          setShowConfig(false);
+          setConfigMsg(null);
+          load();
+        }, 1500);
+      } else {
+        setConfigMsg({ text: resJson.error || "Failed to save credentials", success: false });
+      }
+    } catch (err) {
+      setConfigMsg({ text: err instanceof Error ? err.message : "Error saving", success: false });
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const isNoToken = data && !data.ok && (data.code === "no_token" || data.code === "no_urn");
+
+  if (isNoToken) {
     return (
-      <Card>
-        <SectionTitle title="LinkedIn Studio" hint="Publishing connector & analytics" />
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-5 text-[13px] leading-relaxed text-mist-300 shadow-sm mt-4">
-          <div className="flex items-start gap-4">
-            <Info size={20} className="mt-0.5 shrink-0 text-sky-400" />
-            <div className="space-y-3">
-              <h3 className="text-[15px] font-semibold text-mist-100">Analytics require an OAuth connection</h3>
-              <p>
-                LinkedIn requires a direct OAuth connection with your LinkedIn account to read your posts and engagement metrics.
-              </p>
-              <div className="rounded-lg bg-ink-900/60 p-3 border border-ink-800">
-                <p className="font-medium text-mist-200 mb-1">Company Pages vs Personal Profiles</p>
-                <p className="text-[12px] text-mist-400">
-                  Personal profiles have restricted API access. To view full analytics including reach, impressions, and engagement timeseries, you must connect a <strong>Company Page</strong> that you administer.
-                </p>
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-ink-800 bg-ink-900/60 px-5 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0077b5] text-white shadow-md">
+              <Linkedin size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-[15px] font-bold text-mist-100">{data.handle || "LinkedIn Account"}</h2>
+                <Badge tone="warn">Configuration Required</Badge>
               </div>
-              <div className="pt-2">
-                <Link href="/connections" className="inline-flex items-center justify-center rounded-lg bg-sky-500 px-4 py-2 text-[13px] font-semibold text-white hover:bg-sky-400 transition-colors">
-                  Go to Connections to reconnect
-                </Link>
-              </div>
+              <p className="text-[11.5px] text-mist-400">Direct API & Analytics Connection</p>
             </div>
           </div>
         </div>
-      </Card>
+
+        <Card>
+          <SectionTitle title="LinkedIn API Connection" hint="Connect to pull real posts and engagement metrics" />
+          <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-5 text-[13px] leading-relaxed text-mist-300 shadow-sm mt-4">
+            <div className="flex items-start gap-4">
+              <Info size={20} className="mt-0.5 shrink-0 text-sky-400" />
+              <div className="space-y-3 max-w-2xl">
+                <h3 className="text-[15px] font-semibold text-mist-100">Live LinkedIn posts & analytics require an access token</h3>
+                <p>
+                  LinkedIn requires an OAuth grant or an Access Token to query the <code className="rounded bg-ink-800 px-1 text-[11.5px] text-mist-200">/rest/posts</code> and <code className="rounded bg-ink-800 px-1 text-[11.5px] text-mist-200">/rest/socialActions</code> endpoints.
+                </p>
+                <div className="rounded-lg bg-ink-900/60 p-3 border border-ink-800">
+                  <p className="font-medium text-mist-200 mb-1">Company Pages vs Personal Profiles</p>
+                  <p className="text-[12px] text-mist-400">
+                    LinkedIn personal profiles restrict public post reading through the developer API. For full real-time analytics (impressions, reach, likes, comments), a <strong>Company / Organization Page</strong> that you administer is required.
+                  </p>
+                </div>
+
+                <div className="pt-3">
+                  <p className="font-semibold text-mist-200 mb-2">Option 1: Connect with OAuth</p>
+                  <Link href="/connections" className="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-[12.5px] font-semibold text-white hover:bg-sky-500 transition-colors shadow-sm">
+                    Go to Connections to Authorize
+                  </Link>
+                </div>
+
+                <div className="pt-4 border-t border-ink-800/80">
+                  <p className="font-semibold text-mist-200 mb-1">Option 2: Enter Access Token & Page URN directly</p>
+                  <p className="text-[12px] text-mist-400 mb-3">If you already have a LinkedIn API token or organization URN, enter it below to connect immediately:</p>
+                  
+                  <form onSubmit={handleSaveConfig} className="space-y-3 max-w-lg">
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-wider text-mist-400 font-medium mb-1">
+                        LinkedIn Access Token (OAuth or Developer)
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="AQV... or Bearer token"
+                        value={tokenInput}
+                        onChange={(e) => setTokenInput(e.target.value)}
+                        className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-[12px] text-mist-100 placeholder:text-mist-600 outline-none focus:border-sky-500 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-wider text-mist-400 font-medium mb-1">
+                        Author / Organization URN (e.g. urn:li:organization:12345678)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="urn:li:organization:..."
+                        value={urnInput}
+                        onChange={(e) => setUrnInput(e.target.value)}
+                        className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5 text-[12px] text-mist-100 placeholder:text-mist-600 outline-none focus:border-sky-500 transition-colors"
+                      />
+                    </div>
+                    {configMsg && (
+                      <p className={`text-[12px] ${configMsg.success ? "text-emerald-400" : "text-bad-400"}`}>
+                        {configMsg.text}
+                      </p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={savingConfig || (!tokenInput.trim() && !urnInput.trim())}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-800 px-4 py-1.5 text-[12px] font-semibold text-mist-100 hover:bg-ink-700 disabled:opacity-50 transition-colors"
+                    >
+                      {savingConfig ? <Loader2 size={12} className="animate-spin" /> : null}
+                      {savingConfig ? "Saving..." : "Save & Sync"}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
     );
   }
 

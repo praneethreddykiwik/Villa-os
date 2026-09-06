@@ -131,7 +131,7 @@ export default async function ChannelPage({
         {channel === "youtube" && <YouTubeVideos brandId={brandId} />}
 
         {/* Account analytics from the publishing connector, live */}
-        {(channel === "instagram" || channel === "facebook" || channel === "linkedin") && (
+        {(channel === "instagram" || channel === "facebook") && (
           <SocialOverviewPanel brandId={brandId} channel={channel} />
         )}
 

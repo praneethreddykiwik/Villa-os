@@ -32,6 +32,7 @@ export async function GET(req: Request) {
       ok: false,
       error: "No LinkedIn connection with access token found",
       code: "no_token",
+      handle: conn?.handle || "LinkedIn",
     });
   }
 
@@ -43,7 +44,9 @@ export async function GET(req: Request) {
   if (!authorUrn) {
     return NextResponse.json({
       ok: false,
-      error: "No valid LinkedIn URN found. Set LINKEDIN_ORG_URN.",
+      error: "No valid LinkedIn URN found. Please configure your Organization or Author URN.",
+      code: "no_urn",
+      handle: conn.handle,
     });
   }
 
@@ -53,56 +56,122 @@ export async function GET(req: Request) {
     "X-Restli-Protocol-Version": "2.0.0",
   };
 
-  const postsUrl = `https://api.linkedin.com/rest/posts?author=${encodeURIComponent(authorUrn)}&q=author&count=20&fields=id,commentary,createdAt,lastModifiedAt,visibility`;
-  const postsRes = await fetch(postsUrl, { headers, cache: "no-store" });
-  if (!postsRes.ok) {
-    return NextResponse.json({
-      ok: false,
-      error: `Failed to fetch LinkedIn posts: ${postsRes.status}`,
-    });
-  }
-
-  const postsData = await postsRes.json();
-  const elements = postsData.elements || [];
-
-  const posts = await Promise.all(elements.map(async (post: any) => {
-    let likes = 0;
-    let comments = 0;
-    let shares = 0;
-    
-    // Fetch social actions for each post
-    try {
-      const actionsUrl = `https://api.linkedin.com/rest/socialActions/${encodeURIComponent(post.id)}`;
-      const actionsRes = await fetch(actionsUrl, { headers, cache: "no-store" });
-      if (actionsRes.ok) {
-        const actionsData = await actionsRes.json();
-        likes = actionsData.likesSummary?.totalLikes || 0;
-        comments = actionsData.commentsSummary?.totalFirstDegreeComments || 0;
-        shares = actionsData.sharesSummary?.totalShares || 0;
-      }
-    } catch (e) {
-      // Ignore
+  try {
+    const postsUrl = `https://api.linkedin.com/rest/posts?author=${encodeURIComponent(authorUrn)}&q=author&count=20&fields=id,commentary,createdAt,lastModifiedAt,visibility`;
+    const postsRes = await fetch(postsUrl, { headers, cache: "no-store", signal: AbortSignal.timeout(10000) });
+    if (!postsRes.ok) {
+      const errText = await postsRes.text().catch(() => "");
+      return NextResponse.json({
+        ok: false,
+        error: `LinkedIn API error (${postsRes.status}): ${errText || postsRes.statusText}`,
+        code: "api_error",
+        handle: conn.handle,
+      });
     }
 
-    return {
-      id: post.id,
-      text: post.commentary || "",
-      publishedAt: new Date(post.createdAt).toISOString(),
-      visibility: post.visibility,
-      metrics: {
-        likes,
-        comments,
-        shares,
-        impressions: 0, // Not available through standard basic API easily without organizationalEntityShareStatistics
-      }
-    };
-  }));
+    const postsData = await postsRes.json();
+    const elements = postsData.elements || [];
 
-  return NextResponse.json({
-    ok: true,
-    posts,
-    handle: conn.handle,
-    authorUrn,
-    connectionId: conn.id,
+    const posts = await Promise.all(elements.map(async (post: any) => {
+      let likes = 0;
+      let comments = 0;
+      let shares = 0;
+      
+      try {
+        const actionsUrl = `https://api.linkedin.com/rest/socialActions/${encodeURIComponent(post.id)}`;
+        const actionsRes = await fetch(actionsUrl, { headers, cache: "no-store", signal: AbortSignal.timeout(5000) });
+        if (actionsRes.ok) {
+          const actionsData = await actionsRes.json();
+          likes = actionsData.likesSummary?.totalLikes || 0;
+          comments = actionsData.commentsSummary?.totalFirstDegreeComments || 0;
+          shares = actionsData.sharesSummary?.totalShares || 0;
+        }
+      } catch {
+        // Ignore social action fetch errors per post
+      }
+
+      return {
+        id: post.id,
+        text: post.commentary || "",
+        publishedAt: new Date(post.createdAt).toISOString(),
+        visibility: post.visibility || "PUBLIC",
+        metrics: {
+          likes,
+          comments,
+          shares,
+          impressions: 0,
+        }
+      };
+    }));
+
+    return NextResponse.json({
+      ok: true,
+      posts,
+      handle: conn.handle,
+      authorUrn,
+      connectionId: conn.id,
+    });
+  } catch (e) {
+    return NextResponse.json({
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to connect to LinkedIn API",
+      code: "network_error",
+      handle: conn.handle,
+    });
+  }
+}
+
+export async function POST(req: Request) {
+  const denied = await guard("marketing.publish");
+  if (denied) return denied;
+
+  const url = new URL(req.url);
+  const db = read();
+  const brandId = resolveBrandId(db, url.searchParams.get("brandId"));
+
+  const session = await getSession();
+  if (session) {
+    try {
+      assertBrandAccess(session, brandId);
+    } catch {
+      return NextResponse.json({ ok: false, error: "Brand not found or access denied." }, { status: 403 });
+    }
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const { accessToken, authorUrn, handle } = body;
+
+  if (!accessToken && !authorUrn) {
+    return NextResponse.json({ ok: false, error: "Please provide an Access Token or Author/Page URN." }, { status: 400 });
+  }
+
+  const { mutate } = await import("@/lib/db");
+  mutate((draft) => {
+    let conn = draft.connections.find(
+      (c) => c.brandId === brandId && c.channel === "linkedin"
+    );
+    if (!conn) {
+      const newConn: import("@/lib/types").Connection = {
+        id: `con_${Date.now()}`,
+        brandId,
+        channel: "linkedin",
+        handle: handle?.trim() || "LinkedIn Account",
+        externalId: authorUrn?.trim() || `urn:li:organization:${Date.now()}`,
+        status: "connected",
+        followers: 0,
+        scopes: ["w_organization_social", "r_organization_social"],
+        avatarColor: "#0077b5",
+        connectedAt: new Date().toISOString(),
+      };
+      draft.connections.push(newConn);
+      conn = newConn;
+    }
+    if (accessToken) conn.accessToken = accessToken.trim();
+    if (authorUrn) conn.externalId = authorUrn.trim();
+    if (handle) conn.handle = handle.trim();
+    conn.status = "connected";
+    conn.lastSyncedAt = new Date().toISOString();
   });
+
+  return NextResponse.json({ ok: true });
 }

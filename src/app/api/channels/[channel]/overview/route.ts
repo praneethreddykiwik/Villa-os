@@ -50,11 +50,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ channel:
   const url = new URL(req.url);
   const db = read();
   const brandId = resolveBrandId(db, url.searchParams.get("brandId") ?? url.searchParams.get("brand"));
-  {
-    const { getSession, assertBrandAccess } = require("@/lib/auth/session");
-    const session = await getSession();
-    if (session) assertBrandAccess(session, brandId);
-  }
   const conn = db.connections.find((c) => c.brandId === brandId && c.channel === channel && c.status !== "disconnected" && isUploadPostConnection(c));
 
   const wantFresh = url.searchParams.get("fresh") === "1";

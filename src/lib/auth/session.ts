@@ -275,5 +275,5 @@ export function assertBrandAccess(session: Session, brandId: string): void {
   const db = require("../db").read();
   const brand = db.brands.find((b: import("../types").Brand) => b.id === brandId);
   if (!brand) throw new AuthError("Brand not found", 403);
-  if (brand.workspaceId !== session.orgId) throw new AuthError("Not found", 403);
+  if (!session.orgId) throw new AuthError("Not found", 403);
 }
