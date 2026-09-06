@@ -14,8 +14,12 @@ import { EMPTY_OPS } from "./ops/types";
  */
 
 // Overridable so tests run against an isolated store instead of the dev data.
+// In serverless environments like Vercel or AWS Lambda, process.cwd() is read-only at runtime,
+// so fallback to /tmp/.data where writes are permitted.
 const DATA_DIR = process.env.OPS_DATA_DIR
   ? path.resolve(process.env.OPS_DATA_DIR)
+  : process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+  ? path.join("/tmp", ".data")
   : path.join(process.cwd(), ".data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 
@@ -57,6 +61,16 @@ let cacheMtime = 0;
 function ensureFile(): void {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
   if (!fs.existsSync(DB_PATH)) {
+    // If a seeded db exists in the repo bundle, copy it to the writable store
+    const repoSeed = path.join(process.cwd(), ".data", "db.json");
+    if (fs.existsSync(repoSeed) && repoSeed !== DB_PATH) {
+      try {
+        fs.copyFileSync(repoSeed, DB_PATH);
+        return;
+      } catch {
+        // fallback to buildBootstrap()
+      }
+    }
     // A fresh clone boots with the tenant shell only — no fabricated content.
     const { buildBootstrap } = require("./bootstrap") as typeof import("./bootstrap");
     // 0600, and the directory 0700. This file holds plaintext OAuth tokens and

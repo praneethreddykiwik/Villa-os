@@ -32,6 +32,8 @@ export class LocalDocumentStore implements DocumentStore {
   constructor(
     private readonly root = process.env.OPS_DOCUMENT_DIR
       ? path.resolve(process.env.OPS_DOCUMENT_DIR)
+      : process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+      ? path.join("/tmp", ".private", "documents")
       : path.join(process.cwd(), ".private", "documents"),
   ) {}
 

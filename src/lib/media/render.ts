@@ -143,7 +143,9 @@ export async function renderAspect(
   asset: MediaAsset,
   edit: MediaEdit,
   aspect: keyof typeof ASPECTS,
-  outDir = path.join(process.cwd(), "public", "renders"),
+  outDir = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? path.join("/tmp", "renders")
+    : path.join(process.cwd(), "public", "renders"),
 ): Promise<RenderResult> {
   const key = hashRecipe(asset.id, edit, aspect);
   const outputPath = path.join(outDir, `${key}.mp4`);
