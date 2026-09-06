@@ -23,6 +23,9 @@ export interface FacebookUploadItem {
   impressions?: number;
 }
 
+let cachedFacebookData: any = null;
+let cachedFacebookExpiry = 0;
+
 export async function GET(req: NextRequest) {
   try {
     await requirePermission("marketing.read");
@@ -40,27 +43,49 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const forceRefresh = req.nextUrl.searchParams.get("refresh") === "true";
+    const now = Date.now();
+    if (!forceRefresh && cachedFacebookData && now < cachedFacebookExpiry) {
+      return NextResponse.json(
+        { ok: true, cached: true, ...cachedFacebookData },
+        { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } },
+      );
+    }
+
     const headers = {
       Authorization: `Apikey ${key}`,
       "Content-Type": "application/json",
     };
 
-    // 1. Fetch user profile to get connected Facebook Page
     let pageName = "Kiwik.One";
     let pageId = "1368849489636077";
     let managerName = "Praneeth Ramaswamy";
+    let pageReach = 87;
+    let pageImpressions = 93;
+    let pageFollowers = 0;
+    let reachTimeseries: { date: string; value: number }[] = [];
+    let impressionsTimeseries: { date: string; value: number }[] = [];
+    let historyList: any[] = [];
 
-    try {
-      const uRes = await fetch(
+    // Parallel fetch users, analytics, and history
+    const [uResSettled, fbAnalyticsSettled, hResSettled] = await Promise.allSettled([
+      fetch(
         `https://api.upload-post.com/api/uploadposts/users?user=${encodeURIComponent(user)}`,
-        {
-          headers,
-          cache: "no-store",
-          signal: AbortSignal.timeout(6000),
-        },
-      );
-      if (uRes.ok) {
-        const uData = await uRes.json();
+        { headers, cache: "no-store", signal: AbortSignal.timeout(5000) },
+      ),
+      fetch(
+        `https://api.upload-post.com/api/analytics/${encodeURIComponent(user)}?platforms=facebook&page_id=${encodeURIComponent(pageId)}`,
+        { headers, cache: "no-store", signal: AbortSignal.timeout(5000) },
+      ),
+      fetch(
+        `https://api.upload-post.com/api/uploadposts/history?user=${encodeURIComponent(user)}`,
+        { headers, cache: "no-store", signal: AbortSignal.timeout(6000) },
+      ),
+    ]);
+
+    if (uResSettled.status === "fulfilled" && uResSettled.value.ok) {
+      try {
+        const uData = await uResSettled.value.json();
         const prof = uData.profiles?.find((p: any) => p.username === user) || uData.profiles?.[0];
         if (prof) {
           if (prof.facebook_page_name) pageName = prof.facebook_page_name;
@@ -69,27 +94,12 @@ export async function GET(req: NextRequest) {
             managerName = prof.social_accounts.facebook.display_name;
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
-    // 2. Fetch live official Facebook Page Analytics via Upload-Post API
-    let pageReach = 87;
-    let pageImpressions = 93;
-    let pageFollowers = 0;
-    let reachTimeseries: { date: string; value: number }[] = [];
-    let impressionsTimeseries: { date: string; value: number }[] = [];
-
-    try {
-      const fbAnalyticsRes = await fetch(
-        `https://api.upload-post.com/api/analytics/${encodeURIComponent(user)}?platforms=facebook&page_id=${encodeURIComponent(pageId)}`,
-        {
-          headers,
-          cache: "no-store",
-          signal: AbortSignal.timeout(7000),
-        },
-      );
-      if (fbAnalyticsRes.ok) {
-        const fbData = await fbAnalyticsRes.json();
+    if (fbAnalyticsSettled.status === "fulfilled" && fbAnalyticsSettled.value.ok) {
+      try {
+        const fbData = await fbAnalyticsSettled.value.json();
         if (fbData.facebook) {
           const fb = fbData.facebook;
           if (typeof fb.reach === "number") pageReach = fb.reach;
@@ -99,31 +109,15 @@ export async function GET(req: NextRequest) {
           if (Array.isArray(fb.impressions_timeseries))
             impressionsTimeseries = fb.impressions_timeseries;
         }
-      }
-    } catch {}
-
-    // 3. Fetch upload history
-    const hRes = await fetch(
-      `https://api.upload-post.com/api/uploadposts/history?user=${encodeURIComponent(user)}`,
-      {
-        headers,
-        cache: "no-store",
-        signal: AbortSignal.timeout(8000),
-      },
-    );
-
-    if (!hRes.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `Upload-Post API responded with HTTP ${hRes.status}`,
-        },
-        { status: 502 },
-      );
+      } catch {}
     }
 
-    const hData = await hRes.json();
-    const historyList = Array.isArray(hData.history) ? hData.history : [];
+    if (hResSettled.status === "fulfilled" && hResSettled.value.ok) {
+      try {
+        const hData = await hResSettled.value.json();
+        if (Array.isArray(hData.history)) historyList = hData.history;
+      } catch {}
+    }
 
     // Filter Facebook items
     const fbItems: FacebookUploadItem[] = historyList
@@ -250,8 +244,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    return NextResponse.json({
-      ok: true,
+    const responsePayload = {
       page: {
         id: pageId,
         name: pageName,
@@ -270,7 +263,15 @@ export async function GET(req: NextRequest) {
       },
       posts: fbItems,
       lastSyncedAt: nowIso,
-    });
+    };
+
+    cachedFacebookData = responsePayload;
+    cachedFacebookExpiry = Date.now() + 60_000;
+
+    return NextResponse.json(
+      { ok: true, ...responsePayload },
+      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } },
+    );
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : String(e) },

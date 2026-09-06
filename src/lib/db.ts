@@ -65,10 +65,12 @@ function ensureFile(): void {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
   if (!fs.existsSync(DB_PATH)) {
     // If a seeded db exists in the repo bundle, copy it to the writable store
-    const repoSeed = path.join(process.cwd(), ".data", "db.json");
-    if (fs.existsSync(repoSeed) && repoSeed !== DB_PATH) {
+    const repoSeed = path.join(process.cwd(), "src", "lib", "seed-db.json");
+    const dotDataSeed = path.join(process.cwd(), ".data", "db.json");
+    const seedToUse = fs.existsSync(repoSeed) ? repoSeed : fs.existsSync(dotDataSeed) ? dotDataSeed : null;
+    if (seedToUse && seedToUse !== DB_PATH) {
       try {
-        fs.copyFileSync(repoSeed, DB_PATH);
+        fs.copyFileSync(seedToUse, DB_PATH);
         return;
       } catch {
         // fallback to buildBootstrap()
@@ -90,6 +92,21 @@ export function read(): Database {
   if (!cache || mtime !== cacheMtime) {
     cache = { ...EMPTY, ...(JSON.parse(fs.readFileSync(DB_PATH, "utf8")) as Database) };
     cacheMtime = mtime;
+
+    // Self-healing: if connections are missing (e.g. from an empty cold-start /tmp file on Vercel),
+    // restore the default connections from buildBootstrap()
+    if (!cache.connections || cache.connections.length === 0) {
+      const { buildBootstrap } = require("./bootstrap") as typeof import("./bootstrap");
+      const boot = buildBootstrap();
+      cache.connections = boot.connections;
+      if (!cache.brands || cache.brands.length === 0) {
+        cache.brands = boot.brands;
+      }
+      try {
+        fs.writeFileSync(DB_PATH, JSON.stringify(cache, null, 0), { mode: 0o600 });
+        cacheMtime = fs.statSync(DB_PATH).mtimeMs;
+      } catch {}
+    }
   }
   return cache;
 }

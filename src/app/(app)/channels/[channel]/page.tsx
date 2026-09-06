@@ -127,16 +127,16 @@ export default async function ChannelPage({
         )}
 
         {/* YouTube Studio */}
-        {channel === "youtube" && snap.connections.length > 0 && <YouTubeVideos brandId={brandId} />}
+        {channel === "youtube" && <YouTubeVideos brandId={brandId} />}
 
         {/* Facebook Studio */}
-        {channel === "facebook" && snap.connections.length > 0 && <FacebookStudio brandId={brandId} />}
+        {channel === "facebook" && <FacebookStudio brandId={brandId} />}
 
         {/* Instagram Studio */}
-        {channel === "instagram" && snap.connections.length > 0 && <InstagramStudio brandId={brandId} />}
+        {channel === "instagram" && <InstagramStudio brandId={brandId} />}
 
         {/* LinkedIn Studio */}
-        {channel === "linkedin" && snap.connections.length > 0 && <LinkedInStudio brandId={brandId} />}
+        {channel === "linkedin" && <LinkedInStudio brandId={brandId} />}
 
         {channel !== "youtube" && channel !== "facebook" && channel !== "instagram" && channel !== "linkedin" && (!hasSignal(snap) ? (
           <Empty

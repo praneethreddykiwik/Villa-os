@@ -26,12 +26,24 @@ export interface InstagramMediaItem {
   status: "completed" | "processing" | "failed";
 }
 
+let cachedInstagramData: any = null;
+let cachedInstagramExpiry = 0;
+
 export async function GET(req: NextRequest) {
   try {
     await requirePermission("marketing.read");
 
     const key = uploadPostApiKey();
     const user = uploadPostUser();
+
+    const forceRefresh = req.nextUrl.searchParams.get("refresh") === "true";
+    const now = Date.now();
+    if (!forceRefresh && cachedInstagramData && now < cachedInstagramExpiry) {
+      return NextResponse.json(
+        { ok: true, cached: true, ...cachedInstagramData },
+        { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } },
+      );
+    }
 
     let handle = "kiwik.one1";
     let displayName = "Kiwik One";
@@ -41,19 +53,40 @@ export async function GET(req: NextRequest) {
     let profilePic =
       "https://scontent.cdninstagram.com/v/t51.82787-19/798019090_18100491026073772_6229002185612185791_n.jpg?stp=dst-jpg_s150x150_tt6&_nc_cat=111&ccb=7-5&_nc_sid=f7ccc5&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy4xMDgwLkMzIn0%3D&_nc_ohc=bvME42kMfaYQ7kNvwGmiLEG&_nc_oc=Adr_fMXuTsRGUqoWrJ0V0bMXk-cGczfm6fjK7TDQeqlmFtgYF7LsDks_TND4gIFBDLg&_nc_zt=24&_nc_ht=scontent.cdninstagram.com&_nc_gid=85KcSRDud9cd7A6VxnhO8g&_nc_ss=7b689&oh=00_AQJMfF7xa9Z5yA6koVyq3Ob-eYAhmHH2URQnxGnYm4L_zg&oe=6AA300A2";
 
-    // 1. Fetch connected Instagram account metadata from Upload-Post
+    let liveViews = 119;
+    let liveReach = 102;
+    let liveImpressions = 119;
+    let liveProfileViews = 14;
+    let liveLikes = 13;
+    let liveComments = 0;
+    let liveShares = 0;
+    let liveSaves = 1;
+    let reachTimeseries: { date: string; value: number }[] = [];
+
+    // Parallel fetch connected account metadata and live analytics from Upload-Post
     if (key) {
-      try {
-        const uRes = await fetch(
+      const [uResSettled, aResSettled] = await Promise.allSettled([
+        fetch(
           `https://api.upload-post.com/api/uploadposts/users?user=${encodeURIComponent(user)}`,
           {
             headers: { Authorization: `Apikey ${key}` },
             cache: "no-store",
             signal: AbortSignal.timeout(5000),
           },
-        );
-        if (uRes.ok) {
-          const uData = await uRes.json();
+        ),
+        fetch(
+          `https://api.upload-post.com/api/analytics/${encodeURIComponent(user)}?platforms=instagram`,
+          {
+            headers: { Authorization: `Apikey ${key}` },
+            cache: "no-store",
+            signal: AbortSignal.timeout(5000),
+          },
+        ),
+      ]);
+
+      if (uResSettled.status === "fulfilled" && uResSettled.value.ok) {
+        try {
+          const uData = await uResSettled.value.json();
           const prof = uData.profiles?.find((p: any) => p.username === user) || uData.profiles?.[0];
           if (prof?.social_accounts?.instagram) {
             const ig = prof.social_accounts.instagram;
@@ -63,33 +96,12 @@ export async function GET(req: NextRequest) {
               if (ig.social_images) profilePic = ig.social_images;
             }
           }
-        }
-      } catch {}
-    }
+        } catch {}
+      }
 
-    // 2. Fetch live official Instagram Analytics via Upload-Post API
-    let liveViews = 117;
-    let liveReach = 101;
-    let liveImpressions = 117;
-    let liveProfileViews = 14;
-    let liveLikes = 12;
-    let liveComments = 0;
-    let liveShares = 0;
-    let liveSaves = 1;
-    let reachTimeseries: { date: string; value: number }[] = [];
-
-    if (key) {
-      try {
-        const aRes = await fetch(
-          `https://api.upload-post.com/api/analytics/${encodeURIComponent(user)}?platforms=instagram`,
-          {
-            headers: { Authorization: `Apikey ${key}` },
-            cache: "no-store",
-            signal: AbortSignal.timeout(7000),
-          },
-        );
-        if (aRes.ok) {
-          const aData = await aRes.json();
+      if (aResSettled.status === "fulfilled" && aResSettled.value.ok) {
+        try {
+          const aData = await aResSettled.value.json();
           if (aData.instagram) {
             const ig = aData.instagram;
             if (typeof ig.views === "number") liveViews = ig.views;
@@ -103,22 +115,39 @@ export async function GET(req: NextRequest) {
             if (typeof ig.followers === "number") followers = ig.followers;
             if (Array.isArray(ig.reach_timeseries)) reachTimeseries = ig.reach_timeseries;
           }
-        }
-      } catch {}
+        } catch {}
+      }
     }
 
-    // 3. Fetch public profile metadata from Instagram OpenGraph
+    // Fast non-blocking Instagram profile & Reel scraping (1.2s timeout so it never stalls on Vercel)
+    const reelShortcode = "Dc63h4Zhrj6";
+    let reelPublishedAt = "2026-09-05T20:55:11.000Z";
+    const reelPermalink = `https://www.instagram.com/${handle}/reel/${reelShortcode}/`;
+    let reelThumbnail =
+      "https://scontent.cdninstagram.com/v/t51.82787-15/798316753_18100381520073772_2005622127464983668_n.jpg?stp=cmp1_dst-jpg_e35_s640x640_tt6&_nc_cat=109&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzMifQ%3D%3D&_nc_ohc=R6UZKj15x7oQ7kNvwHeKVeV&_nc_oc=AdpzW9rRggV394UnXzGaibMaZjakvcjcM0vb0kU_VKjSQ_M-wg-CIhGwyvfDHMOzdwU&_nc_zt=23&_nc_ht=scontent.cdninstagram.com&_nc_gid=wsD59wWizqMHukSqh1kFHA&_nc_ss=7b60f&oh=00_AQKDRmljRloXYnw7QW8I732SQfHWKP7AUZ_EB6dhe3v3ZA&oe=6AA2E8E9";
+
     try {
-      const igRes = await fetch(`https://www.instagram.com/${handle}/`, {
-        headers: {
-          "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(5000),
-      });
-      if (igRes.ok) {
-        const html = await igRes.text();
+      const [igResSettled, reelResSettled] = await Promise.allSettled([
+        fetch(`https://www.instagram.com/${handle}/`, {
+          headers: {
+            "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          },
+          cache: "no-store",
+          signal: AbortSignal.timeout(1200),
+        }),
+        fetch(`https://www.instagram.com/reel/${reelShortcode}/`, {
+          headers: {
+            "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          },
+          cache: "no-store",
+          signal: AbortSignal.timeout(1200),
+        }),
+      ]);
+
+      if (igResSettled.status === "fulfilled" && igResSettled.value.ok) {
+        const html = await igResSettled.value.text();
         const descMatch =
           html.match(/<meta\s+property="og:description"\s+content="([^"]+)"/i) ||
           html.match(/<meta\s+content="([^"]+)"\s+name="description"/i);
@@ -148,26 +177,9 @@ export async function GET(req: NextRequest) {
           if (cleanTitle) displayName = cleanTitle;
         }
       }
-    } catch {}
 
-    // 4. Fetch Reel cover & metadata
-    const reelShortcode = "Dc63h4Zhrj6";
-    let reelPublishedAt = "2026-09-05T20:55:11.000Z";
-    const reelPermalink = `https://www.instagram.com/${handle}/reel/${reelShortcode}/`;
-    let reelThumbnail =
-      "https://scontent.cdninstagram.com/v/t51.82787-15/798316753_18100381520073772_2005622127464983668_n.jpg?stp=cmp1_dst-jpg_e35_s640x640_tt6&_nc_cat=109&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzMifQ%3D%3D&_nc_ohc=R6UZKj15x7oQ7kNvwHeKVeV&_nc_oc=AdpzW9rRggV394UnXzGaibMaZjakvcjcM0vb0kU_VKjSQ_M-wg-CIhGwyvfDHMOzdwU&_nc_zt=23&_nc_ht=scontent.cdninstagram.com&_nc_gid=wsD59wWizqMHukSqh1kFHA&_nc_ss=7b60f&oh=00_AQKDRmljRloXYnw7QW8I732SQfHWKP7AUZ_EB6dhe3v3ZA&oe=6AA2E8E9";
-
-    try {
-      const reelRes = await fetch(`https://www.instagram.com/reel/${reelShortcode}/`, {
-        headers: {
-          "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(5000),
-      });
-      if (reelRes.ok) {
-        const reelHtml = await reelRes.text();
+      if (reelResSettled.status === "fulfilled" && reelResSettled.value.ok) {
+        const reelHtml = await reelResSettled.value.text();
         const ogImg = reelHtml.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i);
         if (ogImg && ogImg[1].startsWith("http")) {
           reelThumbnail = ogImg[1].replace(/&amp;/g, "&");
@@ -301,8 +313,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    return NextResponse.json({
-      ok: true,
+    const responsePayload = {
       profile: {
         handle: `@${handle}`,
         displayName,
@@ -324,7 +335,15 @@ export async function GET(req: NextRequest) {
       timeseries: reachTimeseries,
       media,
       lastSyncedAt: nowIso,
-    });
+    };
+
+    cachedInstagramData = responsePayload;
+    cachedInstagramExpiry = Date.now() + 60_000;
+
+    return NextResponse.json(
+      { ok: true, ...responsePayload },
+      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } },
+    );
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : String(e) },

@@ -35,46 +35,21 @@ export async function GET(req: NextRequest) {
 
     const now = Date.now();
     if (!forceRefresh && cachedData && cachedData.profile === requestedProfile && now < cacheExpiry) {
-      return NextResponse.json({ ok: true, cached: true, ...cachedData });
+      return NextResponse.json(
+        { ok: true, cached: true, ...cachedData },
+        { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } }
+      );
     }
 
     const headers = { Authorization: `Apikey ${key}` };
 
-    // 1. Fetch profiles and connected accounts
+    // Run users and analytics fetch in parallel
     let profiles: any[] = [];
     let activeProfileObj: any = null;
     let facebookPageId = "1368849489636077";
     let facebookPageName = "Kiwik.One";
+    const profileUsername = requestedProfile || "default";
 
-    try {
-      const usersRes = await fetch("https://api.upload-post.com/api/uploadposts/users", {
-        headers,
-        cache: "no-store",
-        signal: AbortSignal.timeout(8000),
-      });
-      if (usersRes.ok) {
-        const usersJson = await usersRes.json();
-        profiles = usersJson.profiles || [];
-        activeProfileObj =
-          profiles.find((p) => p.username.toLowerCase() === requestedProfile.toLowerCase()) ||
-          profiles[0];
-
-        if (activeProfileObj) {
-          if (activeProfileObj.facebook_page_id) {
-            facebookPageId = activeProfileObj.facebook_page_id;
-          }
-          if (activeProfileObj.facebook_page_name) {
-            facebookPageName = activeProfileObj.facebook_page_name;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("Error fetching uploadposts users:", e);
-    }
-
-    const profileUsername = activeProfileObj?.username || requestedProfile || "default";
-
-    // 2. Fetch multi-platform analytics from Upload-Post
     const analyticsUrl = `https://api.upload-post.com/api/analytics/${encodeURIComponent(
       profileUsername
     )}?platforms=instagram,facebook,linkedin,youtube&page_id=${encodeURIComponent(
@@ -82,17 +57,44 @@ export async function GET(req: NextRequest) {
     )}&days=30`;
 
     let rawAnalytics: any = {};
-    try {
-      const aRes = await fetch(analyticsUrl, {
+
+    const [usersResult, analyticsResult] = await Promise.allSettled([
+      fetch("https://api.upload-post.com/api/uploadposts/users", {
         headers,
         cache: "no-store",
-        signal: AbortSignal.timeout(10000),
-      });
-      if (aRes.ok) {
-        rawAnalytics = await aRes.json();
+        signal: AbortSignal.timeout(5000),
+      }),
+      fetch(analyticsUrl, {
+        headers,
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      }),
+    ]);
+
+    if (usersResult.status === "fulfilled" && usersResult.value.ok) {
+      try {
+        const usersJson = await usersResult.value.json();
+        profiles = usersJson.profiles || [];
+        activeProfileObj =
+          profiles.find((p: any) => p.username.toLowerCase() === requestedProfile.toLowerCase()) ||
+          profiles[0];
+        if (activeProfileObj?.facebook_page_id) {
+          facebookPageId = activeProfileObj.facebook_page_id;
+        }
+        if (activeProfileObj?.facebook_page_name) {
+          facebookPageName = activeProfileObj.facebook_page_name;
+        }
+      } catch (e) {
+        console.warn("Error parsing usersJson:", e);
       }
-    } catch (e) {
-      console.warn("Error fetching uploadposts analytics:", e);
+    }
+
+    if (analyticsResult.status === "fulfilled" && analyticsResult.value.ok) {
+      try {
+        rawAnalytics = await analyticsResult.value.json();
+      } catch (e) {
+        console.warn("Error parsing rawAnalytics:", e);
+      }
     }
 
     // 3. Process Instagram Data
@@ -228,11 +230,14 @@ export async function GET(req: NextRequest) {
       updatedAt: new Date().toISOString(),
     };
 
-    // Update cache for 30s
+    // Update cache for 60s
     cachedData = responsePayload;
-    cacheExpiry = Date.now() + 30_000;
+    cacheExpiry = Date.now() + 60_000;
 
-    return NextResponse.json({ ok: true, cached: false, ...responsePayload });
+    return NextResponse.json(
+      { ok: true, cached: false, ...responsePayload },
+      { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } }
+    );
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : String(error) },

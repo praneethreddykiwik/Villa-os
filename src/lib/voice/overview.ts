@@ -93,10 +93,19 @@ async function backfill(brandId: string): Promise<string[]> {
   return problems;
 }
 
+const overviewCache = new Map<string, { at: number; data: VoiceOverview }>();
+const OVERVIEW_CACHE_TTL = 60_000;
+
 export async function loadVoiceOverview(
   brandId: string,
   opts: { days: number; diagnostics: boolean },
 ): Promise<VoiceOverview> {
+  const cacheKey = `${brandId}:${opts.days}:${opts.diagnostics}`;
+  const hit = overviewCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < OVERVIEW_CACHE_TTL) {
+    return hit.data;
+  }
+
   const connected = isConfigured();
   const problems = connected ? await backfill(brandId) : [];
 
@@ -163,5 +172,6 @@ export async function loadVoiceOverview(
     };
   }
 
+  overviewCache.set(cacheKey, { at: Date.now(), data: overview });
   return overview;
 }

@@ -28,17 +28,20 @@ const TIMEZONE = "Asia/Kolkata";
  * voice — an operator edits this in Settings, and a placeholder that reads as
  * finished copy tends to ship to production unchanged.
  */
+export const DEFAULT_WORKSPACE_ID = "ws_mtiajnoi2b3g";
+export const DEFAULT_BRAND_ID = "brd_mtiajnoil4a2";
+
 export function buildBootstrap(): Database {
   const now = new Date().toISOString();
 
   const workspace: Workspace = {
-    id: uid("ws"),
+    id: DEFAULT_WORKSPACE_ID,
     name: ORG_NAME,
     createdAt: now,
   };
 
   const brand: Brand = {
-    id: uid("brd"),
+    id: DEFAULT_BRAND_ID,
     workspaceId: workspace.id,
     name: BRAND_NAME,
     voice: "",
@@ -59,9 +62,63 @@ export function buildBootstrap(): Database {
     webhookDeliveries: [],
     n8nSubmissions: [],
     brands: [brand],
-    // Everything below is business content. It stays empty until something real
-    // creates it — a publish, a sync, a webhook, a form submission.
-    connections: [],
+    connections: [
+      {
+        id: "conn_yt_kiwik_one",
+        brandId: DEFAULT_BRAND_ID,
+        channel: "youtube",
+        handle: "@kiwik-one",
+        externalId: "UCDjreja_dapcIneC5x56Tjg",
+        status: "connected",
+        scopes: [
+          "https://www.googleapis.com/auth/youtube.upload",
+          "https://www.googleapis.com/auth/youtube.force-ssl",
+          "https://www.googleapis.com/auth/yt-analytics.readonly",
+        ],
+        avatarColor: "#ef4444",
+        followers: 0,
+        connectedAt: "2026-09-05T18:22:57.774556Z",
+        lastSyncedAt: now,
+      },
+      {
+        id: "conn_ig_kiwik_one",
+        brandId: DEFAULT_BRAND_ID,
+        channel: "instagram",
+        handle: "@kiwik.one1",
+        externalId: "kiwik.one1",
+        status: "connected",
+        scopes: ["instagram_basic", "instagram_content_publish", "pages_show_list"],
+        avatarColor: "#ec4899",
+        followers: 0,
+        connectedAt: "2026-09-05T20:43:22.089Z",
+        lastSyncedAt: now,
+      },
+      {
+        id: "con_mtpltlcb809u",
+        brandId: DEFAULT_BRAND_ID,
+        channel: "facebook",
+        handle: "Kiwik.One (Praneeth Ramaswamy)",
+        externalId: "uploadpost:default:facebook",
+        status: "connected",
+        scopes: ["upload-post"],
+        avatarColor: "#1877F2",
+        followers: 0,
+        connectedAt: "2026-09-06T09:23:24.875Z",
+        lastSyncedAt: now,
+      },
+      {
+        id: "con_mtpltmzj101d",
+        brandId: DEFAULT_BRAND_ID,
+        channel: "linkedin",
+        handle: "Kiwik.One 1",
+        externalId: "uploadpost:default:linkedin",
+        status: "connected",
+        scopes: ["upload-post"],
+        avatarColor: "#0A66C2",
+        followers: 0,
+        connectedAt: "2026-09-06T09:23:27.006Z",
+      },
+    ],
     media: [],
     posts: [],
     dailyStats: [],

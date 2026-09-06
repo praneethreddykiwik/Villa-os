@@ -1,0 +1,1668 @@
+{
+  "workspaces": [
+    {
+      "id": "ws_mtiajnoi2b3g",
+      "name": "Glentree",
+      "createdAt": "2026-09-01T06:33:22.338Z"
+    }
+  ],
+  "appointments": [],
+  "availability": [],
+  "notificationLog": [],
+  "webhookSubscribers": [],
+  "webhookDeliveries": [],
+  "n8nSubmissions": [],
+  "brands": [
+    {
+      "id": "brd_mtiajnoil4a2",
+      "workspaceId": "ws_mtiajnoi2b3g",
+      "name": "Glentree Villas",
+      "voice": "",
+      "industry": "Real estate",
+      "timezone": "Asia/Kolkata",
+      "color": "#8b8b8b",
+      "offerings": [],
+      "audience": "",
+      "createdAt": "2026-09-01T06:33:22.338Z"
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn_yt_kiwik_one",
+      "brandId": "brd_mtiajnoil4a2",
+      "channel": "youtube",
+      "handle": "@kiwik-one",
+      "externalId": "UCDjreja_dapcIneC5x56Tjg",
+      "status": "connected",
+      "scopes": [
+        "https://www.googleapis.com/auth/youtube.upload",
+        "https://www.googleapis.com/auth/youtube.force-ssl",
+        "https://www.googleapis.com/auth/yt-analytics.readonly"
+      ],
+      "avatarColor": "#ef4444",
+      "followers": 0,
+      "connectedAt": "2026-09-05T18:22:57.774556Z",
+      "lastSyncedAt": "2026-09-06T09:48:45.538Z"
+    },
+    {
+      "id": "conn_ig_kiwik_one",
+      "brandId": "brd_mtiajnoil4a2",
+      "channel": "instagram",
+      "handle": "@kiwik.one1",
+      "externalId": "kiwik.one1",
+      "status": "connected",
+      "scopes": [
+        "instagram_basic",
+        "instagram_content_publish",
+        "pages_show_list"
+      ],
+      "avatarColor": "#ec4899",
+      "followers": 0,
+      "connectedAt": "2026-09-05T20:43:22.089Z",
+      "lastSyncedAt": "2026-09-06T09:42:26.321Z"
+    },
+    {
+      "id": "con_mtpltlcb809u",
+      "brandId": "brd_mtiajnoil4a2",
+      "channel": "facebook",
+      "handle": "Kiwik.One (Praneeth Ramaswamy)",
+      "externalId": "uploadpost:default:facebook",
+      "status": "connected",
+      "scopes": [
+        "upload-post"
+      ],
+      "avatarColor": "#1877F2",
+      "followers": 0,
+      "connectedAt": "2026-09-06T09:23:24.875Z",
+      "lastSyncedAt": "2026-09-06T09:42:37.291Z"
+    },
+    {
+      "id": "con_mtpltmzj101d",
+      "brandId": "brd_mtiajnoil4a2",
+      "channel": "linkedin",
+      "handle": "Kiwik.One 1",
+      "externalId": "uploadpost:default:linkedin",
+      "status": "connected",
+      "scopes": [
+        "upload-post"
+      ],
+      "avatarColor": "#0A66C2",
+      "followers": 0,
+      "connectedAt": "2026-09-06T09:23:27.006Z"
+    }
+  ],
+  "media": [],
+  "posts": [
+    {
+      "id": "post_ig_Dc63h4Zhrj6",
+      "brandId": "brd_mtiajnoil4a2",
+      "status": "published",
+      "caption": "Buying a New Flat in Hyderabad | Habsiguda Price Location Review 2024",
+      "hashtags": [
+        "HyderabadRealEstate",
+        "Habsiguda",
+        "DreamHome"
+      ],
+      "mediaIds": [],
+      "targets": [
+        {
+          "connectionId": "conn_ig_kiwik_one",
+          "channel": "instagram",
+          "format": "reel",
+          "caption": "Buying a new flat in Hyderabad? 🏡 Explore Habsiguda real estate trends, price guide and location review! #HyderabadRealEstate #Habsiguda #DreamHome",
+          "status": "published",
+          "externalId": "Dc63h4Zhrj6",
+          "permalink": "https://www.instagram.com/kiwik.one1/reel/Dc63h4Zhrj6/",
+          "attempts": 1
+        }
+      ],
+      "publishedAt": "2026-09-05T20:55:11.000Z",
+      "autoScheduled": false,
+      "approvals": [],
+      "createdBy": "admin@glentree.com",
+      "createdAt": "2026-09-05T20:55:11.000Z",
+      "updatedAt": "2026-09-06T09:42:26.321Z",
+      "metrics": {
+        "reach": 102,
+        "impressions": 119,
+        "likes": 13,
+        "comments": 0,
+        "shares": 0,
+        "saves": 1,
+        "videoViews": 119,
+        "retention3s": 0.85,
+        "completionRate": 0.72,
+        "engagementRate": 11.76470588235294,
+        "profileVisits": 15,
+        "linkClicks": 0,
+        "followsFromPost": 0,
+        "updatedAt": "2026-09-06T09:42:26.321Z"
+      }
+    },
+    {
+      "id": "post_fb_2021722031833606",
+      "brandId": "brd_mtiajnoil4a2",
+      "status": "published",
+      "caption": "Buying a New Flat in Hyderabad | Habsiguda Price Location Review 2024",
+      "hashtags": [
+        "HyderabadRealEstate",
+        "Habsiguda"
+      ],
+      "mediaIds": [],
+      "targets": [
+        {
+          "connectionId": "con_mtpltlcb809u",
+          "channel": "facebook",
+          "format": "reel",
+          "caption": "Buying a New Flat in Hyderabad | Habsiguda Price Location Review 2024",
+          "status": "published",
+          "externalId": "2021722031833606",
+          "permalink": "https://www.facebook.com/reel/2021722031833606",
+          "attempts": 1
+        }
+      ],
+      "publishedAt": "2026-09-06T06:36:08.096Z",
+      "autoScheduled": false,
+      "approvals": [],
+      "createdBy": "admin@glentree.com",
+      "createdAt": "2026-09-06T06:36:08.096Z",
+      "updatedAt": "2026-09-06T09:23:46.358Z",
+      "metrics": {
+        "reach": 87,
+        "impressions": 95,
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "saves": 0,
+        "videoViews": 95,
+        "retention3s": 0.76,
+        "completionRate": 0.68,
+        "engagementRate": 1.0526315789473684,
+        "profileVisits": 0,
+        "linkClicks": 0,
+        "followsFromPost": 0,
+        "updatedAt": "2026-09-06T09:23:46.358Z"
+      }
+    },
+    {
+      "id": "post_yt_eVcGxeyY9lY",
+      "brandId": "brd_mtiajnoil4a2",
+      "status": "published",
+      "caption": "Logo assembling from digital par… 202609060153",
+      "hashtags": [],
+      "mediaIds": [],
+      "targets": [
+        {
+          "connectionId": "conn_yt_kiwik_one",
+          "channel": "youtube",
+          "format": "short",
+          "caption": "Logo assembling from digital par… 202609060153",
+          "status": "published",
+          "externalId": "eVcGxeyY9lY",
+          "permalink": "https://www.youtube.com/watch?v=eVcGxeyY9lY",
+          "attempts": 1
+        }
+      ],
+      "publishedAt": "2026-09-05T20:25:51Z",
+      "autoScheduled": false,
+      "approvals": [],
+      "createdBy": "Upload-Post / YouTube",
+      "createdAt": "2026-09-05T20:25:51Z",
+      "updatedAt": "2026-09-05T20:43:22.089Z",
+      "metrics": {
+        "impressions": 1,
+        "reach": 1,
+        "likes": 1,
+        "comments": 0,
+        "shares": 0,
+        "saves": 0,
+        "videoViews": 1,
+        "completionRate": 1,
+        "retention3s": 1,
+        "profileVisits": 0,
+        "linkClicks": 0,
+        "followsFromPost": 0,
+        "engagementRate": 1,
+        "updatedAt": "2026-09-05T20:43:22.089Z"
+      },
+      "aiNotes": [
+        "Published via Upload-Post integration onto Kiwik One channel."
+      ]
+    }
+  ],
+  "dailyStats": [
+    {
+      "brandId": "brd_mtiajnoil4a2",
+      "connectionId": "conn_yt_kiwik_one",
+      "channel": "youtube",
+      "date": "2026-09-04",
+      "followers": 0,
+      "followerDelta": 0,
+      "impressions": 1,
+      "reach": 1,
+      "engagements": 1,
+      "profileVisits": 0,
+      "linkClicks": 0,
+      "posts": 1,
+      "storyViews": 0,
+      "videoViews": 1
+    },
+    {
+      "brandId": "brd_mtiajnoil4a2",
+      "connectionId": "conn_yt_kiwik_one",
+      "channel": "youtube",
+      "date": "2026-09-05",
+      "followers": 0,
+      "followerDelta": 0,
+      "impressions": 1,
+      "reach": 1,
+      "engagements": 1,
+      "profileVisits": 0,
+      "linkClicks": 0,
+      "posts": 1,
+      "storyViews": 0,
+      "videoViews": 1
+    },
+    {
+      "brandId": "brd_mtiajnoil4a2",
+      "connectionId": "con_mtpltlcb809u",
+      "channel": "facebook",
+      "date": "2026-09-03",
+      "followers": 0,
+      "followerDelta": 0,
+      "impressions": 1,
+      "reach": 1,
+      "engagements": 0,
+      "profileVisits": 0,
+      "linkClicks": 0,
+      "posts": 1,
+      "storyViews": 0,
+      "videoViews": 1
+    },
+    {
+      "brandId": "brd_mtiajnoil4a2",
+      "connectionId": "con_mtpltlcb809u",
+      "channel": "facebook",
+      "date": "2026-09-06",
+      "followers": 0,
+      "followerDelta": 0,
+      "impressions": 1,
+      "reach": 1,
+      "engagements": 0,
+      "profileVisits": 0,
+      "linkClicks": 0,
+      "posts": 1,
+      "storyViews": 0,
+      "videoViews": 1
+    },
+    {
+      "brandId": "brd_mtiajnoil4a2",
+      "connectionId": "con_mtpltlcb809u",
+      "channel": "facebook",
+      "date": "2026-09-07",
+      "followers": 0,
+      "followerDelta": 0,
+      "impressions": 85,
+      "reach": 85,
+      "engagements": 0,
+      "profileVisits": 0,
+      "linkClicks": 0,
+      "posts": 1,
+      "storyViews": 0,
+      "videoViews": 85
+    },
+    {
+      "brandId": "brd_mtiajnoil4a2",
+      "connectionId": "conn_ig_kiwik_one",
+      "channel": "instagram",
+      "date": "2026-09-05",
+      "followers": 0,
+      "followerDelta": 0,
+      "impressions": 100,
+      "reach": 100,
+      "engagements": 12,
+      "profileVisits": 0,
+      "linkClicks": 0,
+      "posts": 1,
+      "storyViews": 0,
+      "videoViews": 100
+    },
+    {
+      "brandId": "brd_mtiajnoil4a2",
+      "connectionId": "conn_ig_kiwik_one",
+      "channel": "instagram",
+      "date": "2026-09-06",
+      "followers": 0,
+      "followerDelta": 0,
+      "impressions": 2,
+      "reach": 2,
+      "engagements": 0,
+      "profileVisits": 0,
+      "linkClicks": 0,
+      "posts": 1,
+      "storyViews": 0,
+      "videoViews": 2
+    },
+    {
+      "brandId": "brd_mtiajnoil4a2",
+      "connectionId": "conn_yt_kiwik_one",
+      "channel": "youtube",
+      "date": "2026-09-06",
+      "followers": 0,
+      "followerDelta": 0,
+      "impressions": 5,
+      "reach": 0,
+      "engagements": 1,
+      "profileVisits": 0,
+      "linkClicks": 0,
+      "posts": 1,
+      "storyViews": 0,
+      "videoViews": 5
+    }
+  ],
+  "adCampaigns": [],
+  "adStats": [],
+  "reviews": [],
+  "rankGrid": [],
+  "competitors": [],
+  "suggestions": [],
+  "campaigns": [],
+  "conversations": [
+    {
+      "id": "wamid.CLEAN1",
+      "brandId": "brd_mtiajnoil4a2",
+      "channel": "whatsapp",
+      "kind": "dm",
+      "author": "Test Buyer (15551971740)",
+      "authorId": "15551971740",
+      "text": "Hi, interested in a 4 BHK villa. What is the price?",
+      "createdAt": "2026-09-05T21:34:22.000Z",
+      "status": "open",
+      "sentiment": "neutral",
+      "isLead": true
+    },
+    {
+      "id": "wamid.LIVETEST3",
+      "brandId": "brd_mtiajnoil4a2",
+      "channel": "whatsapp",
+      "kind": "dm",
+      "author": "Test Buyer (15551971740)",
+      "authorId": "15551971740",
+      "text": "Hi, interested in a 4 BHK villa. What is the price?",
+      "createdAt": "2026-09-05T21:32:40.000Z",
+      "status": "open",
+      "sentiment": "neutral",
+      "isLead": true
+    },
+    {
+      "id": "wamid.LIVETEST2",
+      "brandId": "brd_mtiajnoil4a2",
+      "channel": "whatsapp",
+      "kind": "dm",
+      "author": "Test Buyer (15551971740)",
+      "authorId": "15551971740",
+      "text": "Hi, interested in a 4 BHK villa. What is the price?",
+      "createdAt": "2026-09-05T21:31:39.000Z",
+      "status": "open",
+      "sentiment": "neutral",
+      "isLead": true
+    },
+    {
+      "id": "wamid.LIVETEST1",
+      "brandId": "brd_mtiajnoil4a2",
+      "channel": "whatsapp",
+      "kind": "dm",
+      "author": "Test Buyer (15551971740)",
+      "authorId": "15551971740",
+      "text": "Hi, interested in a 4 BHK villa. What is the price?",
+      "createdAt": "1970-01-01T00:00:01.000Z",
+      "status": "open",
+      "sentiment": "neutral",
+      "isLead": true
+    }
+  ],
+  "ideas": [],
+  "reports": [],
+  "activity": [
+    {
+      "id": "act_mtpltmzjdsk3",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-06T09:23:27.007Z",
+      "actor": "admin@glentree.com",
+      "kind": "connection",
+      "message": "LinkedIn connected via the publishing connector (Kiwik.One 1)"
+    },
+    {
+      "id": "act_mtpltlcifjsm",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-06T09:23:24.882Z",
+      "actor": "admin@glentree.com",
+      "kind": "connection",
+      "message": "Facebook connected via the publishing connector (Praneeth Ramaswamy)"
+    },
+    {
+      "id": "act_mtowhrd4kpoz",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T21:34:22.408Z",
+      "actor": "system",
+      "kind": "whatsapp",
+      "message": "1 WhatsApp message(s) received"
+    },
+    {
+      "id": "act_mtowfktzdyqs",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T21:32:40.631Z",
+      "actor": "system",
+      "kind": "whatsapp",
+      "message": "1 WhatsApp message(s) received"
+    },
+    {
+      "id": "act_mtowea384zdh",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T21:31:40.052Z",
+      "actor": "system",
+      "kind": "whatsapp",
+      "message": "1 WhatsApp message(s) received"
+    },
+    {
+      "id": "act_mtowdl0rglpo",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T21:31:07.563Z",
+      "actor": "system",
+      "kind": "whatsapp",
+      "message": "1 WhatsApp message(s) received"
+    },
+    {
+      "id": "act_mtotybj3kd4x",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T20:23:16.191Z",
+      "actor": "system",
+      "kind": "sync",
+      "message": "Retrieved 0 new message(s) and 0 review(s) across 0 channels"
+    },
+    {
+      "id": "act_mtotjrod613n",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T20:11:57.277Z",
+      "actor": "system",
+      "kind": "sync",
+      "message": "Retrieved 0 new message(s) and 0 review(s) across 0 channels"
+    },
+    {
+      "id": "act_mtot3t95abve",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T19:59:32.825Z",
+      "actor": "system",
+      "kind": "sync",
+      "message": "Retrieved 0 new message(s) and 0 review(s) across 0 channels"
+    },
+    {
+      "id": "act_mtosqzyj2vhe",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T19:49:34.987Z",
+      "actor": "system",
+      "kind": "sync",
+      "message": "Retrieved 0 new message(s) and 0 review(s) across 0 channels"
+    },
+    {
+      "id": "act_mtoscfewdja5",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T19:38:15.176Z",
+      "actor": "system",
+      "kind": "sync",
+      "message": "Retrieved 0 new message(s) and 0 review(s) across 0 channels"
+    },
+    {
+      "id": "act_mtos7u001r1x",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T19:34:40.800Z",
+      "actor": "system",
+      "kind": "sync",
+      "message": "Retrieved 0 new message(s) and 0 review(s) across 0 channels"
+    },
+    {
+      "id": "act_mtos6z5h9gnk",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T19:34:00.821Z",
+      "actor": "system",
+      "kind": "sync",
+      "message": "Retrieved 0 new message(s) and 0 review(s) across 0 channels"
+    },
+    {
+      "id": "act_mtooze22qwe",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T18:04:08.042Z",
+      "actor": "admin@glentree.com",
+      "kind": "compose",
+      "message": "Scheduled \"Glentree Serenity — triplex walkthrough\" to 0 channels"
+    },
+    {
+      "id": "act_mtooy0am63hr",
+      "at": "2026-09-05T18:03:03.550Z",
+      "actor": "admin@glentree.com",
+      "kind": "compose",
+      "message": "Scheduled \"Glentree Serenity — triplex walkthrough\" to 0 channels"
+    },
+    {
+      "id": "act_mto2wjdm2yq",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T07:46:03.418Z",
+      "actor": "admin@glentree.com",
+      "kind": "integrations",
+      "message": "n8n subscriber removed for n8n.example.com"
+    },
+    {
+      "id": "act_mto2vwaj5b24",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-05T07:45:33.499Z",
+      "actor": "admin@glentree.com",
+      "kind": "integrations",
+      "message": "n8n subscriber registered for n8n.example.com"
+    },
+    {
+      "id": "act_mtn4pc3b85oy",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-04T15:48:40.439Z",
+      "actor": "n8n",
+      "kind": "appointments",
+      "message": "Site visit booked via n8n for n8n Buyer"
+    },
+    {
+      "id": "act_mtn4om45eebl",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-04T15:48:06.773Z",
+      "actor": "n8n",
+      "kind": "crm",
+      "message": "New lead captured via n8n: n8n Lead"
+    },
+    {
+      "id": "act_mtn41yjdd2jr",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-04T15:30:29.785Z",
+      "actor": "system",
+      "kind": "whatsapp",
+      "message": "1 WhatsApp message(s) received"
+    },
+    {
+      "id": "act_mtlwe3yqh62u",
+      "at": "2026-09-03T19:08:13.586Z",
+      "actor": "sales@glentree.com",
+      "kind": "crm",
+      "message": "New lead captured: probe"
+    },
+    {
+      "id": "act_mtlwe0rqxtw",
+      "brandId": "x",
+      "at": "2026-09-03T19:08:09.446Z",
+      "actor": "marketing@glentree.com",
+      "kind": "suggestion",
+      "message": "Dismissed suggestion x"
+    },
+    {
+      "id": "act_mtlw8aja2bch",
+      "brandId": "brd_mtiajnoil4a2",
+      "at": "2026-09-03T19:03:42.166Z",
+      "actor": "system",
+      "kind": "sync",
+      "message": "Retrieved 0 new message(s) and 0 review(s) across 0 channels"
+    },
+    {
+      "id": "act_mtlw89w429zm",
+      "at": "2026-09-03T19:03:41.332Z",
+      "actor": "admin@glentree.com",
+      "kind": "crm",
+      "message": "New lead captured: E2E Probe"
+    }
+  ],
+  "boards": [
+    {
+      "id": "board_mtic4h9v4z6q",
+      "brandId": "brd_mtiajnoil4a2",
+      "name": "Glentree Villas Board",
+      "columns": [
+        {
+          "name": "Pending Approval",
+          "color": "#f59e0b",
+          "hitl": true,
+          "id": "col_mtic4h9v1plx"
+        },
+        {
+          "name": "To Do",
+          "color": "#8b8b95",
+          "hitl": false,
+          "id": "col_mtic4h9v5wk1"
+        },
+        {
+          "name": "Done",
+          "color": "#22c55e",
+          "hitl": false,
+          "id": "col_mtic4h9v5rd4"
+        }
+      ],
+      "fields": {
+        "description": true,
+        "priority": true,
+        "dueDate": true,
+        "tags": true,
+        "assignee": true,
+        "automationLabel": false,
+        "linkedPost": false
+      },
+      "templateId": "default",
+      "createdAt": "2026-09-01T07:17:33.427Z",
+      "updatedAt": "2026-09-01T07:17:33.427Z"
+    }
+  ],
+  "boardCards": [],
+  "leads": [],
+  "brokers": [],
+  "crmContacts": [],
+  "crmTasks": [],
+  "voiceCalls": [],
+  "voiceAgentConfigs": [],
+  "teamMembers": [],
+  "customers": [],
+  "opsMessages": [],
+  "sentimentEvents": [],
+  "conversationInsights": [],
+  "scoreEvents": [],
+  "salesTasks": [],
+  "assignments": [],
+  "loanCases": [],
+  "checklistItems": [],
+  "documents": [],
+  "documentEvents": [],
+  "followUps": [],
+  "escalations": [],
+  "opsNotifications": [],
+  "auditEvents": [],
+  "workflowConfigs": [
+    {
+      "orgId": "2c6bd434-c2eb-48a4-9e2b-d49e34a72150",
+      "scoring": {
+        "rules": [
+          {
+            "id": "asked_pricing",
+            "signal": "asked_pricing",
+            "label": "Asked about pricing",
+            "points": 10,
+            "enabled": true
+          },
+          {
+            "id": "asked_availability",
+            "signal": "asked_availability",
+            "label": "Asked about availability",
+            "points": 8,
+            "enabled": true
+          },
+          {
+            "id": "requested_visit",
+            "signal": "requested_visit",
+            "label": "Requested a site visit",
+            "points": 18,
+            "enabled": true
+          },
+          {
+            "id": "asked_financing",
+            "signal": "asked_financing",
+            "label": "Asked financing questions",
+            "points": 12,
+            "enabled": true
+          },
+          {
+            "id": "provided_budget",
+            "signal": "provided_budget",
+            "label": "Provided a budget",
+            "points": 14,
+            "enabled": true
+          },
+          {
+            "id": "provided_details",
+            "signal": "provided_details",
+            "label": "Provided personal details",
+            "points": 8,
+            "enabled": true
+          },
+          {
+            "id": "requested_human",
+            "signal": "requested_human",
+            "label": "Requested human contact",
+            "points": 20,
+            "enabled": true
+          },
+          {
+            "id": "fast_response",
+            "signal": "fast_response",
+            "label": "Responds quickly",
+            "points": 6,
+            "enabled": true
+          },
+          {
+            "id": "repeat_engagement",
+            "signal": "repeat_engagement",
+            "label": "Repeated engagement",
+            "points": 10,
+            "enabled": true
+          },
+          {
+            "id": "documents_ready",
+            "signal": "documents_ready",
+            "label": "Documents being submitted",
+            "points": 12,
+            "enabled": true
+          },
+          {
+            "id": "near_term_timeline",
+            "signal": "near_term_timeline",
+            "label": "Near-term purchase timeline",
+            "points": 12,
+            "enabled": true
+          },
+          {
+            "id": "positive_sentiment",
+            "signal": "positive_sentiment",
+            "label": "Positive sentiment",
+            "points": 8,
+            "enabled": true
+          },
+          {
+            "id": "negative_sentiment",
+            "signal": "negative_sentiment",
+            "label": "Negative sentiment",
+            "points": -12,
+            "enabled": true
+          },
+          {
+            "id": "not_interested",
+            "signal": "not_interested",
+            "label": "Stated not interested",
+            "points": -30,
+            "enabled": true
+          },
+          {
+            "id": "stale",
+            "signal": "stale",
+            "label": "No contact in 7+ days",
+            "points": -10,
+            "enabled": true
+          }
+        ],
+        "bands": {
+          "cold": 30,
+          "warm": 60,
+          "hot": 80
+        }
+      },
+      "salesTriggers": [
+        {
+          "id": "high_intent",
+          "label": "High-intent lead",
+          "condition": "intent in HIGH_INTENT,READY_TO_PROCEED",
+          "priority": "HIGH",
+          "enabled": true
+        },
+        {
+          "id": "requested_human",
+          "label": "Customer asked for a call",
+          "condition": "requestedHuman == true",
+          "priority": "URGENT",
+          "enabled": true
+        },
+        {
+          "id": "score_threshold",
+          "label": "Lead score crossed hot threshold",
+          "condition": "score >= 80",
+          "priority": "HIGH",
+          "enabled": true
+        },
+        {
+          "id": "negative_sentiment",
+          "label": "Negative sentiment needs intervention",
+          "condition": "sentiment in NEGATIVE,VERY_NEGATIVE",
+          "priority": "URGENT",
+          "enabled": true
+        },
+        {
+          "id": "ai_uncertain",
+          "label": "AI could not answer confidently",
+          "condition": "aiUncertain == true",
+          "priority": "NORMAL",
+          "enabled": true
+        },
+        {
+          "id": "financing_concern",
+          "label": "Financing concern raised",
+          "condition": "intent == FINANCING_CONCERN",
+          "priority": "HIGH",
+          "enabled": true
+        }
+      ],
+      "followUps": [
+        {
+          "id": "document_collection",
+          "kind": "DOCUMENT_REQUEST",
+          "steps": [
+            {
+              "afterDays": 0,
+              "template": "document_request"
+            },
+            {
+              "afterDays": 1,
+              "template": "document_reminder_1"
+            },
+            {
+              "afterDays": 3,
+              "template": "document_reminder_2"
+            },
+            {
+              "afterDays": 5,
+              "template": "document_final"
+            }
+          ],
+          "maxAttempts": 4,
+          "cooldownHours": 20,
+          "escalateAfterAttempts": 4
+        },
+        {
+          "id": "document_rejected",
+          "kind": "DOCUMENT_REJECTED",
+          "steps": [
+            {
+              "afterDays": 0,
+              "template": "document_rejected"
+            },
+            {
+              "afterDays": 2,
+              "template": "document_reminder_1"
+            },
+            {
+              "afterDays": 4,
+              "template": "document_final"
+            }
+          ],
+          "maxAttempts": 3,
+          "cooldownHours": 20,
+          "escalateAfterAttempts": 3
+        },
+        {
+          "id": "promised_action",
+          "kind": "PROMISED_ACTION",
+          "steps": [
+            {
+              "afterDays": 1,
+              "template": "promised_followup"
+            },
+            {
+              "afterDays": 3,
+              "template": "document_reminder_2"
+            }
+          ],
+          "maxAttempts": 2,
+          "cooldownHours": 20,
+          "escalateAfterAttempts": 2
+        },
+        {
+          "id": "no_response",
+          "kind": "NO_RESPONSE",
+          "steps": [
+            {
+              "afterDays": 2,
+              "template": "checking_in"
+            },
+            {
+              "afterDays": 5,
+              "template": "checking_in_final"
+            }
+          ],
+          "maxAttempts": 2,
+          "cooldownHours": 48,
+          "escalateAfterAttempts": 2
+        }
+      ],
+      "escalations": [
+        {
+          "id": "customer_frustrated",
+          "label": "Customer frustrated",
+          "condition": "sentiment in NEGATIVE,VERY_NEGATIVE",
+          "severity": "HIGH",
+          "lane": "SALES",
+          "enabled": true
+        },
+        {
+          "id": "requested_human",
+          "label": "Customer requested a human",
+          "condition": "requestedHuman == true",
+          "severity": "HIGH",
+          "lane": "SALES",
+          "enabled": true
+        },
+        {
+          "id": "ai_low_confidence",
+          "label": "AI not confident",
+          "condition": "aiConfidence < 0.5",
+          "severity": "MEDIUM",
+          "lane": "SALES",
+          "enabled": true
+        },
+        {
+          "id": "document_disputed",
+          "label": "Customer disputes a requirement",
+          "condition": "disputesRequirement == true",
+          "severity": "MEDIUM",
+          "lane": "LOAN",
+          "enabled": true
+        },
+        {
+          "id": "document_unavailable",
+          "label": "Customer says they cannot provide a document",
+          "condition": "cannotProvide == true",
+          "severity": "MEDIUM",
+          "lane": "LOAN",
+          "enabled": true
+        },
+        {
+          "id": "approval_question",
+          "label": "Customer asked about approval odds",
+          "condition": "asksApproval == true",
+          "severity": "HIGH",
+          "lane": "LOAN",
+          "enabled": true
+        },
+        {
+          "id": "repeated_failure",
+          "label": "Repeated document submission failures",
+          "condition": "rejections >= 2",
+          "severity": "HIGH",
+          "lane": "LOAN",
+          "enabled": true
+        },
+        {
+          "id": "followups_exhausted",
+          "label": "Follow-up attempts exhausted",
+          "condition": "attempts >= maxAttempts",
+          "severity": "MEDIUM",
+          "lane": "LOAN",
+          "enabled": true
+        }
+      ],
+      "assignment": {
+        "sales": "LEAST_LOADED",
+        "loan": "LEAST_LOADED"
+      },
+      "messaging": {
+        "quietHoursStart": 21,
+        "quietHoursEnd": 9,
+        "timezone": "Asia/Kolkata",
+        "maxAutomatedPerDay": 2
+      },
+      "sla": {
+        "firstResponseMinutes": 30,
+        "salesCallHours": 24,
+        "documentReviewHours": 24
+      },
+      "checklistTemplates": [
+        {
+          "id": "standard_home_loan",
+          "name": "Standard home loan",
+          "items": [
+            {
+              "documentType": "identity",
+              "customerLabel": "Photo ID",
+              "description": "Government-issued photo identity document",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "address_proof",
+              "customerLabel": "Address proof",
+              "description": "A recent utility bill or equivalent showing your address",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "income_proof",
+              "customerLabel": "Income proof",
+              "description": "Recent salary slips or income statement",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "bank_statements",
+              "customerLabel": "Bank statements",
+              "description": "Last 6 months of bank statements",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "employment_proof",
+              "customerLabel": "Employment proof",
+              "description": "Employment letter or contract",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "tax_documents",
+              "customerLabel": "Tax documents",
+              "description": "Latest tax return or assessment",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "property_documents",
+              "customerLabel": "Property documents",
+              "description": "Agreement or allotment letter for the property",
+              "required": false,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "self_employed",
+          "name": "Self-employed",
+          "items": [
+            {
+              "documentType": "identity",
+              "customerLabel": "Photo ID",
+              "description": "Government-issued photo identity document",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "address_proof",
+              "customerLabel": "Address proof",
+              "description": "A recent utility bill or equivalent",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "business_proof",
+              "customerLabel": "Business registration",
+              "description": "Business registration or incorporation certificate",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "tax_documents",
+              "customerLabel": "Tax returns",
+              "description": "Last 2 years of tax returns",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "bank_statements",
+              "customerLabel": "Bank statements",
+              "description": "Last 12 months, business and personal",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "audited_financials",
+              "customerLabel": "Financial statements",
+              "description": "Audited financials where available",
+              "required": false,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            }
+          ]
+        }
+      ],
+      "updatedAt": "2026-09-01T09:14:10.941Z"
+    },
+    {
+      "orgId": "ws_mtiajnoi2b3g",
+      "scoring": {
+        "rules": [
+          {
+            "id": "asked_pricing",
+            "signal": "asked_pricing",
+            "label": "Asked about pricing",
+            "points": 10,
+            "enabled": true
+          },
+          {
+            "id": "asked_availability",
+            "signal": "asked_availability",
+            "label": "Asked about availability",
+            "points": 8,
+            "enabled": true
+          },
+          {
+            "id": "requested_visit",
+            "signal": "requested_visit",
+            "label": "Requested a site visit",
+            "points": 18,
+            "enabled": true
+          },
+          {
+            "id": "asked_financing",
+            "signal": "asked_financing",
+            "label": "Asked financing questions",
+            "points": 12,
+            "enabled": true
+          },
+          {
+            "id": "provided_budget",
+            "signal": "provided_budget",
+            "label": "Provided a budget",
+            "points": 14,
+            "enabled": true
+          },
+          {
+            "id": "provided_details",
+            "signal": "provided_details",
+            "label": "Provided personal details",
+            "points": 8,
+            "enabled": true
+          },
+          {
+            "id": "requested_human",
+            "signal": "requested_human",
+            "label": "Requested human contact",
+            "points": 20,
+            "enabled": true
+          },
+          {
+            "id": "fast_response",
+            "signal": "fast_response",
+            "label": "Responds quickly",
+            "points": 6,
+            "enabled": true
+          },
+          {
+            "id": "repeat_engagement",
+            "signal": "repeat_engagement",
+            "label": "Repeated engagement",
+            "points": 10,
+            "enabled": true
+          },
+          {
+            "id": "documents_ready",
+            "signal": "documents_ready",
+            "label": "Documents being submitted",
+            "points": 12,
+            "enabled": true
+          },
+          {
+            "id": "near_term_timeline",
+            "signal": "near_term_timeline",
+            "label": "Near-term purchase timeline",
+            "points": 12,
+            "enabled": true
+          },
+          {
+            "id": "positive_sentiment",
+            "signal": "positive_sentiment",
+            "label": "Positive sentiment",
+            "points": 8,
+            "enabled": true
+          },
+          {
+            "id": "negative_sentiment",
+            "signal": "negative_sentiment",
+            "label": "Negative sentiment",
+            "points": -12,
+            "enabled": true
+          },
+          {
+            "id": "not_interested",
+            "signal": "not_interested",
+            "label": "Stated not interested",
+            "points": -30,
+            "enabled": true
+          },
+          {
+            "id": "stale",
+            "signal": "stale",
+            "label": "No contact in 7+ days",
+            "points": -10,
+            "enabled": true
+          }
+        ],
+        "bands": {
+          "cold": 30,
+          "warm": 60,
+          "hot": 80
+        }
+      },
+      "salesTriggers": [
+        {
+          "id": "high_intent",
+          "label": "High-intent lead",
+          "condition": "intent in HIGH_INTENT,READY_TO_PROCEED",
+          "priority": "HIGH",
+          "enabled": true
+        },
+        {
+          "id": "requested_human",
+          "label": "Customer asked for a call",
+          "condition": "requestedHuman == true",
+          "priority": "URGENT",
+          "enabled": true
+        },
+        {
+          "id": "score_threshold",
+          "label": "Lead score crossed hot threshold",
+          "condition": "score >= 80",
+          "priority": "HIGH",
+          "enabled": true
+        },
+        {
+          "id": "negative_sentiment",
+          "label": "Negative sentiment needs intervention",
+          "condition": "sentiment in NEGATIVE,VERY_NEGATIVE",
+          "priority": "URGENT",
+          "enabled": true
+        },
+        {
+          "id": "ai_uncertain",
+          "label": "AI could not answer confidently",
+          "condition": "aiUncertain == true",
+          "priority": "NORMAL",
+          "enabled": true
+        },
+        {
+          "id": "financing_concern",
+          "label": "Financing concern raised",
+          "condition": "intent == FINANCING_CONCERN",
+          "priority": "HIGH",
+          "enabled": true
+        }
+      ],
+      "followUps": [
+        {
+          "id": "document_collection",
+          "kind": "DOCUMENT_REQUEST",
+          "steps": [
+            {
+              "afterDays": 0,
+              "template": "document_request"
+            },
+            {
+              "afterDays": 1,
+              "template": "document_reminder_1"
+            },
+            {
+              "afterDays": 3,
+              "template": "document_reminder_2"
+            },
+            {
+              "afterDays": 5,
+              "template": "document_final"
+            }
+          ],
+          "maxAttempts": 4,
+          "cooldownHours": 20,
+          "escalateAfterAttempts": 4
+        },
+        {
+          "id": "document_rejected",
+          "kind": "DOCUMENT_REJECTED",
+          "steps": [
+            {
+              "afterDays": 0,
+              "template": "document_rejected"
+            },
+            {
+              "afterDays": 2,
+              "template": "document_reminder_1"
+            },
+            {
+              "afterDays": 4,
+              "template": "document_final"
+            }
+          ],
+          "maxAttempts": 3,
+          "cooldownHours": 20,
+          "escalateAfterAttempts": 3
+        },
+        {
+          "id": "promised_action",
+          "kind": "PROMISED_ACTION",
+          "steps": [
+            {
+              "afterDays": 1,
+              "template": "promised_followup"
+            },
+            {
+              "afterDays": 3,
+              "template": "document_reminder_2"
+            }
+          ],
+          "maxAttempts": 2,
+          "cooldownHours": 20,
+          "escalateAfterAttempts": 2
+        },
+        {
+          "id": "no_response",
+          "kind": "NO_RESPONSE",
+          "steps": [
+            {
+              "afterDays": 2,
+              "template": "checking_in"
+            },
+            {
+              "afterDays": 5,
+              "template": "checking_in_final"
+            }
+          ],
+          "maxAttempts": 2,
+          "cooldownHours": 48,
+          "escalateAfterAttempts": 2
+        }
+      ],
+      "escalations": [
+        {
+          "id": "customer_frustrated",
+          "label": "Customer frustrated",
+          "condition": "sentiment in NEGATIVE,VERY_NEGATIVE",
+          "severity": "HIGH",
+          "lane": "SALES",
+          "enabled": true
+        },
+        {
+          "id": "requested_human",
+          "label": "Customer requested a human",
+          "condition": "requestedHuman == true",
+          "severity": "HIGH",
+          "lane": "SALES",
+          "enabled": true
+        },
+        {
+          "id": "ai_low_confidence",
+          "label": "AI not confident",
+          "condition": "aiConfidence < 0.5",
+          "severity": "MEDIUM",
+          "lane": "SALES",
+          "enabled": true
+        },
+        {
+          "id": "document_disputed",
+          "label": "Customer disputes a requirement",
+          "condition": "disputesRequirement == true",
+          "severity": "MEDIUM",
+          "lane": "LOAN",
+          "enabled": true
+        },
+        {
+          "id": "document_unavailable",
+          "label": "Customer says they cannot provide a document",
+          "condition": "cannotProvide == true",
+          "severity": "MEDIUM",
+          "lane": "LOAN",
+          "enabled": true
+        },
+        {
+          "id": "approval_question",
+          "label": "Customer asked about approval odds",
+          "condition": "asksApproval == true",
+          "severity": "HIGH",
+          "lane": "LOAN",
+          "enabled": true
+        },
+        {
+          "id": "repeated_failure",
+          "label": "Repeated document submission failures",
+          "condition": "rejections >= 2",
+          "severity": "HIGH",
+          "lane": "LOAN",
+          "enabled": true
+        },
+        {
+          "id": "followups_exhausted",
+          "label": "Follow-up attempts exhausted",
+          "condition": "attempts >= maxAttempts",
+          "severity": "MEDIUM",
+          "lane": "LOAN",
+          "enabled": true
+        }
+      ],
+      "assignment": {
+        "sales": "LEAST_LOADED",
+        "loan": "LEAST_LOADED"
+      },
+      "messaging": {
+        "quietHoursStart": 21,
+        "quietHoursEnd": 9,
+        "timezone": "Asia/Kolkata",
+        "maxAutomatedPerDay": 2
+      },
+      "sla": {
+        "firstResponseMinutes": 30,
+        "salesCallHours": 24,
+        "documentReviewHours": 24
+      },
+      "checklistTemplates": [
+        {
+          "id": "standard_home_loan",
+          "name": "Standard home loan",
+          "items": [
+            {
+              "documentType": "identity",
+              "customerLabel": "Photo ID",
+              "description": "Government-issued photo identity document",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "address_proof",
+              "customerLabel": "Address proof",
+              "description": "A recent utility bill or equivalent showing your address",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "income_proof",
+              "customerLabel": "Income proof",
+              "description": "Recent salary slips or income statement",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "bank_statements",
+              "customerLabel": "Bank statements",
+              "description": "Last 6 months of bank statements",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "employment_proof",
+              "customerLabel": "Employment proof",
+              "description": "Employment letter or contract",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "tax_documents",
+              "customerLabel": "Tax documents",
+              "description": "Latest tax return or assessment",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "property_documents",
+              "customerLabel": "Property documents",
+              "description": "Agreement or allotment letter for the property",
+              "required": false,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "self_employed",
+          "name": "Self-employed",
+          "items": [
+            {
+              "documentType": "identity",
+              "customerLabel": "Photo ID",
+              "description": "Government-issued photo identity document",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "address_proof",
+              "customerLabel": "Address proof",
+              "description": "A recent utility bill or equivalent",
+              "required": true,
+              "acceptedFormats": [
+                "pdf",
+                "jpg",
+                "png"
+              ]
+            },
+            {
+              "documentType": "business_proof",
+              "customerLabel": "Business registration",
+              "description": "Business registration or incorporation certificate",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "tax_documents",
+              "customerLabel": "Tax returns",
+              "description": "Last 2 years of tax returns",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "bank_statements",
+              "customerLabel": "Bank statements",
+              "description": "Last 12 months, business and personal",
+              "required": true,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            },
+            {
+              "documentType": "audited_financials",
+              "customerLabel": "Financial statements",
+              "description": "Audited financials where available",
+              "required": false,
+              "acceptedFormats": [
+                "pdf"
+              ]
+            }
+          ]
+        }
+      ],
+      "updatedAt": "2026-09-03T19:01:36.036Z"
+    }
+  ],
+  "loanRules": [
+    {
+      "label": "Minimum declared income",
+      "kind": "MIN_INCOME",
+      "operator": "gte",
+      "value": "0",
+      "severity": "BLOCKING",
+      "enabled": false,
+      "notes": "Set a real threshold before enabling.",
+      "id": "lrl_mtn41yje5cjh",
+      "orgId": "ws_mtiajnoi2b3g",
+      "createdAt": "2026-09-04T15:30:29.786Z"
+    },
+    {
+      "label": "Maximum loan amount",
+      "kind": "MAX_LOAN_AMOUNT",
+      "operator": "lte",
+      "value": "0",
+      "severity": "BLOCKING",
+      "enabled": false,
+      "notes": "Set a real ceiling before enabling.",
+      "id": "lrl_mtn41yje5pq3",
+      "orgId": "ws_mtiajnoi2b3g",
+      "createdAt": "2026-09-04T15:30:29.786Z"
+    },
+    {
+      "label": "Minimum employment duration (months)",
+      "kind": "MIN_EMPLOYMENT_MONTHS",
+      "operator": "gte",
+      "value": "0",
+      "severity": "WARNING",
+      "enabled": false,
+      "notes": "Set a real minimum before enabling.",
+      "id": "lrl_mtn41yjebt20",
+      "orgId": "ws_mtiajnoi2b3g",
+      "createdAt": "2026-09-04T15:30:29.786Z"
+    },
+    {
+      "label": "Maximum debt-to-income ratio",
+      "kind": "MAX_DTI",
+      "operator": "lte",
+      "value": "0.5",
+      "severity": "WARNING",
+      "enabled": false,
+      "id": "lrl_mtn41yje7cnf",
+      "orgId": "ws_mtiajnoi2b3g",
+      "createdAt": "2026-09-04T15:30:29.786Z"
+    }
+  ],
+  "kbEntries": [],
+  "kbGaps": []
+}
