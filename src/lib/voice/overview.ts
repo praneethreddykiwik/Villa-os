@@ -107,7 +107,12 @@ export async function loadVoiceOverview(
   }
 
   const connected = isConfigured();
-  const problems = connected ? await backfill(brandId) : [];
+  const [problems, [status, account]] = await Promise.all([
+    connected ? backfill(brandId).catch(() => [] as string[]) : Promise.resolve<string[]>([]),
+    opts.diagnostics && connected
+      ? Promise.all([checkBolnaStatus().catch(() => null), getAccount().catch(() => null)])
+      : Promise.resolve([null, null] as const),
+  ]);
 
   const db = read();
   const since = Date.now() - opts.days * 86_400_000;
@@ -152,7 +157,6 @@ export async function loadVoiceOverview(
   };
 
   if (opts.diagnostics) {
-    const [status, account] = connected ? await Promise.all([checkBolnaStatus(), getAccount()]) : [null, null];
     const spend = db.voiceCalls
       .filter((c) => c.brandId === brandId && c.cost !== null)
       .reduce((s, c) => s + (c.cost ?? 0), 0);
