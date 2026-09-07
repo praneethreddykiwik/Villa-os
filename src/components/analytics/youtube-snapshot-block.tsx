@@ -20,7 +20,7 @@ function Ring({
   const pct = max > 0 ? Math.min(1, value / max) : 0;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeWidth} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--s-border)" strokeWidth={strokeWidth} />
       <circle
         cx={size / 2} cy={size / 2} r={r}
         fill="none"
@@ -136,7 +136,7 @@ export function YouTubeSnapshotBlock({ brandId }: { brandId: string }) {
 
 function YTStat({ label, value, icon: Icon, color }: { label: string; value: string; icon: typeof Eye; color: string }) {
   return (
-    <div className="flex flex-col items-start gap-1 rounded-xl border border-ink-800 bg-ink-900/40 p-3">
+    <div className="flex flex-col items-start gap-1 rounded-xl border border-ink-700/60 bg-ink-900/40 p-3">
       <div className="flex items-center gap-1.5">
         <Icon size={12} className={color} />
         <span className="text-[9.5px] font-semibold uppercase tracking-wider text-mist-500">{label}</span>

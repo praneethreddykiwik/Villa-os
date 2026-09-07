@@ -208,13 +208,13 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
   return (
     <div className="space-y-6">
       {/* 1. TOP CARD: Total Reach/Views 30-Day Line Chart */}
-      <div className="relative overflow-hidden rounded-2xl border border-ink-800 bg-[#0d1222]/90 p-6 shadow-2xl backdrop-blur">
+      <div className="card relative overflow-hidden p-6 shadow-md transition-all">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-[15px] font-semibold text-mist-100">Total Reach / Views</h2>
-              <span className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10.5px] font-medium text-emerald-400">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              <span className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
                 Live synced
               </span>
             </div>
@@ -255,18 +255,18 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                     <stop offset="95%" stopColor="#818cf8" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f293d" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--s-border)" />
                 <XAxis
                   dataKey="formattedDate"
                   tickLine={false}
-                  axisLine={{ stroke: "#243049" }}
-                  tick={{ fill: "#64748b", fontSize: 10.5 }}
+                  axisLine={{ stroke: "var(--s-border)" }}
+                  tick={{ fill: "var(--t-muted)", fontSize: 10.5 }}
                   interval={3}
                 />
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: "#64748b", fontSize: 10.5 }}
+                  tick={{ fill: "var(--t-muted)", fontSize: 10.5 }}
                   domain={[0, "auto"]}
                 />
                 <Tooltip
@@ -274,11 +274,11 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                     if (!active || !payload?.length) return null;
                     const p = payload[0].payload;
                     return (
-                      <div className="rounded-xl border border-indigo-500/30 bg-[#0f172a]/95 px-3.5 py-2.5 shadow-2xl backdrop-blur">
+                      <div className="rounded-xl border border-ink-600 bg-ink-850/95 px-3.5 py-2.5 shadow-xl backdrop-blur">
                         <p className="text-[11px] font-medium text-mist-400">{p.date}</p>
                         <div className="mt-1 flex items-center justify-between gap-4 text-[12px]">
-                          <span className="flex items-center gap-1.5 text-indigo-400">
-                            <span className="h-2 w-2 rounded-full bg-indigo-400" /> Total Reach/Views:
+                          <span className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
+                            <span className="h-2 w-2 rounded-full bg-indigo-500" /> Total Reach/Views:
                           </span>
                           <span className="font-bold text-mist-100">{p.total}</span>
                         </div>
@@ -306,9 +306,9 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
       </div>
 
       {/* 2. PLATFORM PERFORMANCE SECTION matching user's Image 1 & 2 */}
-      <div className="overflow-hidden rounded-2xl border border-ink-800 bg-[#0b0f1d] shadow-2xl">
+      <div className="card overflow-hidden p-0 shadow-md transition-all">
         {/* Profile and platform header */}
-        <div className="border-b border-ink-800/80 p-5">
+        <div className="border-b border-ink-700/60 p-5">
           <div className="flex items-center gap-2">
             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white">
               <CheckCircle2 size={13} className="text-white" />
@@ -329,11 +329,11 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
               }}
               className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[12px] font-medium transition-all ${
                 activePlatform === "instagram"
-                  ? "border border-pink-500/40 bg-pink-500/15 text-pink-300 shadow-md"
-                  : "border border-ink-800 bg-ink-900/60 text-mist-400 hover:border-ink-700 hover:text-mist-200"
+                  ? "border border-pink-500/40 bg-pink-500/15 text-pink-600 dark:text-pink-300 shadow-sm"
+                  : "border border-ink-700/60 bg-ink-850/50 text-mist-400 hover:border-ink-600 hover:text-mist-200"
               }`}
             >
-              <Instagram size={14} className={activePlatform === "instagram" ? "text-pink-400" : ""} />
+              <Instagram size={14} className={activePlatform === "instagram" ? "text-pink-500" : ""} />
               Instagram
             </button>
 
@@ -345,11 +345,11 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
               }}
               className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[12px] font-medium transition-all ${
                 activePlatform === "facebook"
-                  ? "border border-blue-500/40 bg-blue-500/15 text-blue-300 shadow-md"
-                  : "border border-ink-800 bg-ink-900/60 text-mist-400 hover:border-ink-700 hover:text-mist-200"
+                  ? "border border-blue-500/40 bg-blue-500/15 text-blue-600 dark:text-blue-300 shadow-sm"
+                  : "border border-ink-700/60 bg-ink-850/50 text-mist-400 hover:border-ink-600 hover:text-mist-200"
               }`}
             >
-              <Facebook size={14} className={activePlatform === "facebook" ? "text-blue-400" : ""} />
+              <Facebook size={14} className={activePlatform === "facebook" ? "text-blue-500" : ""} />
               Facebook
             </button>
 
@@ -358,11 +358,11 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
               onClick={() => setActivePlatform("linkedin")}
               className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[12px] font-medium transition-all ${
                 activePlatform === "linkedin"
-                  ? "border border-sky-500/40 bg-sky-500/15 text-sky-300 shadow-md"
-                  : "border border-ink-800 bg-ink-900/60 text-mist-400 hover:border-ink-700 hover:text-mist-200"
+                  ? "border border-sky-500/40 bg-sky-500/15 text-sky-600 dark:text-sky-300 shadow-sm"
+                  : "border border-ink-700/60 bg-ink-850/50 text-mist-400 hover:border-ink-600 hover:text-mist-200"
               }`}
             >
-              <Linkedin size={14} className={activePlatform === "linkedin" ? "text-sky-400" : ""} />
+              <Linkedin size={14} className={activePlatform === "linkedin" ? "text-sky-500" : ""} />
               LinkedIn
             </button>
 
@@ -371,11 +371,11 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
               onClick={() => setActivePlatform("youtube")}
               className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[12px] font-medium transition-all ${
                 activePlatform === "youtube"
-                  ? "border border-red-500/40 bg-red-500/15 text-red-300 shadow-md"
-                  : "border border-ink-800 bg-ink-900/60 text-mist-400 hover:border-ink-700 hover:text-mist-200"
+                  ? "border border-red-500/40 bg-red-500/15 text-red-600 dark:text-red-300 shadow-sm"
+                  : "border border-ink-700/60 bg-ink-850/50 text-mist-400 hover:border-ink-600 hover:text-mist-200"
               }`}
             >
-              <Youtube size={14} className={activePlatform === "youtube" ? "text-red-400" : ""} />
+              <Youtube size={14} className={activePlatform === "youtube" ? "text-red-500" : ""} />
               YouTube
             </button>
           </div>
@@ -461,7 +461,7 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
               </div>
 
               {/* Instagram 30-Day Curve Chart */}
-              <div className="rounded-xl border border-ink-800/80 bg-[#090d18] p-5">
+              <div className="rounded-xl border border-ink-700/60 bg-ink-950/20 p-5">
                 <h4 className="mb-4 text-center text-[12.5px] font-semibold text-mist-200">
                   {activeChartTitle}
                 </h4>
@@ -473,22 +473,22 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                     >
                       <defs>
                         <linearGradient id="igAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.45} />
+                          <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.35} />
                           <stop offset="95%" stopColor="#7c3aed" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1b2438" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--s-border)" />
                       <XAxis
                         dataKey="formattedDate"
                         tickLine={false}
-                        axisLine={{ stroke: "#243049" }}
-                        tick={{ fill: "#64748b", fontSize: 10 }}
+                        axisLine={{ stroke: "var(--s-border)" }}
+                        tick={{ fill: "var(--t-muted)", fontSize: 10 }}
                         interval={3}
                       />
                       <YAxis
                         tickLine={false}
                         axisLine={false}
-                        tick={{ fill: "#64748b", fontSize: 10 }}
+                        tick={{ fill: "var(--t-muted)", fontSize: 10 }}
                         domain={[0, "auto"]}
                       />
                       <Tooltip
@@ -496,9 +496,9 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                           if (!active || !payload?.length) return null;
                           const p = payload[0].payload;
                           return (
-                            <div className="rounded-xl border border-purple-500/30 bg-[#0f172a]/95 px-3 py-2 text-[11.5px] shadow-2xl backdrop-blur">
+                            <div className="rounded-xl border border-ink-600 bg-ink-850/95 px-3 py-2 text-[11.5px] shadow-xl backdrop-blur">
                               <span className="text-mist-400">{p.date}: </span>
-                              <span className="font-bold text-purple-300">{p.value}</span>
+                              <span className="font-bold text-purple-600 dark:text-purple-300">{p.value}</span>
                             </div>
                           );
                         }}
@@ -584,7 +584,7 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
               </div>
 
               {/* Facebook 30-Day Curve Chart */}
-              <div className="rounded-xl border border-ink-800/80 bg-[#090d18] p-5">
+              <div className="rounded-xl border border-ink-700/60 bg-ink-950/20 p-5">
                 <h4 className="mb-4 text-center text-[12.5px] font-semibold text-mist-200">
                   {activeChartTitle}
                 </h4>
@@ -596,22 +596,22 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                     >
                       <defs>
                         <linearGradient id="fbAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.45} />
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35} />
                           <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1b2438" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--s-border)" />
                       <XAxis
                         dataKey="formattedDate"
                         tickLine={false}
-                        axisLine={{ stroke: "#243049" }}
-                        tick={{ fill: "#64748b", fontSize: 10 }}
+                        axisLine={{ stroke: "var(--s-border)" }}
+                        tick={{ fill: "var(--t-muted)", fontSize: 10 }}
                         interval={3}
                       />
                       <YAxis
                         tickLine={false}
                         axisLine={false}
-                        tick={{ fill: "#64748b", fontSize: 10 }}
+                        tick={{ fill: "var(--t-muted)", fontSize: 10 }}
                         domain={[0, "auto"]}
                       />
                       <Tooltip
@@ -619,9 +619,9 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                           if (!active || !payload?.length) return null;
                           const p = payload[0].payload;
                           return (
-                            <div className="rounded-xl border border-blue-500/30 bg-[#0f172a]/95 px-3 py-2 text-[11.5px] shadow-2xl backdrop-blur">
+                            <div className="rounded-xl border border-ink-600 bg-ink-850/95 px-3 py-2 text-[11.5px] shadow-xl backdrop-blur">
                               <span className="text-mist-400">{p.date}: </span>
-                              <span className="font-bold text-blue-300">{p.value}</span>
+                              <span className="font-bold text-blue-600 dark:text-blue-300">{p.value}</span>
                             </div>
                           );
                         }}
@@ -674,7 +674,7 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                 <MetricPill label="AVG DURATION" value={`${yt?.avgViewDurationSeconds ?? 0}s`} icon={BarChart2} />
               </div>
 
-              <div className="rounded-xl border border-ink-800/80 bg-[#090d18] p-5">
+              <div className="rounded-xl border border-ink-700/60 bg-ink-950/20 p-5">
                 <h4 className="mb-4 text-center text-[12.5px] font-semibold text-mist-200">
                   {activeChartTitle}
                 </h4>
@@ -686,22 +686,22 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                     >
                       <defs>
                         <linearGradient id="ytAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.45} />
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.35} />
                           <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1b2438" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--s-border)" />
                       <XAxis
                         dataKey="formattedDate"
                         tickLine={false}
-                        axisLine={{ stroke: "#243049" }}
-                        tick={{ fill: "#64748b", fontSize: 10 }}
+                        axisLine={{ stroke: "var(--s-border)" }}
+                        tick={{ fill: "var(--t-muted)", fontSize: 10 }}
                         interval={3}
                       />
                       <YAxis
                         tickLine={false}
                         axisLine={false}
-                        tick={{ fill: "#64748b", fontSize: 10 }}
+                        tick={{ fill: "var(--t-muted)", fontSize: 10 }}
                         domain={[0, "auto"]}
                       />
                       <Tooltip
@@ -709,9 +709,9 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                           if (!active || !payload?.length) return null;
                           const p = payload[0].payload;
                           return (
-                            <div className="rounded-xl border border-red-500/30 bg-[#0f172a]/95 px-3 py-2 text-[11.5px] shadow-2xl backdrop-blur">
+                            <div className="rounded-xl border border-ink-600 bg-ink-850/95 px-3 py-2 text-[11.5px] shadow-xl backdrop-blur">
                               <span className="text-mist-400">{p.date}: </span>
-                              <span className="font-bold text-red-300">{p.value}</span>
+                              <span className="font-bold text-red-600 dark:text-red-300">{p.value}</span>
                             </div>
                           );
                         }}
@@ -745,14 +745,14 @@ export function UploadPostLiveStudio({ brandId }: { brandId?: string }) {
                     <p className="text-[12px] text-mist-400">{li?.displayName || "Kiwik.One 1"}</p>
                   </div>
                 </div>
-                <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[11px] font-medium text-sky-300">
+                <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[11px] font-medium text-sky-600 dark:text-sky-300">
                   Personal Profile Connected
                 </span>
               </div>
 
               <div className="rounded-xl border border-sky-500/25 bg-sky-500/[0.05] p-5">
                 <div className="flex items-start gap-3">
-                  <Info size={16} className="mt-0.5 shrink-0 text-sky-400" />
+                  <Info size={16} className="mt-0.5 shrink-0 text-sky-600 dark:text-sky-400" />
                   <div className="space-y-1 text-[12px] leading-relaxed text-mist-300">
                     <p className="font-medium text-mist-100">LinkedIn Analytics Policy</p>
                     <p>
@@ -795,18 +795,18 @@ function MetricPill({
       onClick={onClick}
       className={`group relative flex cursor-pointer flex-col justify-between rounded-xl p-4 transition-all ${
         active || highlight
-          ? "border-2 border-indigo-500/90 bg-[#12182c] shadow-[0_0_15px_rgba(99,102,241,0.25)]"
-          : "border border-ink-800 bg-[#0d1222]/70 hover:border-ink-700 hover:bg-[#10172e]"
+          ? "border-2 border-indigo-500 bg-indigo-500/10 shadow-sm dark:shadow-[0_0_15px_rgba(99,102,241,0.25)]"
+          : "border border-ink-700/60 bg-ink-900/40 hover:border-ink-600 hover:bg-ink-850/70"
       }`}
     >
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-[9.5px] font-semibold tracking-wider text-mist-400">
-          <Icon size={11} className={active || highlight ? "text-indigo-400" : "text-mist-500"} />
+          <Icon size={11} className={active || highlight ? "text-indigo-600 dark:text-indigo-400" : "text-mist-400"} />
           {label}
         </span>
         {info && (
           <div title={info}>
-            <Info size={10} className="text-mist-600 group-hover:text-mist-400" />
+            <Info size={10} className="text-mist-500 group-hover:text-mist-300" />
           </div>
         )}
       </div>
