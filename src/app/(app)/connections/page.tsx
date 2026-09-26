@@ -1,9 +1,11 @@
 import { pageContext } from "@/lib/page-context";
 import { settingLabel, showOperatorDetail } from "@/lib/whitelabel";
-import { adapterFor, channelMeta, isUsableConnection, connectionProblem } from "@/lib/platforms/registry";
+import { channelMeta, isUsableConnection, connectionProblem } from "@/lib/platforms/registry";
+import { webhookHealth } from "@/lib/platforms/health";
+import { ChannelHealthPanel, type ChannelHealthRow } from "@/components/channel-health";
 import { DRIVER } from "@/lib/platforms/types";
 import { TopBar } from "@/components/shell";
-import { Card, SectionTitle, Badge, fmt } from "@/components/ui";
+import { Card, SectionTitle, Badge } from "@/components/ui";
 import { ConnectPanel, type ConnectRow } from "@/components/connect-panel";
 import { CONNECT_SPECS } from "@/lib/platforms/oauth";
 import { UPLOAD_POST_PREFIX } from "@/lib/uploadpost/connections";
@@ -27,7 +29,7 @@ export default async function ConnectionsPage({
       <TopBar
         brands={db.brands}
         brandId={brandId}
-        title="Connections"
+        title="Channels &amp; Connections"
         subtitle={`${connections.length} accounts on ${brand.name}`}
         right={<Badge tone={DRIVER === "live" ? "good" : "warn"}>driver: {DRIVER}</Badge>}
       />
@@ -57,80 +59,29 @@ export default async function ConnectionsPage({
           })}
         />
 
-        {connections.some((c) => c.status !== "connected") && (
-          <Card className="border-bad-500/30 bg-bad-500/[0.04]">
-            <div className="text-[12.5px] font-medium text-bad-400">
-              {connections.filter((c) => c.status !== "connected").length} connection(s) need attention — posts targeting them are deferred, not lost.
-            </div>
-          </Card>
-        )}
-
-        <div>
-          <SectionTitle title="Connected accounts" hint="Tokens are stored server-side and never sent to the browser" />
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {connections.map((c) => {
-              const meta = channelMeta(c.channel);
-              const adapter = adapterFor(c.channel);
-              const expiring = c.tokenExpiresAt && new Date(c.tokenExpiresAt).getTime() - Date.now() < 14 * 864e5;
-              return (
-                <Card key={c.id} className="card-hover">
-                  <div className="flex items-start gap-3">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-white" style={{ background: meta.color }}>
-                      {meta.label[0]}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-[13px] font-medium text-mist-100">{meta.label}</span>
-                        <Badge tone={c.status === "connected" ? "good" : "bad"}>{c.status}</Badge>
-                      </div>
-                      <div className="truncate text-[11px] text-mist-400">{c.handle}</div>
-                      {c.followers > 0 && <div className="tnum mt-0.5 text-[11px] text-mist-300">{fmt.full(c.followers)} followers</div>}
-                    </div>
-                  </div>
-
-                  {c.lastError && <p className="mt-2 rounded-lg bg-bad-500/10 px-2 py-1.5 text-[11px] text-bad-400">{c.lastError}</p>}
-
-                  <div className="mt-3 space-y-1 text-[10.5px] text-mist-400">
-                    {c.externalId?.startsWith(UPLOAD_POST_PREFIX) ? (
-                      <div>Via <span className="text-mist-300">Publishing connector</span>{isAdmin && <span className="ml-1 font-mono">{c.externalId}</span>}</div>
-                    ) : (
-                      <div>ID <span className="text-mist-300">{c.externalId}</span></div>
-                    )}
-                    <div className={expiring ? "text-warn-400" : ""}>
-                      Token {c.tokenExpiresAt ? `expires ${new Date(c.tokenExpiresAt).toLocaleDateString()}` : "n/a"}
-                    </div>
-                    {c.channel === "linkedin" && !c.accessToken && (
-                      <div className="mt-1.5 inline-block">
-                        <Badge tone="warn">Token required for analytics</Badge>
-                      </div>
-                    )}
-                    <div>Last synced {c.lastSyncedAt ? new Date(c.lastSyncedAt).toLocaleString() : "never"}</div>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {c.scopes.slice(0, 4).map((s) => (
-                      <span key={s} className="rounded bg-ink-800 px-1.5 py-0.5 text-[9.5px] text-mist-400">{s}</span>
-                    ))}
-                  </div>
-
-                  {adapter && (
-                    <div className="mt-3 border-t border-ink-800 pt-2.5 text-[10.5px] text-mist-400">
-                      <div className="mb-1 font-medium text-mist-300">Publishing limits</div>
-                      <div>Formats: {adapter.capabilities.formats.join(", ")}</div>
-                      <div>Caption: {adapter.capabilities.captionLimit.toLocaleString()} chars · {adapter.capabilities.hashtagLimit} hashtags · {adapter.capabilities.maxMedia} media</div>
-                      <div>
-                        {adapter.capabilities.supportsNativeScheduling ? "Native scheduling" : "Queued by Glentree"}
-                        {adapter.capabilities.supportsStories && " · stories"}
-                        {adapter.capabilities.supportsFirstComment && " · first comment"}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-
+        {/*
+          The live grid replaces the old read-out of stored fields. Those fields
+          described what was written at connect time, not whether the credential
+          still works — which is the only question this screen exists to answer.
+        */}
+        <ChannelHealthPanel
+          brandId={brandId}
+          initialWebhooks={webhookHealth()}
+          initial={connections.map<ChannelHealthRow>((c) => {
+            const meta = channelMeta(c.channel);
+            const problem = connectionProblem(c);
+            return {
+              channel: c.id,
+              label: meta.label,
+              color: meta.color,
+              handle: c.handle,
+              tokenExpiresAt: c.tokenExpiresAt,
+              lastSyncedAt: c.lastSyncedAt,
+              state: isUsableConnection(c) ? "unchecked" : "absent",
+              detail: problem ?? "Checking with the platform\u2026",
+            };
+          })}
+        />
 
         <Card>
           <SectionTitle title="How publishing works" />

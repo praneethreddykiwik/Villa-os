@@ -132,7 +132,7 @@ export function OpsHome({
                 <span>Glentree Command Center</span>
                 <span>·</span>
                 <span className="text-mist-300 font-medium">
-                  {session.permissions.length} active capability{session.permissions.length === 1 ? "" : "ies"}
+                  {session.permissions.length} active capabilit{session.permissions.length === 1 ? "y" : "ies"}
                 </span>
               </p>
             </div>

@@ -74,7 +74,7 @@ const PIPELINE_STEPS = [
     emoji: "🤖",
     icon: Bot,
     title: "AI Captions & Tags",
-    subtitle: "OpenRouter AI generation",
+    subtitle: "AI caption & tag generation",
     description: "LLM analyzes scene context to craft viral hook captions, platform-specific emojis, and optimal search tags.",
   },
   {
@@ -617,11 +617,11 @@ export function V2Form({ brandId, brandName }: V2FormProps) {
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter property highlights, pricing, location specifics, or key features. The OpenRouter AI engine will expand this context into custom captions, hashtags, and call-to-actions per channel..."
+              placeholder="Enter property highlights, pricing, location specifics, or key features. The AI engine will expand this context into custom captions, hashtags, and call-to-actions per channel..."
               className="w-full rounded-xl border border-ink-700 bg-ink-850 p-3.5 text-sm text-mist-100 placeholder:text-mist-500 outline-none focus:border-brand-500 transition-colors shadow-inner resize-y"
             />
             <p className="mt-1 text-[11px] text-mist-400">
-              Provide talking points or keywords. OpenRouter generates channel-appropriate copy (Reels captions, YouTube SEO tags, X post threads).
+              Provide talking points or keywords. The AI engine generates channel-appropriate copy (Reels captions, YouTube SEO tags, X post threads).
             </p>
           </div>
 

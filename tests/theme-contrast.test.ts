@@ -144,6 +144,7 @@ const ALLOW: Record<string, string> = {
   "src/app/(app)/connections/page.tsx:text-white": "monogram on a channel's fixed brand colour",
   "src/app/(app)/channels/page.tsx:text-white": "monogram on a channel's fixed brand colour",
   "src/components/connect-panel.tsx:text-white": "monogram on a channel's fixed brand colour",
+  "src/components/channel-health.tsx:text-white": "monogram on a channel's fixed brand colour",
   "src/components/inbox.tsx:text-white": "monogram on a channel's fixed brand colour",
   "src/components/reviews-panel.tsx:text-white": "monogram on a review source's fixed brand colour",
   "src/app/(app)/local/page.tsx:text-white":
