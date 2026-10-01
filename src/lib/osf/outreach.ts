@@ -116,6 +116,68 @@ export function renderOpener(template: string, name: string | null): string {
   return template.replace(/\{name\}/gi, greeting).trim();
 }
 
+/**
+ * Checks a parsed list against the database WITHOUT sending anything.
+ *
+ * startConversations refuses two kinds of recipient — someone who opted out,
+ * and someone who already has a thread — but it only discovers them one at a
+ * time, mid-run. Preview used to skip this entirely, so it would promise
+ * "Message 1 person" and the send would then quietly skip that person and
+ * report nothing sent. The preview exists precisely so that surprise cannot
+ * happen, so it has to ask the same questions the send will ask.
+ *
+ * Never throws: a database hiccup must degrade the preview to "cannot tell",
+ * not block the desk from sending.
+ */
+export async function screenRecipients(recipients: Recipient[]): Promise<{
+  sendable: Recipient[];
+  blocked: { phone: string; name: string | null; reason: string }[];
+}> {
+  const blocked: { phone: string; name: string | null; reason: string }[] = [];
+  if (recipients.length === 0) return { sendable: [], blocked };
+
+  try {
+    const supabase = db();
+    const phones = recipients.map((r) => r.phone);
+    const { data: leads } = await supabase
+      .from("villa_leads")
+      .select("id, phone, opted_out")
+      .in("phone", phones);
+
+    if (!leads || leads.length === 0) return { sendable: recipients, blocked };
+
+    const { data: conversations } = await supabase
+      .from("villa_conversations")
+      .select("lead_id, message_count")
+      .eq("channel", "whatsapp")
+      .in("lead_id", leads.map((l) => l.id));
+
+    const talkedTo = new Set(
+      (conversations ?? []).filter((c) => (c.message_count ?? 0) > 0).map((c) => c.lead_id),
+    );
+    const byPhone = new Map(leads.map((l) => [l.phone, l]));
+
+    const sendable = recipients.filter((r) => {
+      const lead = byPhone.get(r.phone);
+      if (!lead) return true;
+      if (lead.opted_out) {
+        blocked.push({ ...r, reason: "opted out — nothing may be sent to them" });
+        return false;
+      }
+      if (talkedTo.has(lead.id)) {
+        blocked.push({ ...r, reason: "already has a WhatsApp thread — open it in the inbox instead" });
+        return false;
+      }
+      return true;
+    });
+
+    return { sendable, blocked };
+  } catch {
+    // Let the send be the judge rather than blocking on a read failure.
+    return { sendable: recipients, blocked };
+  }
+}
+
 export type OutreachOutcome =
   | { phone: string; name: string | null; status: "sent"; leadId: string; conversationId: string }
   | { phone: string; name: string | null; status: "skipped" | "failed"; reason: string };

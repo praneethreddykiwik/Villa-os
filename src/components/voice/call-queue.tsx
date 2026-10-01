@@ -69,7 +69,7 @@ export function CallQueue({ brandId, onChange }: { brandId: string; onChange?: (
     try {
       const res = await fetch(`/api/voice/queue?brand=${encodeURIComponent(brandId)}`);
       const json = await res.json();
-      if (json.ok) setData(json.data);
+      if (json.ok) setData(json);
     } catch {
       /* the panel keeps showing the last good state rather than blanking */
     }
@@ -99,9 +99,9 @@ export function CallQueue({ brandId, onChange }: { brandId: string; onChange?: (
       const res = await fetch(`/api/voice/queue/leads?brand=${encodeURIComponent(brandId)}`);
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "Could not load leads.");
-      setLeads(json.data.leads);
-      if (json.data.unavailable) setLeadsNote(json.data.unavailable);
-      else if (json.data.leads.length === 0) setLeadsNote("No leads with a phone number that are not already queued.");
+      setLeads(json.leads);
+      if (json.unavailable) setLeadsNote(json.unavailable);
+      else if (json.leads.length === 0) setLeadsNote("No leads with a phone number that are not already queued.");
     } catch (e) {
       setLeadsNote((e as Error).message);
     }
@@ -128,8 +128,10 @@ export function CallQueue({ brandId, onChange }: { brandId: string; onChange?: (
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || "Could not queue those numbers.");
 
-      const { added, rejected, pumped } = json.data;
-      setData(json.data.queue);
+      // apiOk spreads its payload alongside `ok` — there is no `data`
+      // wrapper. Reading one threw before a single number was queued.
+      const { added, rejected, pumped } = json;
+      setData(json.queue);
       setNumbers("");
 
       const parts: string[] = [`${added.length} number${added.length === 1 ? "" : "s"} queued.`];
@@ -159,7 +161,7 @@ export function CallQueue({ brandId, onChange }: { brandId: string; onChange?: (
         body: JSON.stringify({ brandId, ids: [id] }),
       });
       const json = await res.json();
-      if (json.ok) setData(json.data.queue);
+      if (json.ok) setData(json.queue);
     } catch {
       /* the row stays as it was; the operator can try again */
     }

@@ -609,23 +609,24 @@ describe("a refusal is never dressed as a success by the API helper", () => {
 });
 
 describe("client props carry no more than the screen draws", () => {
-  test("the pipeline board is handed named lead fields, not the lead record", () => {
-    const component = stripComments(read("src/components/crm/pipeline.tsx"));
-    assert.ok(
-      !/leads:\s*Lead\[\]/.test(component),
-      "asking for Lead makes the server serialise the buyer's phone, email and notes into a board that renders none of them",
-    );
-    assert.match(component, /Pick<\s*[\s\S]*?Lead,/, "name the columns the board draws");
-
-    // The prop type alone cannot stop this: Lead satisfies PipelineLead, so a
-    // page handing over the whole row still compiles. The page has to rebuild
-    // the object field by field, which is what actually leaves the PII behind.
-    const page = stripComments(read("src/app/(app)/crm/pipeline/page.tsx"));
-    assert.match(page, /PipelineLead\[\]/, "the page must state the narrowed shape it is handing over");
-    assert.match(page, /\.map\(\(l\) => \(\{/, "the row has to be rebuilt, not passed through");
-    for (const field of ["phone", "email", "notes"]) {
-      assert.ok(!new RegExp(`\\b${field}\\b`).test(page), `${field} must not reach the client props`);
+  test("the pipeline board is handed an id and a stage, nothing else", () => {
+    // The board that shipped used to take a whole Lead, so the server
+    // serialised the buyer's phone, email and notes into a screen that draws
+    // none of them. The live board is a per-row control instead: the only
+    // things that cross to the client are the two values it needs to submit.
+    const component = stripComments(read("src/app/(app)/inbox/whatsapp/crm/pipeline/StageMove.tsx"));
+    assert.match(component, /leadId: string;/, "the id it posts");
+    assert.match(component, /stage: PipelineStage;/, "the stage it shows");
+    for (const field of ["phone", "email", "notes", "Lead\\[\\]"]) {
+      assert.ok(
+        !new RegExp(`\\b${field}\\b`).test(component),
+        `${field} must not reach the client props`,
+      );
     }
+
+    // The page renders the rows on the server, so nothing else is serialised.
+    const page = stripComments(read("src/app/(app)/inbox/whatsapp/crm/pipeline/page.tsx"));
+    assert.match(page, /<StageMove leadId=\{[^}]+\} stage=\{[^}]+\} \/>/, "pass only the two props");
   });
 });
 

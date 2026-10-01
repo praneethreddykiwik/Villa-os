@@ -52,40 +52,6 @@ function XIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
   );
 }
 
-const PIPELINE_STEPS = [
-  {
-    number: "01",
-    emoji: "🎬",
-    icon: Film,
-    title: "Overlay Video",
-    subtitle: "Branding & formatting",
-    description: "Automatic visual watermark injection, 9:16 aspect ratio framing, color grading, and dynamic brand outro.",
-  },
-  {
-    number: "02",
-    emoji: "📁",
-    icon: FolderSync,
-    title: "Drive Archival",
-    subtitle: "Google Drive sync",
-    description: "Master render saved to company Drive cloud vault, organized into date-stamped property folders.",
-  },
-  {
-    number: "03",
-    emoji: "🤖",
-    icon: Bot,
-    title: "AI Captions & Tags",
-    subtitle: "OpenRouter AI generation",
-    description: "LLM analyzes scene context to craft viral hook captions, platform-specific emojis, and optimal search tags.",
-  },
-  {
-    number: "04",
-    emoji: "🚀",
-    icon: Sparkles,
-    title: "Direct Distribution",
-    subtitle: "Instagram, YouTube, Facebook, X",
-    description: "Concurrent autonomous dispatch via official APIs to all 4 connected brand channels simultaneously.",
-  },
-];
 
 const TARGET_CHANNELS = [
   { name: "Instagram", icon: Instagram, color: "from-pink-500 to-purple-500", handle: "Reels / Feed" },
@@ -136,7 +102,6 @@ export function V2Form({ brandId, brandName }: V2FormProps) {
   const [description, setDescription] = useState("");
 
   // Pipeline step active selection
-  const [selectedStep, setSelectedStep] = useState<number>(0);
 
   // Submit and Progress state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -363,83 +328,6 @@ export function V2Form({ brandId, brandName }: V2FormProps) {
       {/* ========================================================================= */}
       {/* HERO / PIPELINE BANNER                                                    */}
       {/* ========================================================================= */}
-      <Card variant="liquid" className="relative overflow-hidden border-brand-500/30 p-4 sm:p-6 lg:p-7">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-brand-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-ink-800/80">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/35 bg-brand-500/10 px-3 py-1 mb-3 shadow-inner">
-              <Sparkles className="w-3.5 h-3.5 text-brand-400" />
-              <span className="text-[11.5px] font-semibold text-brand-300">Next-Gen Autonomous Pipeline</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-mist-100">
-              Publish v2 — Autonomous Multi-Channel Pipeline
-            </h1>
-            <p className="mt-2 text-sm text-mist-300 leading-relaxed">
-              Upload your video once. The automation pipeline automatically overlays graphics, backs up to Google Drive, generates AI captions &amp; tags, and publishes across Instagram, YouTube, Facebook, and X.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5">
-            <div className="rounded-xl border border-ink-700/80 bg-ink-900/80 px-4 py-2.5 backdrop-blur-xl">
-              <span className="text-[11px] font-medium text-mist-400 uppercase tracking-wider block">Target Brand</span>
-              <span className="text-sm font-semibold text-mist-100">{brandName}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Interactive Pipeline Steps Visualizer */}
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[12px] font-semibold uppercase tracking-wider text-mist-400 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-brand-400" />
-              Autonomous Pipeline Flow (Click any stage to inspect)
-            </span>
-            <span className="text-[11px] text-mist-400 hidden sm:inline">
-              Step {selectedStep + 1} of {PIPELINE_STEPS.length}: <span className="text-mist-200 font-medium">{PIPELINE_STEPS[selectedStep].title}</span>
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {PIPELINE_STEPS.map((step, idx) => {
-              const isActive = selectedStep === idx;
-              return (
-                <button
-                  key={step.number}
-                  type="button"
-                  onClick={() => setSelectedStep(idx)}
-                  className={clsx(
-                    "text-left p-4 rounded-xl border transition-all duration-200 relative group cursor-pointer",
-                    isActive
-                      ? "bg-brand-500/15 border-brand-500/60 shadow-lg shadow-brand-500/10"
-                      : "bg-ink-900/60 border-ink-800/80 hover:border-ink-700 hover:bg-ink-850/60",
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-lg">{step.emoji}</span>
-                    <span className={clsx("text-[10.5px] font-bold tracking-wider", isActive ? "text-brand-300" : "text-mist-500")}>
-                      {step.number}
-                    </span>
-                  </div>
-                  <div className="font-semibold text-[13.5px] text-mist-100 flex items-center gap-1.5">
-                    {step.title}
-                  </div>
-                  <div className="text-[11.5px] text-mist-400 mt-0.5 truncate">{step.subtitle}</div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Active Step Details Pill */}
-          <div className="mt-3.5 p-3 rounded-lg border border-brand-500/20 bg-brand-500/5 flex items-center gap-2.5 text-xs text-mist-200">
-            <span className="text-base">{PIPELINE_STEPS[selectedStep].emoji}</span>
-            <span className="font-semibold text-brand-300">{PIPELINE_STEPS[selectedStep].title}:</span>
-            <span className="text-mist-300">{PIPELINE_STEPS[selectedStep].description}</span>
-          </div>
-        </div>
-      </Card>
-
       {/* ========================================================================= */}
       {/* MAIN UPLOAD & DETAILS FORM                                               */}
       {/* ========================================================================= */}
@@ -447,7 +335,7 @@ export function V2Form({ brandId, brandName }: V2FormProps) {
         <Card variant="panel" className="p-6 space-y-6">
           <SectionTitle
             title="Upload Video & Workflow Details"
-            hint="The autonomous pipeline ingests your raw footage, overlays brand assets, creates AI copies, and fans out across all channels."
+            hint="Add the video and we handle the rest — branding, captions and posting to your channels."
           />
 
           {/* Feedback alerts */}
@@ -617,11 +505,11 @@ export function V2Form({ brandId, brandName }: V2FormProps) {
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter property highlights, pricing, location specifics, or key features. The OpenRouter AI engine will expand this context into custom captions, hashtags, and call-to-actions per channel..."
+              placeholder="Property highlights, pricing, location, key features — whatever you would tell someone on a viewing..."
               className="w-full rounded-xl border border-ink-700 bg-ink-850 p-3.5 text-sm text-mist-100 placeholder:text-mist-500 outline-none focus:border-brand-500 transition-colors shadow-inner resize-y"
             />
             <p className="mt-1 text-[11px] text-mist-400">
-              Provide talking points or keywords. OpenRouter generates channel-appropriate copy (Reels captions, YouTube SEO tags, X post threads).
+              Give us the talking points and we write the caption, hashtags and tags for each channel.
             </p>
           </div>
 

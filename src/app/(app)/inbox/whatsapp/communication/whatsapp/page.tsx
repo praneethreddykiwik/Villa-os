@@ -87,7 +87,6 @@ export default async function WhatsAppPage({
         sub="WhatsApp, Instagram and Messenger threads can all be answered from here. Replying hands the thread to you — the AI stops answering on it until you give it back."
         actions={
           <div className="flex items-center gap-3">
-            <StartChat returnTo={BASE} />
             <LiveRefresh seconds={8} />
             <div className="text-right">
               <p className="stat text-xl">{formatNumber(conversations.length)}</p>
@@ -98,6 +97,17 @@ export default async function WhatsAppPage({
           </div>
         }
       />
+
+      {/* Its own block, not a header action.
+          Collapsed this is a button, which sat happily in the header's flex
+          row; opened it becomes a full two-column card, and a flex item does
+          not wrap — so the panel grew sideways and pushed its own message box,
+          warning and Preview button off the right edge of the screen. It reads
+          as "there is no input box" precisely because the input box is past
+          the viewport. */}
+      <div className="mb-4">
+        <StartChat returnTo={BASE} />
+      </div>
 
       {!connected && <SetupNotice missing={missingVars} detail="Threads still render from the database, but a human reply cannot be sent until these are set." />}
 

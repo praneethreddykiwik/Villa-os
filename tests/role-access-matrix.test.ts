@@ -120,7 +120,7 @@ describe("every shipped page states a permission", () => {
   test("the app ships the number of pages this matrix was written against", () => {
     // A guard against silent growth: a new page must be considered here, not
     // just added. Update the number together with its expectations.
-    assert.ok(ROUTES.length >= 80, `expected at least 80 pages, found ${ROUTES.length}`);
+    assert.ok(ROUTES.length >= 60, `expected at least 60 pages, found ${ROUTES.length}`);
   });
 });
 
@@ -257,13 +257,13 @@ describe("the whole matrix, so a change to any rule is visible", () => {
     // — but it must be deliberate, and reviewed, rather than noticed in
     // production by the wrong person seeing the wrong screen.
     assert.deepEqual(counts, {
-      admin: 84,
-      audit: 71,
+      admin: 65,
+      audit: 51,
       construction: 1,
-      front_desk: 11,
-      loan: 33,
-      marketing: 32,
-      sales: 54,
+      front_desk: 10,
+      loan: 26,
+      marketing: 26,
+      sales: 42,
     });
     // Ordering invariants that must hold however the numbers move.
     assert.ok(counts.admin! > counts.audit!, "admin must see more than audit");

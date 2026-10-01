@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const body = await readPost(request);
   const action = body.get("action");
-  const redirectTo = safePath(body.get("next"), "/inbox/whatsapp/sales/team");
+  const redirectTo = safePath(body.get("next"), "/inbox/whatsapp/settings/access");
 
   const ADMIN_ACTIONS = ["create", "toggle", "role", "provision", "reset-password", "revoke"];
   const required = ADMIN_ACTIONS.includes(action ?? "") ? "team:write" : "leads:assign";
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
   });
 
   if (result.ok) {
-    revalidatePath("/inbox/whatsapp/sales/team");
+    revalidatePath("/inbox/whatsapp/settings/access");
     revalidatePath("/inbox/whatsapp/settings/team");
     revalidatePath("/inbox/whatsapp/crm/leads");
   }

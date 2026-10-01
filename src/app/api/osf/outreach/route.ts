@@ -7,6 +7,7 @@ import {
   MAX_RECIPIENTS,
   parseRecipients,
   renderOpener,
+  screenRecipients,
   startConversations,
 } from "@/lib/osf/outreach";
 
@@ -77,12 +78,19 @@ export async function POST(request: Request) {
   // Preview costs nothing and sends nothing, so it is not rate limited: the
   // whole point is that somebody checks twice before the first message goes.
   if (preview) {
+    // Ask the same questions the send will ask, so the count on the button is
+    // the number of people who will actually be messaged — not the number of
+    // lines that happened to parse.
+    const { sendable, blocked } = await screenRecipients(recipients);
     return NextResponse.json({
       ok: true,
       preview: true,
-      count: recipients.length,
-      rejected,
-      samples: recipients.slice(0, 5).map((r) => ({
+      count: sendable.length,
+      rejected: [
+        ...rejected,
+        ...blocked.map((b) => ({ line: `${b.phone}${b.name ? `, ${b.name}` : ""}`, reason: b.reason })),
+      ],
+      samples: sendable.slice(0, 5).map((r) => ({
         phone: r.phone,
         name: r.name,
         message: renderOpener(template, r.name),

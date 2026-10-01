@@ -13,6 +13,7 @@ import {
 import clsx from "clsx";
 import { GlentreeTree } from "./brand/glentree-tree";
 import type { Brand } from "@/lib/types";
+import { VisitRequestsBell } from "./visit-requests-bell";
 import { requiredPermissionFor } from "@/lib/auth/page-access";
 
 interface NavItem {
@@ -44,24 +45,25 @@ const NAV: NavSection[] = [
   ]},
   { group: "Create & publish", items: [
     { href: "/showcase", label: "Project Showcase", icon: Building2 },
-    { href: "/automation", label: "Publish video", icon: Workflow },
-    { href: "/publish-v2", label: "Video Pipeline", icon: Sparkles },
-    { href: "/studio", label: "Video Studio", icon: Film },
+    { href: "/publish-v2", label: "Publish a video", icon: Sparkles },
     { href: "/board", label: "Board", icon: KanbanSquare },
     { href: "/calendar", label: "Calendar", icon: CalendarDays },
     { href: "/ideas", label: "Post ideas", icon: Lightbulb },
   ]},
+  // One set of customer records, not two. These used to point at JSON-backed
+  // screens that no agent ever wrote to, so a lead that arrived by WhatsApp
+  // was invisible here. They now open the same Supabase records the agents
+  // use; the old /crm/* URLs redirect, so nothing anyone bookmarked breaks.
   { group: "CRM", items: [
-    { href: "/crm/leads", label: "Leads", icon: Users },
-    { href: "/crm/pipeline", label: "Pipeline", icon: GitBranch },
-    { href: "/crm/contacts", label: "Contacts", icon: Contact },
-    { href: "/crm/customers", label: "Customers", icon: UserCheck },
+    { href: "/inbox/whatsapp/crm/leads", label: "Leads", icon: Users },
+    { href: "/inbox/whatsapp/crm/pipeline", label: "Pipeline", icon: GitBranch },
+    { href: "/inbox/whatsapp/crm/contacts", label: "Contacts", icon: Contact },
+    { href: "/inbox/whatsapp/crm/customers", label: "Customers", icon: UserCheck },
     // Gated by the same rule the page is: `requiredPermissionFor` matches
-    // /^\/crm\// to sales.read, so this link and the screen behind it can never
-    // drift apart into a visible link to a locked door.
-    { href: "/crm/appointments", label: "Site visits", icon: CalendarCheck },
-    { href: "/crm/tasks", label: "Tasks", icon: ListTodo },
-    { href: "/crm/follow-ups", label: "Follow-ups", icon: BellRing },
+    // /^\/inbox\/whatsapp\/(crm|sales)/ to sales.read, so this link and the
+    // screen behind it cannot drift into a visible link to a locked door.
+    { href: "/inbox/whatsapp/sales/site-visits", label: "Site visits", icon: CalendarCheck },
+    { href: "/inbox/whatsapp/crm/follow-ups", label: "Follow-ups", icon: BellRing },
   ]},
   // Conversations with leads, as opposed to records about them. Both are gated
   // on customers.read like the directory, so they filter with the CRM group.
@@ -70,7 +72,10 @@ const NAV: NavSection[] = [
     // One door for everything WhatsApp: the inbox, the assistant's training
     // and the sales workspace behind it, as tabs rather than as three
     // separate sidebar entries pointing at the same subject.
-    { href: "/inbox/whatsapp", label: "WhatsApp", icon: Inbox },
+    // Straight to the conversations, which is what "WhatsApp" means to the
+    // person clicking it. It used to land on the workspace dashboard, so the
+    // box for starting a new chat looked like it did not exist.
+    { href: "/inbox/whatsapp/communication/whatsapp", label: "WhatsApp", icon: Inbox },
   ]},
   { group: "Grow", items: [
     { href: "/ads", label: "Ads · Meta + Google", icon: Megaphone },
@@ -79,7 +84,6 @@ const NAV: NavSection[] = [
     { href: "/local", label: "Local visibility", icon: MapPin },
   ]},
   { group: "Operations", items: [
-    { href: "/ops", label: "Workspace", icon: Building2 },
     { href: "/ops/messages", label: "Messages", icon: MessageSquare },
     { href: "/ops/sales", label: "Sales queue", icon: Users },
     { href: "/ops/loans", label: "Loan cases", icon: Wallet },
@@ -88,8 +92,10 @@ const NAV: NavSection[] = [
   { group: "System", items: [
     { href: "/reports", label: "Reports", icon: FileText },
     { href: "/activity", label: "Activity", icon: Activity },
-    { href: "/connections", label: "Connections", icon: PlugZap },
     { href: "/settings", label: "Settings", icon: Settings },
+    // The operational side of the business — calling hours, retry policy —
+    // as opposed to which vendors are wired up, which is /settings.
+    { href: "/settings/villa", label: "Villa profile", icon: Building2 },
   ]},
 ];
 
@@ -314,13 +320,11 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-3">
-        <Link
-          href="/setup"
-          className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-good-500/30 bg-good-500/12 px-3 py-1 text-[11px] font-semibold text-good-400 hover:bg-good-500/20 transition-all shadow-sm"
-        >
-          <span className="beacon-dot bg-good-400" />
-          <span>Live Infrastructure</span>
-        </Link>
+        {/* Was a "Live Infrastructure" badge linking to /setup — a status
+            about the deployment, which is the vendor's concern, in the one
+            place every screen shows. This is the client's concern: somebody
+            asked to visit and is waiting on an answer. */}
+        <VisitRequestsBell />
         {right}
         <ThemeToggle />
         <div className="flex overflow-hidden rounded-full border border-ink-700/80 bg-ink-900/60 p-0.5 backdrop-blur-xl shadow-sm">

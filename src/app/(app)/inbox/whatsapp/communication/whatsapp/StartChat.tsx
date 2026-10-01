@@ -197,6 +197,15 @@ export function StartChat({ returnTo }: { returnTo: string }) {
       )}
 
       <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+        {/* The send button is deliberately dead until Preview has been pressed,
+            but a greyed-out button with only a title attribute reads as broken
+            rather than as locked — the tooltip never appears on touch and is
+            easy to miss on a pointer. Say it in the open instead. */}
+        {!preview && (
+          <p className="mr-auto text-[11px] text-[var(--color-faint)]">
+            Press Preview first — it checks the list and shows the wording before anything sends.
+          </p>
+        )}
         <button
           type="button"
           onClick={() => void post(true)}

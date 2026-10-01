@@ -18,8 +18,8 @@ export default async function PublishV2Page({
       <TopBar
         brands={db.brands}
         brandId={brandId}
-        title="Video Pipeline"
-        subtitle={`Autonomous video publishing · ${brand.name}`}
+        title="Publish a video"
+        subtitle={brand.name}
         right={<Badge tone="good">pipeline active</Badge>}
       />
 

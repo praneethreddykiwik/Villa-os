@@ -3,6 +3,8 @@ import { uid } from "../ids";
 import { logActivity } from "../engine/publisher";
 import { isConfigured, startCall, toE164 } from "../bolna/client";
 import type { VoiceQueueEntry, VoiceQueueStatus } from "./types";
+import { DEFAULT_BRAND_ID } from "../bootstrap";
+import { DEFAULTS, cachedSettings, loadSettings, type VillaSettings } from "../villa/settings";
 
 /**
  * THE OUTBOUND CALL QUEUE.
@@ -39,14 +41,14 @@ import type { VoiceQueueEntry, VoiceQueueStatus } from "./types";
  * the same number is not twice the throughput — it is the second customer
  * hearing a busy tone, and the provider billing for it.
  */
-export const MAX_CONCURRENT_CALLS = 1;
+export const MAX_CONCURRENT_CALLS = DEFAULTS.maxConcurrentCalls;
 
 /** A dial that never reported back. Past this the entry is unstuck for retry. */
-const CALL_TIMEOUT_MINUTES = 15;
+export const CALL_TIMEOUT_MINUTES = DEFAULTS.callTimeoutMinutes;
 
 /** No-answer gets one more try, an hour later. A refusal gets none. */
-export const MAX_ATTEMPTS = 2;
-const RETRY_BACKOFF_MINUTES = 60;
+export const MAX_ATTEMPTS = DEFAULTS.maxAttempts;
+export const RETRY_BACKOFF_MINUTES = DEFAULTS.retryBackoffMinutes;
 
 /**
  * Nobody is called outside these hours, in the brand's local time.
@@ -55,26 +57,50 @@ const RETRY_BACKOFF_MINUTES = 60;
  * nuisance call. A queue loaded at midnight waits until morning rather than
  * ringing two hundred phones while people sleep.
  */
-export const CALLING_HOURS = { startHour: 9, endHour: 20, timeZone: "Asia/Kolkata" } as const;
+export const CALLING_HOURS = {
+  startHour: DEFAULTS.callingStartHour,
+  endHour: DEFAULTS.callingEndHour,
+  timeZone: DEFAULTS.callingTimeZone,
+} as const;
+
+/**
+ * The window actually in force.
+ *
+ * Every function below takes settings as an optional argument rather than
+ * reading them itself, so a caller that has already loaded them (pumpQueue,
+ * which must not race a mid-run change) and a caller that cannot await
+ * (queueSummary, which renders a panel) both get a consistent answer.
+ */
+type Window = Pick<VillaSettings, "callingStartHour" | "callingEndHour" | "callingTimeZone">;
+const windowOr = (s?: Window): Window => s ?? cachedSettings(DEFAULT_BRAND_ID);
 
 /** The hour of day at `when` in the calling time zone. */
-export function localHour(when: Date = new Date()): number {
+export function localHour(when: Date = new Date(), settings?: Window): number {
+  const w = windowOr(settings);
   const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: CALLING_HOURS.timeZone,
+    timeZone: w.callingTimeZone,
     hour: "numeric",
     hour12: false,
   }).formatToParts(when);
   return Number(parts.find((p) => p.type === "hour")?.value ?? 0);
 }
 
-export function withinCallingHours(when: Date = new Date()): boolean {
-  const h = localHour(when);
-  return h >= CALLING_HOURS.startHour && h < CALLING_HOURS.endHour;
+export function withinCallingHours(when: Date = new Date(), settings?: Window): boolean {
+  const w = windowOr(settings);
+  const h = localHour(when, w);
+  return h >= w.callingStartHour && h < w.callingEndHour;
 }
 
-/** The queue is idle outside calling hours; this is what the UI shows instead. */
-export function callingHoursNote(): string {
-  return `Calls run between ${CALLING_HOURS.startHour}:00 and ${CALLING_HOURS.endHour}:00 IST. Anything queued now will be dialled when that window opens.`;
+/**
+ * The queue is idle outside calling hours; this is what the UI shows instead.
+ *
+ * No trailing full stop: every caller appends its own, and two of them read as
+ * "when that window opens..".
+ */
+export function callingHoursNote(settings?: Window): string {
+  const w = windowOr(settings);
+  const zone = w.callingTimeZone === "Asia/Kolkata" ? "IST" : w.callingTimeZone;
+  return `Calls run between ${w.callingStartHour}:00 and ${w.callingEndHour}:00 ${zone}. Anything queued now will be dialled when that window opens`;
 }
 
 const ACTIVE: VoiceQueueStatus[] = ["queued", "calling"];
@@ -156,7 +182,7 @@ export function enqueueCalls(input: EnqueueInput): EnqueueResult {
       leadId: input.leadIds?.[raw] ?? null,
       status: "queued",
       attempts: 0,
-      maxAttempts: MAX_ATTEMPTS,
+      maxAttempts: cachedSettings(input.brandId).maxAttempts,
       executionId: null,
       lastError: null,
       notBefore: null,
@@ -192,8 +218,9 @@ function patch(id: string, fields: Partial<VoiceQueueEntry>): void {
  * forever, and since that counts against the concurrency limit the whole
  * queue stops. After the timeout the attempt is treated as spent.
  */
-function reclaimStalled(): number {
-  const cutoff = Date.now() - CALL_TIMEOUT_MINUTES * 60_000;
+function reclaimStalled(settings?: Pick<VillaSettings, "callTimeoutMinutes" | "retryBackoffMinutes">): number {
+  const cfg = settings ?? cachedSettings(DEFAULT_BRAND_ID);
+  const cutoff = Date.now() - cfg.callTimeoutMinutes * 60_000;
   let reclaimed = 0;
   mutate((db) => {
     for (const e of db.voiceCallQueue ?? []) {
@@ -203,7 +230,7 @@ function reclaimStalled(): number {
       const spent = e.attempts >= e.maxAttempts;
       e.status = spent ? "failed" : "queued";
       e.lastError = "the provider never reported the outcome of this call";
-      e.notBefore = spent ? null : new Date(Date.now() + RETRY_BACKOFF_MINUTES * 60_000).toISOString();
+      e.notBefore = spent ? null : new Date(Date.now() + cfg.retryBackoffMinutes * 60_000).toISOString();
       e.completedAt = spent ? new Date().toISOString() : null;
       e.updatedAt = new Date().toISOString();
     }
@@ -226,13 +253,17 @@ export interface PumpResult {
  * entry. If the provider then refuses, the claim is released.
  */
 export async function pumpQueue(brandId?: string): Promise<PumpResult> {
-  const reclaimed = reclaimStalled();
+  // Loaded once for the whole run. Reading per iteration would let a settings
+  // change land mid-run and, for instance, raise concurrency between two
+  // dials of the same pass.
+  const settings = await loadSettings(brandId ?? DEFAULT_BRAND_ID);
+  const reclaimed = reclaimStalled(settings);
 
   if (!isConfigured()) {
     return { dialled: 0, reclaimed, idle: "the voice agent is not connected" };
   }
-  if (!withinCallingHours()) {
-    return { dialled: 0, reclaimed, idle: callingHoursNote() };
+  if (!withinCallingHours(new Date(), settings)) {
+    return { dialled: 0, reclaimed, idle: callingHoursNote(settings) };
   }
 
   let dialled = 0;
@@ -249,7 +280,15 @@ export async function pumpQueue(brandId?: string): Promise<PumpResult> {
       // had the line to themselves and the customer got a busy tone we still
       // paid for.
       const inFlight = queue.filter((e) => e.status === "calling").length;
-      if (inFlight >= MAX_CONCURRENT_CALLS) return { entry: null, reason: "a call is already in progress" };
+      if (inFlight >= settings.maxConcurrentCalls) {
+        return {
+          entry: null,
+          reason:
+            settings.maxConcurrentCalls === 1
+              ? "a call is already in progress"
+              : `${settings.maxConcurrentCalls} calls are already in progress`,
+        };
+      }
 
       const next = all
         .filter((e) => e.status === "queued")
@@ -291,7 +330,7 @@ export async function pumpQueue(brandId?: string): Promise<PumpResult> {
       patch(entry.id, {
         status: spent ? "failed" : "queued",
         lastError: result.error,
-        notBefore: spent ? null : new Date(Date.now() + RETRY_BACKOFF_MINUTES * 60_000).toISOString(),
+        notBefore: spent ? null : new Date(Date.now() + settings.retryBackoffMinutes * 60_000).toISOString(),
         completedAt: spent ? new Date().toISOString() : null,
       });
       idle = result.error;
@@ -345,7 +384,9 @@ export function settleQueueEntry(input: {
     entry.executionId = entry.executionId ?? input.executionId;
     entry.status = retryable ? "queued" : input.outcome === "completed" ? "done" : "failed";
     entry.lastError = input.outcome === "completed" ? null : `call ended: ${input.outcome.replace("_", " ")}`;
-    entry.notBefore = retryable ? new Date(Date.now() + RETRY_BACKOFF_MINUTES * 60_000).toISOString() : null;
+    entry.notBefore = retryable
+      ? new Date(Date.now() + cachedSettings(entry.brandId).retryBackoffMinutes * 60_000).toISOString()
+      : null;
     entry.completedAt = retryable ? null : now;
     entry.updatedAt = now;
     return { ...entry };
@@ -385,12 +426,16 @@ export function queueSummary(brandId: string, limit = 200): QueueSummary {
     queued: 0, calling: 0, done: 0, failed: 0, cancelled: 0,
   };
   for (const e of all) counts[e.status] += 1;
-  const open = withinCallingHours();
+  const settings = cachedSettings(brandId);
+  const open = withinCallingHours(new Date(), settings);
   return {
     entries: all.slice(0, limit),
     counts,
     callingNow: counts.calling > 0,
     withinCallingHours: open,
-    note: !open && counts.queued > 0 ? callingHoursNote() : null,
+    // Rendered as-is by the panel, so it ends a sentence here. The pump's
+    // `idle` string is capitalised and punctuated by its caller instead,
+    // which is why callingHoursNote() itself carries no full stop.
+    note: !open && counts.queued > 0 ? `${callingHoursNote(settings)}.` : null,
   };
 }

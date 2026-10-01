@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
  * costing the customer their reply.
  */
 
-const COMM_PATHS = ["/inbox/whatsapp/communication/inbox", "/inbox/whatsapp/communication/whatsapp", "/inbox/whatsapp/communication/email"];
+const COMM_PATHS = ["/inbox/whatsapp/communication/whatsapp"];
 
 /** "Ravi | Saturday 11am" → ["Ravi", "Saturday 11am"]. */
 function splitParams(raw: string | undefined): string[] {

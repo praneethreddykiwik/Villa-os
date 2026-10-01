@@ -115,30 +115,32 @@ describe("ingestion", () => {
     assert.equal(r.record.outcome, "completed");
     assert.equal(r.record.intent, "interested");
     assert.ok(r.record.customerId);
-    assert.ok(r.record.leadId);
-    assert.equal(r.record.leadCreated, true);
+    // No lead is written here. The same call also runs bridgeCallToWhatsApp,
+    // which creates the lead in Supabase — where the CRM screens read. This
+    // store used to create a second, unrelated one, so one caller became two
+    // leads and every count was double.
+    assert.equal(r.record.leadCreated, false);
+    assert.equal(r.record.leadId, null);
 
     const db = read();
     assert.equal(db.voiceCalls.length, 1);
     const customer = db.customers.find((c) => c.id === r.record.customerId)!;
     assert.equal(customer.source, "voice");
     assert.equal(customer.name, "Ravi Kumar");
-    const lead = db.leads.find((l) => l.id === r.record.leadId)!;
-    assert.equal(lead.source, "voice");
-    assert.equal(lead.brandId, brandId);
+    assert.equal(db.leads.filter((l) => l.source === "voice").length, 0, "the voice path must not write leads here");
     const msg = db.opsMessages.find((m) => m.externalId === "exec-1")!;
     assert.equal(msg.channel, "voice");
     assert.match(msg.body, /Caller: Hi, I am interested/);
-    assert.equal(db.opsNotifications.filter((n) => n.event === "voice.lead_created").length, 1);
+    assert.equal(db.opsNotifications.filter((n) => n.event === "voice.call_completed").length, 1);
 
     // Replay: nothing doubles.
     const again = calls.ingestExecution(e, { brandId, orgId });
     assert.equal(again.finalised, false);
     const after2 = read();
     assert.equal(after2.voiceCalls.length, 1);
-    assert.equal(after2.leads.filter((l) => l.source === "voice").length, 1);
+    assert.equal(after2.leads.filter((l) => l.source === "voice").length, 0);
     assert.equal(after2.opsMessages.filter((m) => m.externalId === "exec-1").length, 1);
-    assert.equal(after2.opsNotifications.filter((n) => n.event === "voice.lead_created").length, 1);
+    assert.equal(after2.opsNotifications.filter((n) => n.event === "voice.call_completed").length, 1);
   });
 
   test("a late non-terminal payload cannot regress a finalised call", () => {
@@ -154,12 +156,11 @@ describe("ingestion", () => {
     assert.equal(read().voiceCalls.filter((c) => c.executionId === "exec-1").length, 1);
   });
 
-  test("a second call from a known number links the existing lead instead of forking it", () => {
+  test("repeated calls never fork a lead in this store, because it writes none", () => {
     const e = normaliseExecution(payload({ id: "exec-2", transcript: "user: yes please send me the brochure" }))!;
     const r = calls.ingestExecution(e, { brandId, orgId });
     assert.equal(r.record.leadCreated, false);
-    assert.ok(r.record.leadId);
-    assert.equal(read().leads.filter((l) => l.source === "voice").length, 1);
+    assert.equal(read().leads.filter((l) => l.source === "voice").length, 0);
   });
 
   test("an unanswered call creates no lead and no transcript", () => {
@@ -178,7 +179,7 @@ describe("ingestion", () => {
     const r = calls.ingestExecution(second, { brandId, orgId });
     assert.equal(r.finalised, true);
     assert.equal(r.record.outcome, "completed");
-    assert.ok(r.record.leadId);
+    assert.equal(r.record.leadId, null);
     assert.equal(read().opsMessages.filter((m) => m.externalId === "exec-4").length, 1);
     // A completed replay does not finalise a third time.
     assert.equal(calls.ingestExecution(second, { brandId, orgId }).finalised, false);

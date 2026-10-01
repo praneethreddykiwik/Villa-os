@@ -12,6 +12,7 @@ import {
 } from "@/components/osf/ui";
 import { parseRange, rangeLabel, rangeStartIso } from "@/components/osf/shell/nav-config";
 import { gatedLoad } from "@/lib/osf/queries";
+import { zonedDatePart } from "@/lib/osf/site-visit-booking";
 import {
   VISIT_STATUS_LABELS,
   VISIT_STATUS_TONES,
@@ -182,6 +183,74 @@ function DateChip({ visit }: { visit: SiteVisitRow }) {
   );
 }
 
+/**
+ * Answering a request: confirm the slot they asked for, or offer another.
+ *
+ * The two buttons post the same form, so whichever the manager presses carries
+ * whatever time is in the field. Confirming defaults to exactly what the
+ * customer asked for — the common case is agreeing, and making them retype the
+ * time they were given invites a typo into an appointment.
+ *
+ * There is no decline. Offering a different time IS the decline, and it leaves
+ * the customer something to say yes to.
+ */
+function RespondToRequest({ visit }: { visit: SiteVisitRow }) {
+  // datetime-local wants "YYYY-MM-DDTHH:MM" and nothing else. The date must
+  // come out of the instant in the BUSINESS's zone: slicing the ISO string
+  // takes the UTC date, so anything after 18:30 UTC pre-filled yesterday.
+  const date =
+    visit.preferred_date ??
+    (visit.scheduled_at ? zonedDatePart(visit.scheduled_at, "Asia/Kolkata") : "") ??
+    "";
+  const time = (visit.preferred_time ?? "18:00").slice(0, 5);
+  const asked = date ? `${date}T${time}` : "";
+
+  return (
+    <form
+      action="/api/osf/site-visits/respond"
+      method="POST"
+      className="mt-3 space-y-2 border-t border-[var(--color-line)] pt-3"
+    >
+      <input type="hidden" name="visitId" value={visit.id} />
+
+      <label className="block text-[11px] uppercase tracking-wide text-[var(--color-muted)]">
+        Time
+        <input
+          type="datetime-local"
+          name="when"
+          defaultValue={asked}
+          required
+          className="mt-1 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+        />
+      </label>
+
+      <label className="block text-[11px] uppercase tracking-wide text-[var(--color-muted)]">
+        Note (only sent when you suggest a different time)
+        <input
+          type="text"
+          name="note"
+          maxLength={160}
+          placeholder="That slot is already taken."
+          className="mt-1 w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2 text-sm"
+        />
+      </label>
+
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" name="action" value="confirm" className="btn-gold px-3 py-1.5 text-xs">
+          Confirm this time
+        </button>
+        <button type="submit" name="action" value="alternative" className="btn-ghost px-3 py-1.5 text-xs">
+          Suggest another time
+        </button>
+      </div>
+
+      <p className="text-[11px] text-[var(--color-muted)]">
+        Either way they get a WhatsApp message straight away. They are never told they were turned down.
+      </p>
+    </form>
+  );
+}
+
 function VisitFacts({ visit }: { visit: SiteVisitRow }) {
   const TypeIcon = visit.visit_type === "virtual" ? Video : MapPin;
   return (
@@ -252,6 +321,8 @@ function VisitCard({ visit }: { visit: SiteVisitRow }) {
           )}
         </div>
       </div>
+
+      {visit.status === "requested" && <RespondToRequest visit={visit} />}
 
       {moves.length > 0 && (
         <form action="/api/osf/sales" method="POST" className="mt-3 flex flex-wrap gap-2 border-t border-[var(--color-line)] pt-3">

@@ -1,45 +1,30 @@
-import { pageContext } from "@/lib/page-context";
-import { TopBar } from "@/components/shell";
-import { Pipeline, type PipelineLead } from "@/components/crm/pipeline";
-import { CrmEmpty } from "../_empty";
+import { redirect } from "next/navigation";
 
+/**
+ * Moved to the records the agents actually write.
+ *
+ * This screen read the local JSON store. The WhatsApp and voice agents write
+ * to Supabase (villa_leads), and nothing ever copied between the two — so a lead
+ * that messaged in appeared on one page and was invisible on this one. The
+ * two lists were different products wearing the same name.
+ *
+ * Kept as a redirect rather than deleted so bookmarks, in-app links and
+ * anything the team has pasted into a chat still land somewhere real. The
+ * query string is carried across so ?highlight= and friends survive.
+ */
 export const dynamic = "force-dynamic";
 
-export default async function PipelinePage({
+export default async function PipelineRedirect({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const { db, brand, brandId } = pageContext(sp);
-  // Allowlist, not the whole row. The board draws stage, value and owner; the
-  // Lead record also carries the buyer's phone, email and free-text notes, and
-  // handing the component the record put all of it in this page's serialised
-  // props even though nothing here renders it.
-  const leads: PipelineLead[] = db.leads
-    .filter((l) => l.brandId === brandId)
-    .map((l) => ({
-      id: l.id,
-      name: l.name,
-      status: l.status,
-      score: l.score,
-      source: l.source,
-      budgetMin: l.budgetMin,
-      budgetMax: l.budgetMax,
-      projectInterest: l.projectInterest,
-      assignedTo: l.assignedTo,
-      isHNWI: l.isHNWI,
-      kycStatus: l.kycStatus,
-      lastContactedAt: l.lastContactedAt,
-      siteVisitAt: l.siteVisitAt,
-    }));
-
-  return (
-    <>
-      <TopBar brands={db.brands} brandId={brandId} title="Pipeline" subtitle={`${leads.length} deals · ${brand.name}`} />
-      <div className="p-4 sm:p-6 lg:p-7">
-        {leads.length === 0 ? <CrmEmpty brandName={brand.name} brandId={brandId} /> : <Pipeline leads={leads} />}
-      </div>
-    </>
-  );
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (typeof v === "string") qs.set(k, v);
+    else if (Array.isArray(v)) for (const one of v) qs.append(k, one);
+  }
+  const query = qs.toString();
+  redirect(query ? `/inbox/whatsapp/crm/pipeline?${query}` : "/inbox/whatsapp/crm/pipeline");
 }

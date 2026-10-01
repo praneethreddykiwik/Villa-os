@@ -63,18 +63,12 @@ export const THRESHOLDS = {
 /** Pages an insight is allowed to link to. Also the whitelist for LLM output. */
 const ALLOWED_HREFS = new Set([
   "/inbox/whatsapp",
+  "/inbox/whatsapp/communication/whatsapp",
+  "/inbox/whatsapp/sales/site-visits",
   "/inbox/whatsapp/crm/leads",
   "/inbox/whatsapp/crm/pipeline",
-  "/inbox/whatsapp/communication/inbox",
-  "/inbox/whatsapp/crm/tasks",
-  "/inbox/whatsapp/sales/bookings",
-  "/inbox/whatsapp/sales/team",
-  "/inbox/whatsapp/marketing/studio",
-  "/inbox/whatsapp/marketing/studio/campaigns",
-  "/inbox/whatsapp/analytics/attribution",
-  "/inbox/whatsapp/analytics/funnel",
-  "/inbox/whatsapp/sales/revenue",
-  "/inbox/whatsapp/automation/notifications",
+  "/inbox/whatsapp/crm/follow-ups",
+  "/settings/villa/properties",
 ]);
 
 // -----------------------------------------------------------------------------
@@ -319,7 +313,7 @@ export function ruleBasedInsights(s: InsightSignals): DraftInsight[] {
       recommendation: "Work the overdue queue oldest-first, or reschedule what is no longer relevant.",
       expected_impact: "Promised replies land before the buyer moves on.",
       action_label: "Open follow-ups",
-      action_href: "/inbox/whatsapp/crm/tasks",
+      action_href: "/inbox/whatsapp/crm/follow-ups",
       category: "sales",
       generated_by_ai: false,
     });
@@ -399,8 +393,8 @@ export function ruleBasedInsights(s: InsightSignals): DraftInsight[] {
       ],
       recommendation: `Answer the ${label} objection up front in ad creative and the first WhatsApp reply, instead of leaving it to the rep.`,
       expected_impact: "The most common blocker is handled before it stalls a conversation.",
-      action_label: "Open objections",
-      action_href: "/inbox/whatsapp/analytics/funnel",
+      action_label: "Open leads",
+      action_href: "/inbox/whatsapp/crm/leads",
       category: "marketing",
       generated_by_ai: false,
     });
@@ -421,8 +415,8 @@ export function ruleBasedInsights(s: InsightSignals): DraftInsight[] {
       ],
       recommendation: "Add the missing facts to the project record or FAQs so the agent can answer these itself.",
       expected_impact: "Fewer stalled conversations and fewer handoffs for questions the agent could answer.",
-      action_label: "Open objections",
-      action_href: "/inbox/whatsapp/analytics/funnel",
+      action_label: "Open properties",
+      action_href: "/settings/villa/properties",
       category: "knowledge",
       generated_by_ai: false,
     });
@@ -449,8 +443,8 @@ export function ruleBasedInsights(s: InsightSignals): DraftInsight[] {
         evidence,
         recommendation: "Check campaign delivery and spend for the same window before changing creative.",
         expected_impact: "A delivery problem is caught while it is still this week's problem.",
-        action_label: "Open attribution",
-        action_href: "/inbox/whatsapp/analytics/attribution",
+        action_label: "Open leads",
+        action_href: "/inbox/whatsapp/crm/leads",
         category: "marketing",
         generated_by_ai: false,
       });
@@ -463,8 +457,8 @@ export function ruleBasedInsights(s: InsightSignals): DraftInsight[] {
         evidence,
         recommendation: "Confirm response capacity covers the extra volume before it turns into slow first replies.",
         expected_impact: "The extra volume is worked rather than queued.",
-        action_label: "Open attribution",
-        action_href: "/inbox/whatsapp/analytics/attribution",
+        action_label: "Open leads",
+        action_href: "/inbox/whatsapp/crm/leads",
         category: "marketing",
         generated_by_ai: false,
       });
@@ -519,8 +513,8 @@ export function ruleBasedInsights(s: InsightSignals): DraftInsight[] {
       ],
       recommendation: "Give a second channel enough budget to prove itself before this one changes.",
       expected_impact: "Lead flow survives one channel having a bad month.",
-      action_label: "Open attribution",
-      action_href: "/inbox/whatsapp/analytics/attribution",
+      action_label: "Open leads",
+      action_href: "/inbox/whatsapp/crm/leads",
       category: "marketing",
       generated_by_ai: false,
     });

@@ -74,26 +74,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: LayoutDashboard,
         keywords: ["home", "today", "overview"],
       },
-      { href: "/inbox/whatsapp/training", label: "Training", icon: Bot, keywords: ["teach", "knowledge", "faqs", "pricing"] },
-    ],
-  },
-  {
-    label: "AI",
-    items: [
-      { href: "/inbox/whatsapp/ai/copilot", label: "Copilot", icon: Sparkles, keywords: ["ask", "chat", "assistant"] },
-      { href: "/inbox/whatsapp/ai/insights", label: "Insights", icon: Brain, keywords: ["signals", "analysis"] },
-      {
-        href: "/inbox/whatsapp/ai/lead-intelligence",
-        label: "Lead Intelligence",
-        icon: Target,
-        keywords: ["scoring", "intent", "objections"],
-      },
-      {
-        href: "/inbox/whatsapp/ai/recommendations",
-        label: "Recommendations",
-        icon: TrendingUp,
-        keywords: ["next best action", "suggestions"],
-      },
     ],
   },
   {
@@ -104,62 +84,14 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/inbox/whatsapp/crm/pipeline", label: "Pipeline", icon: KanbanSquare, keywords: ["kanban", "stages", "deals"] },
       { href: "/inbox/whatsapp/crm/contacts", label: "Contacts", icon: Contact, keywords: ["people", "phone"] },
       { href: "/inbox/whatsapp/crm/customers", label: "Customers", icon: UserCheck, keywords: ["buyers", "owners"] },
-      { href: "/inbox/whatsapp/crm/tasks", label: "Tasks", icon: CheckSquare, keywords: ["todo", "assignments"] },
+      { href: "/inbox/whatsapp/sales/site-visits", label: "Site Visits", icon: MapPin, keywords: ["tours", "walkthrough", "bookings", "appointments", "slots"] },
       { href: "/inbox/whatsapp/crm/follow-ups", label: "Follow-ups", icon: Clock, keywords: ["reminders", "due", "overdue"] },
-    ],
-  },
-  {
-    label: "Sales",
-    items: [
-      { href: "/inbox/whatsapp/sales/site-visits", label: "Site Visits", icon: MapPin, keywords: ["tours", "walkthrough"] },
-      { href: "/inbox/whatsapp/sales/bookings", label: "Bookings", icon: FileSignature, keywords: ["agreements", "sold", "tokens"] },
-      { href: "/inbox/whatsapp/sales/revenue", label: "Revenue", icon: IndianRupee, keywords: ["collections", "value", "gmv"] },
-      { href: "/inbox/whatsapp/sales/team", label: "Team Performance", icon: Trophy, keywords: ["reps", "leaderboard", "quota"] },
-    ],
-  },
-  {
-    label: "Properties",
-    items: [
-      { href: "/inbox/whatsapp/properties/projects", label: "Projects", icon: Building2, keywords: ["developments"] },
-      { href: "/inbox/whatsapp/properties/villas", label: "Villas", icon: Home, keywords: ["units", "types", "homes"] },
-      { href: "/inbox/whatsapp/properties/inventory", label: "Inventory", icon: Grid3X3, keywords: ["availability", "stock", "plots"] },
-      { href: "/inbox/whatsapp/properties/floor-plans", label: "Floor Plans", icon: Ruler, keywords: ["layouts", "sqft", "drawings"] },
-      { href: "/inbox/whatsapp/properties/amenities", label: "Amenities", icon: Sparkles, keywords: ["clubhouse", "facilities"] },
-    ],
-  },
-  {
-    label: "Marketing",
-    items: [
-      { href: "/inbox/whatsapp/marketing/studio", label: "Content Studio", icon: Wand2, keywords: ["generate", "copy", "creative"] },
-      { href: "/inbox/whatsapp/marketing/overview", label: "Overview", icon: BarChart3, keywords: ["performance", "spend"] },
-      { href: "/inbox/whatsapp/marketing/campaigns", label: "Campaigns", icon: Megaphone, keywords: ["ads", "meta", "google"] },
-      { href: "/inbox/whatsapp/marketing/broadcasts", label: "Broadcasts", icon: Megaphone, keywords: ["templates", "blast", "bulk", "drip"] },
-      { href: "/inbox/whatsapp/marketing/whatsapp", label: "WhatsApp Analytics", icon: MessageCircle, keywords: ["templates", "stats"] },
     ],
   },
   {
     label: "Communication",
     items: [
-      { href: "/inbox/whatsapp/communication/inbox", label: "Inbox", icon: Inbox, keywords: ["unified", "threads", "messages"] },
-      { href: "/inbox/whatsapp/communication/whatsapp", label: "WhatsApp", icon: MessageSquare, keywords: ["chats", "conversations"] },
-      { href: "/inbox/whatsapp/communication/email", label: "Email", icon: Mail, keywords: ["mail", "outbound"] },
-    ],
-  },
-  {
-    label: "Automation",
-    items: [
-      { href: "/inbox/whatsapp/automation/workflows", label: "Workflows", icon: Workflow, keywords: ["rules", "triggers", "sequences"] },
-      { href: "/inbox/whatsapp/automation/routing", label: "Routing", icon: Share2, keywords: ["assignment", "round robin"] },
-      { href: "/inbox/whatsapp/automation/notifications", label: "Notifications", icon: Bell, keywords: ["alerts", "handoffs"] },
-    ],
-  },
-  {
-    label: "Analytics",
-    items: [
-      { href: "/inbox/whatsapp/analytics/attribution", label: "Attribution", icon: GitBranch, keywords: ["sources", "channels", "utm"] },
-      { href: "/inbox/whatsapp/analytics/funnel", label: "Filter", icon: Filter, keywords: ["conversion", "drop off"] },
-      { href: "/inbox/whatsapp/analytics/sales", label: "Sales Analytics", icon: Activity, keywords: ["velocity", "trends"] },
-      { href: "/inbox/whatsapp/analytics/reports", label: "Reports", icon: FileText, keywords: ["export", "csv", "download"] },
+      { href: "/inbox/whatsapp/communication/whatsapp", label: "WhatsApp", icon: MessageSquare, keywords: ["chats", "conversations", "inbox", "messages", "threads"] },
     ],
   },
   {

@@ -265,38 +265,17 @@ function finalise(record: VoiceCallRecord, orgId: string): VoiceCallRecord {
       const existingLead = read().leads.find(
         (l) => l.brandId === record.brandId && normalisePhone(l.phone) === key,
       );
+      // Link to a lead that already exists here, but never create one.
+      //
+      // The same call also runs bridgeCallToWhatsApp, which calls
+      // getOrCreateLead and writes the lead to Supabase — where the WhatsApp
+      // agent, the CRM screens and the site-visit desk all read. Creating a
+      // second row here produced two unrelated leads for one caller, with no
+      // link between them, and every report counted them twice.
+      //
+      // Supabase is the record. This store keeps the call history.
       if (existingLead) {
         leadId = existingLead.id;
-      } else {
-        const lead: Lead = {
-          id: uid("lead"),
-          brandId: record.brandId,
-          name: name ?? customer.name ?? "Voice caller",
-          phone: record.callerPhone,
-          city: "",
-          status: "new",
-          budgetMin: 0,
-          budgetMax: 0,
-          source: "voice",
-          projectInterest: "",
-          unitType: "",
-          assignedTo: "Unassigned",
-          score: 0,
-          isHNWI: false,
-          kycStatus: "not_started",
-          notes: [
-            record.intent === "callback" ? "Asked for a callback." : "Showed interest on a voice call.",
-            record.summary ?? "",
-          ].filter(Boolean).join(" "),
-          createdAt: now,
-          updatedAt: now,
-          tags: ["voice"],
-        };
-        lead.score = scoreLead(lead);
-        mutate((db) => void db.leads.push(lead));
-        logActivity(record.brandId, "crm", `New lead from voice agent: ${lead.name}`, "voice-agent");
-        leadId = lead.id;
-        leadCreated = true;
       }
       mutate((db) => {
         const c = db.customers.find((x) => x.id === customer.id);

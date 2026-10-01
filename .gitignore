@@ -25,3 +25,6 @@ _e2e.mjs
 # Launch-video artifacts: a 10MB mp4 and its frames. Reproducible from
 # brag-output/work, and not something a clone needs.
 brag-output/
+
+# Internal: holds the staff account roster and security findings. Never publish.
+TECHNICAL-HANDOFF.md

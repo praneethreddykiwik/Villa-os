@@ -53,6 +53,10 @@ export function WorkspaceNav() {
         })}
       </div>
 
+      {/* A group with one screen needs no second row: the tab above already
+          IS that screen, and a lone chip repeating its name reads as a choice
+          when there is nothing to choose. */}
+      {group.items.length > 1 && (
       <div className="flex items-center gap-x-1 gap-y-0.5 overflow-x-auto px-4 pb-3 pt-2 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:px-6 [&::-webkit-scrollbar]:hidden">
         {group.items.map((item) => {
           const current = item.href === active;
@@ -75,6 +79,7 @@ export function WorkspaceNav() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

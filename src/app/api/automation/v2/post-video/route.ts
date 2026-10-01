@@ -3,7 +3,7 @@ import { actorLabel, requirePermission } from "@/lib/auth/session";
 import { logActivity } from "@/lib/engine/publisher";
 import { mutate, read, resolveBrandId } from "@/lib/db";
 import { rateLimit } from "@/lib/ops/ratelimit";
-import { checkVideo, videoFormUrl } from "@/lib/automation/video-post";
+import { checkVideo, videoFormUrl, videoFormUrlProblem } from "@/lib/automation/video-post";
 import type { N8nSubmission } from "@/lib/automation/types";
 import { uid } from "@/lib/ids";
 
@@ -11,7 +11,6 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024; // 500 MB
-const DEFAULT_FALLBACK_URL = "https://n8n-fthf.srv1957365.hstgr.cloud/form/08aff311-d3ec-4696-b160-9597c47fe57e";
 const FORWARD_TIMEOUT_MS = 180_000;
 
 function extractFile(form: FormData, ...names: string[]): File | undefined {
@@ -136,9 +135,20 @@ export async function POST(req: Request) {
       outbound.append("selectedPlatforms", p);
     }
 
-    // Destination workflow URL
-    const configuredUrl = videoFormUrl();
-    const url = configuredUrl || DEFAULT_FALLBACK_URL;
+    // Destination workflow URL.
+    //
+    // There used to be a hardcoded fallback here pointing at the vendor's own
+    // n8n box. Two things were wrong with that: the URL carries an embedded
+    // token, so it is a credential (the workflow-url route gates reading it
+    // behind a permission for exactly that reason) — and an install that had
+    // simply not been configured would upload the client's marketing videos
+    // to somebody else's server without anyone being told.
+    //
+    // Refusing is the only honest answer to "not configured", and it is what
+    // the v1 route already did.
+    const problem = videoFormUrlProblem();
+    if (problem) return apiFail(problem, 503);
+    const url = videoFormUrl()!;
 
     // Forward to workflow
     let res: Response | null = null;

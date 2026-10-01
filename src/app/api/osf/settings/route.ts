@@ -91,7 +91,6 @@ export async function POST(request: Request) {
   if (result.ok) {
     revalidatePath(fallback);
     // The tenant name and logo are rendered into the studio's device mockups.
-    if (action === "tenant") revalidatePath("/inbox/whatsapp/marketing/studio");
   }
 
   // safePath is applied here rather than left to respond(), whose own fallback

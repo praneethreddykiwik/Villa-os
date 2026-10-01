@@ -104,10 +104,6 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
               <MessageSquare size={14} strokeWidth={2} aria-hidden />
               Open conversations
             </Link>
-            <Link href={`/inbox/whatsapp/analytics/reports?range=${range}`} className="btn-ghost h-9 py-0 text-[13px]">
-              Export data
-              <ArrowUpRight size={14} strokeWidth={2} aria-hidden />
-            </Link>
           </>
         }
       />
@@ -225,13 +221,6 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           ) : (
             <>
               <DonutChart data={sourceSplit} height={230} />
-              <Link
-                href={`/inbox/whatsapp/analytics/attribution?range=${range}`}
-                className="mt-3 inline-flex items-center gap-1 text-xs text-[var(--color-muted)] transition hover:text-[var(--color-gold-300)]"
-              >
-                Full attribution, including multi-touch
-                <ArrowUpRight size={12} strokeWidth={2} aria-hidden />
-              </Link>
             </>
           )}
         </Card>
@@ -396,13 +385,13 @@ function Checklist() {
   const items = [
     [
       s.aiConfigured,
-      s.llmProvider === "groq" ? "AI service key (test mode)" : "AI service key",
+      s.llmProvider === "groq" ? "AI assistant (test mode)" : "AI assistant",
       s.llmProvider === "groq"
-        ? "Currently on the free testing tier. Switch to the production AI service when ready to go live."
+        ? "Running on the free tier while you test. Upgrade before going live."
         : "The agent cannot reply without this.",
     ],
-    [s.supabase, "Database credentials", "Leads and conversations are stored here."],
-    [s.whatsapp, "WhatsApp Cloud API", "Optional to start — the simulator works without it."],
+    [s.supabase, "Customer records", "Where leads and conversations are stored."],
+    [s.whatsapp, "WhatsApp connection", "Optional to start — you can test without it."],
     [s.salesHandoff, "Sales team number", "Where hot-lead alerts get sent."],
   ] as const;
 

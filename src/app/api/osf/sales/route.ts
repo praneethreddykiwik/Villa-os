@@ -92,28 +92,20 @@ export async function POST(request: Request) {
         notes: body.get("notes") ?? null,
       });
       if (result.ok) {
-        revalidatePath("/inbox/whatsapp/sales/bookings");
-        revalidatePath("/inbox/whatsapp/sales/revenue");
         revalidatePath("/inbox/whatsapp/crm/leads");
       }
-      // A new booking's detail page is where the payment schedule gets built,
-      // so land there rather than back on the list.
-      return respond(
-        request,
-        body,
-        result.ok ? `/inbox/whatsapp/sales/bookings/${result.data.id}` : "/inbox/whatsapp/sales/bookings",
-        result,
-      );
+      // Both outcomes land on Site visits. The bookings screen this used to
+      // fall back to on failure no longer exists, so a failed create sent the
+      // desk to a 404 — the one moment they most need to see the error.
+      return respond(request, body, "/inbox/whatsapp/sales/site-visits", result);
     }
 
     case "booking-status": {
       const bookingId = body.get("bookingId") ?? "";
       const result = await updateBookingStatus(bookingId, body.get("status") ?? "");
       if (result.ok) {
-        revalidatePath("/inbox/whatsapp/sales/bookings");
-        revalidatePath("/inbox/whatsapp/sales/revenue");
       }
-      return finish(`/inbox/whatsapp/sales/bookings/${bookingId}`, result);
+      return finish("/inbox/whatsapp/sales/site-visits", result);
     }
 
     case "add-payment": {
@@ -126,20 +118,16 @@ export async function POST(request: Request) {
         status: body.get("status"),
       });
       if (result.ok) {
-        revalidatePath("/inbox/whatsapp/sales/bookings");
-        revalidatePath("/inbox/whatsapp/sales/revenue");
       }
-      return finish(`/inbox/whatsapp/sales/bookings/${bookingId}`, result);
+      return finish("/inbox/whatsapp/sales/site-visits", result);
     }
 
     case "payment-status": {
       const bookingId = body.get("bookingId") ?? "";
       const result = await setPaymentStatus(body.get("paymentId") ?? "", body.get("status") ?? "");
       if (result.ok) {
-        revalidatePath("/inbox/whatsapp/sales/bookings");
-        revalidatePath("/inbox/whatsapp/sales/revenue");
       }
-      return finish(`/inbox/whatsapp/sales/bookings/${bookingId}`, result);
+      return finish("/inbox/whatsapp/sales/site-visits", result);
     }
 
     // ------------------------------------------------------------------ team
@@ -154,14 +142,14 @@ export async function POST(request: Request) {
         languages: body.get("languages") ?? null,
         acceptsLeads: body.get("acceptsLeads") === undefined ? true : body.bool("acceptsLeads"),
       });
-      if (result.ok) revalidatePath("/inbox/whatsapp/sales/team");
-      return finish("/inbox/whatsapp/sales/team", result);
+      if (result.ok) revalidatePath("/inbox/whatsapp/sales/site-visits");
+      return finish("/inbox/whatsapp/sales/site-visits", result);
     }
 
     case "toggle-member": {
       const result = await toggleMemberActive(body.get("memberId") ?? "");
-      if (result.ok) revalidatePath("/inbox/whatsapp/sales/team");
-      return finish("/inbox/whatsapp/sales/team", result);
+      if (result.ok) revalidatePath("/inbox/whatsapp/sales/site-visits");
+      return finish("/inbox/whatsapp/sales/site-visits", result);
     }
 
     default:

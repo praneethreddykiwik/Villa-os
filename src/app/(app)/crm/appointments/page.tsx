@@ -1,117 +1,30 @@
-import { pageContext } from "@/lib/page-context";
-import { TopBar } from "@/components/shell";
-import { Stat } from "@/components/ui";
-import { HOLDS_SLOT } from "@/lib/appointments/types";
-import { AppointmentsView } from "@/components/crm/appointments-view";
-import { CrmEmpty } from "../_empty";
-import { seedSiteVisitDesk } from "@/lib/appointments/seed";
-
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
 /**
- * The site-visit desk.
+ * Moved to the records the agents actually write.
  *
- * A villa sale turns on getting the buyer onto the plot, so the numbers that
- * matter here are not "how many bookings exist" but "what is happening today"
- * and "what has already happened that nobody has closed out". A visit whose
- * start time has passed while it is still confirmed is the expensive case: it
- * keeps holding a slot other buyers could have taken, and it leaves the lead
- * sitting in `site_visit_scheduled` for a visit that may never have happened.
- * That bucket is pulled to the top rather than buried in a date-sorted list.
+ * This screen read the local JSON store. The WhatsApp and voice agents write
+ * to Supabase (villa_site_visits), and nothing ever copied between the two — so a lead
+ * that messaged in appeared on one page and was invisible on this one. The
+ * two lists were different products wearing the same name.
+ *
+ * Kept as a redirect rather than deleted so bookmarks, in-app links and
+ * anything the team has pasted into a chat still land somewhere real. The
+ * query string is carried across so ?highlight= and friends survive.
  */
-export default async function AppointmentsPage({
+export const dynamic = "force-dynamic";
+
+export default async function AppointmentsRedirect({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  let { db, brand, brandId } = pageContext(sp);
-
-  // A desk with nothing on it cannot show what the desk does — in particular it
-  // cannot show the assistant declining a full day and offering another. Seeds
-  // opening hours and a busy weekend ONLY when there is not a single
-  // appointment, so a real booking is never interleaved with sample data.
-  if (seedSiteVisitDesk(brandId, brand.timezone) > 0) {
-    ({ db, brand, brandId } = pageContext(sp));
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (typeof v === "string") qs.set(k, v);
+    else if (Array.isArray(v)) for (const one of v) qs.append(k, one);
   }
-
-  // `?? []` because a store written before appointments existed has no such key.
-  const appointments = (db.appointments ?? [])
-    .filter((a) => a.brandId === brandId)
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-
-  const now = Date.now();
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
-
-  const live = appointments.filter((a) => HOLDS_SLOT.includes(a.status));
-  const today = live.filter((a) => {
-    const t = new Date(a.startsAt).getTime();
-    return t >= now && t <= endOfToday.getTime();
-  });
-  const week = live.filter((a) => {
-    const t = new Date(a.startsAt).getTime();
-    return t > endOfToday.getTime() && t <= now + 7 * 86400000;
-  });
-  const needsOutcome = live.filter((a) => new Date(a.startsAt).getTime() < now);
-  const completed = appointments.filter(
-    (a) => a.status === "completed" && new Date(a.startsAt).getTime() > now - 30 * 86400000,
-  );
-
-  const leads = db.leads
-    .filter((l) => l.brandId === brandId)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .map((l) => ({ id: l.id, name: l.name, phone: l.phone }));
-
-  // Hosts come from the real team list, plus anyone already carrying a visit, so
-  // an assignment made before someone left the team is still selectable.
-  const staff = [
-    ...new Set([
-      ...db.teamMembers.filter((m) => m.active).map((m) => m.name),
-      ...appointments.map((a) => a.assignedTo).filter((s): s is string => Boolean(s)),
-    ]),
-  ].sort();
-
-  // Delivery outcomes for the visits on screen, so "was the host told" is
-  // answered where the visit is, not in a log page nobody opens.
-  const ids = new Set(appointments.map((a) => a.id));
-  const notifications = (db.notificationLog ?? []).filter((n) => n.entity === "appointment" && ids.has(n.entityId));
-
-  // The CRM is per brand, and so is this. With no leads and no visits there is
-  // nothing to show that would not read as a bug.
-  const hasCrm = leads.length > 0 || appointments.length > 0;
-
-  return (
-    <>
-      <TopBar
-        brands={db.brands}
-        brandId={brandId}
-        title="Site visits"
-        subtitle={`${today.length} today · ${live.length} upcoming · ${brand.name}`}
-      />
-      <div className="space-y-5 p-4 sm:p-6 lg:p-7">
-        {!hasCrm ? (
-          <CrmEmpty brandName={brand.name} brandId={brandId} />
-        ) : (
-          <>
-            <div className="grid gap-3 md:grid-cols-4">
-              <Stat label="Today" value={String(today.length)} sub="still to happen" />
-              <Stat label="Next 7 days" value={String(week.length)} sub="confirmed and holding a slot" />
-              <Stat label="Needs an outcome" value={String(needsOutcome.length)} sub="start time passed, still open" />
-              <Stat label="Completed (30d)" value={String(completed.length)} sub="buyer actually walked the plot" />
-            </div>
-
-            <AppointmentsView
-              appointments={appointments}
-              brandId={brandId}
-              brandName={brand.name}
-              leads={leads}
-              staff={staff}
-              notifications={notifications}
-            />
-          </>
-        )}
-      </div>
-    </>
-  );
+  const query = qs.toString();
+  redirect(query ? `/inbox/whatsapp/sales/site-visits?${query}` : "/inbox/whatsapp/sales/site-visits");
 }

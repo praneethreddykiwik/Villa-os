@@ -27,6 +27,11 @@ const RULES: Array<[RegExp, Permission]> = [
   [/^\/inbox\/whatsapp\/(marketing|properties)/, "marketing.read"],
   [/^\/inbox\/whatsapp\/(analytics|activity|ai|overview)/, "analytics.view"],
   [/^\/inbox\/whatsapp\/communication/, "customers.read"],
+  // The directory is a front-desk tool — "have we spoken to this number
+  // before?" — and it carried customers.read when it lived at /crm/contacts.
+  // Listed before the general crm rule so repointing the sidebar at the
+  // Supabase page does not quietly take it away from the front desk.
+  [/^\/inbox\/whatsapp\/crm\/contacts/, "customers.read"],
   [/^\/inbox\/whatsapp\/(crm|sales)/, "sales.read"],
   // Fallback: the inbox itself, which IS front-desk work.
   [/^\/inbox\/whatsapp/, "customers.read"],

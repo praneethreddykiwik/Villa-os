@@ -68,16 +68,11 @@ export default function Topbar({
           </Suspense>
 
           <Link
-            href="/inbox/whatsapp/automation/notifications"
+            href="/inbox/whatsapp/crm/follow-ups"
             aria-label="Notifications"
             className="grid h-9 w-9 place-items-center rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-muted)] transition hover:bg-[var(--color-raised)] hover:text-[var(--color-ink)]"
           >
             <Bell size={15} strokeWidth={1.75} aria-hidden />
-          </Link>
-
-          <Link href="/inbox/whatsapp/ai/copilot" className="btn-gold h-9 gap-1.5 px-3 py-0 text-[13px]">
-            <Sparkles size={14} strokeWidth={2} aria-hidden />
-            <span className="hidden sm:inline">Ask AI</span>
           </Link>
         </div>
       </div>

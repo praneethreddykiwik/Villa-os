@@ -29,7 +29,6 @@ export const dynamic = "force-dynamic";
 const CRM_PATHS = [
   "/inbox/whatsapp/crm/leads",
   "/inbox/whatsapp/crm/pipeline",
-  "/inbox/whatsapp/crm/tasks",
   "/inbox/whatsapp/crm/follow-ups",
   "/inbox/whatsapp/crm/contacts",
   "/inbox/whatsapp/crm/customers",
