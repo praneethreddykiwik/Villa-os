@@ -25,8 +25,11 @@ _e2e.mjs
 !.env.example
 
 # Launch-video artifacts: a 10MB mp4 and its frames. Reproducible from
-# brag-output/work, and not something a clone needs.
+# brag-output/work, and not something a clone needs. The glob covers the
+# timestamped runs too — the 3-minute walkthrough is a 36MB mp4 on top of
+# 6.6MB of audio beds, which is the same decision at four times the weight.
 brag-output/
+brag-output-*/
 
 # Internal: holds the staff account roster and security findings. Never publish.
 TECHNICAL-HANDOFF.md
