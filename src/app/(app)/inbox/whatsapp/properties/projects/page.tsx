@@ -139,7 +139,7 @@ function ProjectCard({ project, stats }: { project: ProjectCardRow; stats?: Proj
             {project.name.charAt(0)}
           </span>
         )}
-        <div className="relative w-full bg-gradient-to-t from-[var(--color-void)] via-[rgba(10,10,12,0.75)] to-transparent p-4 pt-10">
+        <div className="relative w-full bg-gradient-to-t from-[var(--color-void)] via-[color-mix(in_oklab,var(--color-void)_75%,transparent)] to-transparent p-4 pt-10">
           <div className="flex flex-wrap items-center gap-2">
             {project.status && <Badge tone={statusTone(project.status)}>{project.status}</Badge>}
             {project.phase && <Badge>{project.phase}</Badge>}

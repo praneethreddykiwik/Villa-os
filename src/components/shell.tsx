@@ -15,6 +15,7 @@ import { GlentreeTree } from "./brand/glentree-tree";
 import type { Brand } from "@/lib/types";
 import { VisitRequestsBell } from "./visit-requests-bell";
 import { requiredPermissionFor } from "@/lib/auth/page-access";
+import { TAB_CATALOGUE } from "@/lib/access/tab-catalogue";
 
 interface NavItem {
   href: string;
@@ -26,77 +27,52 @@ interface NavSection {
   group: string;
   items: NavItem[];
 }
-import { ThemeToggle } from "./theme-toggle";
 
-const NAV: NavSection[] = [
-  { group: "Overview", items: [
-    { href: "/dashboard", label: "Dashboard", icon: Gauge },
-    { href: "/insights", label: "AI Insights", icon: Sparkles, badgeKey: "suggestions" as const },
-    { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  ]},
-  // One tab per network, each tracking that network on its own. Gated by the
-  // same map the pages are: `requiredPermissionFor` matches /^\/channels/ to
-  // marketing.read, so these links cannot outlive the permission behind them.
-  { group: "Channels", items: [
-    { href: "/channels/instagram", label: "Instagram", icon: Instagram },
-    { href: "/channels/facebook", label: "Facebook", icon: Facebook },
-    { href: "/channels/linkedin", label: "LinkedIn", icon: Linkedin },
-    { href: "/channels/youtube", label: "YouTube", icon: Youtube },
-  ]},
-  { group: "Create & publish", items: [
-    { href: "/showcase", label: "Project Showcase", icon: Building2 },
-    { href: "/publish-v2", label: "Publish a video", icon: Sparkles },
-    { href: "/board", label: "Board", icon: KanbanSquare },
-    { href: "/calendar", label: "Calendar", icon: CalendarDays },
-    { href: "/ideas", label: "Post ideas", icon: Lightbulb },
-  ]},
-  // One set of customer records, not two. These used to point at JSON-backed
-  // screens that no agent ever wrote to, so a lead that arrived by WhatsApp
-  // was invisible here. They now open the same Supabase records the agents
-  // use; the old /crm/* URLs redirect, so nothing anyone bookmarked breaks.
-  { group: "CRM", items: [
-    { href: "/inbox/whatsapp/crm/leads", label: "Leads", icon: Users },
-    { href: "/inbox/whatsapp/crm/pipeline", label: "Pipeline", icon: GitBranch },
-    { href: "/inbox/whatsapp/crm/contacts", label: "Contacts", icon: Contact },
-    { href: "/inbox/whatsapp/crm/customers", label: "Customers", icon: UserCheck },
-    // Gated by the same rule the page is: `requiredPermissionFor` matches
-    // /^\/inbox\/whatsapp\/(crm|sales)/ to sales.read, so this link and the
-    // screen behind it cannot drift into a visible link to a locked door.
-    { href: "/inbox/whatsapp/sales/site-visits", label: "Site visits", icon: CalendarCheck },
-    { href: "/inbox/whatsapp/crm/follow-ups", label: "Follow-ups", icon: BellRing },
-  ]},
-  // Conversations with leads, as opposed to records about them. Both are gated
-  // on customers.read like the directory, so they filter with the CRM group.
-  { group: "Engage", items: [
-    { href: "/voice", label: "Voice calls", icon: PhoneCall },
-    // One door for everything WhatsApp: the inbox, the assistant's training
-    // and the sales workspace behind it, as tabs rather than as three
-    // separate sidebar entries pointing at the same subject.
-    // Straight to the conversations, which is what "WhatsApp" means to the
-    // person clicking it. It used to land on the workspace dashboard, so the
-    // box for starting a new chat looked like it did not exist.
-    { href: "/inbox/whatsapp/communication/whatsapp", label: "WhatsApp", icon: Inbox },
-  ]},
-  { group: "Grow", items: [
-    { href: "/ads", label: "Ads · Meta + Google", icon: Megaphone },
-    { href: "/engagement", label: "Engagement", icon: Inbox, badgeKey: "inbox" as const },
-    { href: "/reviews", label: "Reviews", icon: Star, badgeKey: "reviews" as const },
-    { href: "/local", label: "Local visibility", icon: MapPin },
-  ]},
-  { group: "Operations", items: [
-    { href: "/ops/messages", label: "Messages", icon: MessageSquare },
-    { href: "/ops/sales", label: "Sales queue", icon: Users },
-    { href: "/ops/loans", label: "Loan cases", icon: Wallet },
-    { href: "/ops/admin", label: "Control centre", icon: ShieldCheck },
-  ]},
-  { group: "System", items: [
-    { href: "/reports", label: "Reports", icon: FileText },
-    { href: "/settings", label: "Settings", icon: Settings },
-    // The operational side of the business — calling hours, retry policy —
-    // as opposed to which vendors are wired up, which is /settings.
-    { href: "/settings/villa", label: "Villa profile", icon: Building2 },
-  ]},
-];
+const ICONS: Record<string, NavItem["icon"]> = {
+  "/dashboard": Gauge,
+  "/insights": Sparkles,
+  "/analytics": BarChart3,
+  "/channels/instagram": Instagram,
+  "/channels/facebook": Facebook,
+  "/channels/linkedin": Linkedin,
+  "/channels/youtube": Youtube,
+  "/showcase": Building2,
+  "/publish-v2": Sparkles,
+  "/board": KanbanSquare,
+  "/calendar": CalendarDays,
+  "/ideas": Lightbulb,
+  "/inbox/whatsapp/crm/leads": Users,
+  "/inbox/whatsapp/crm/pipeline": GitBranch,
+  "/inbox/whatsapp/crm/contacts": Contact,
+  "/inbox/whatsapp/crm/customers": UserCheck,
+  "/inbox/whatsapp/sales/site-visits": CalendarCheck,
+  "/inbox/whatsapp/crm/follow-ups": BellRing,
+  "/voice": PhoneCall,
+  "/inbox/whatsapp/communication/whatsapp": Inbox,
+  "/ads": Megaphone,
+  "/engagement": Inbox,
+  "/reviews": Star,
+  "/local": MapPin,
+  "/ops/messages": MessageSquare,
+  "/ops/sales": Users,
+  "/ops/loans": Wallet,
+  "/ops/admin": ShieldCheck,
+  "/reports": FileText,
+  "/settings": Settings,
+  "/settings/villa": Building2,
+};
+
+/**
+ * The navigation is the catalogue plus icons, rather than a second copy of it.
+ *
+ * The control centre renders the same catalogue as the switches that grant
+ * access to these screens. Keeping two lists meant a tab could exist in the
+ * sidebar with no switch behind it, or a switch for a tab nobody could see.
+ */
+const NAV: NavSection[] = TAB_CATALOGUE.map((section) => ({
+  group: section.group,
+  items: section.items.map((item) => ({ ...item, icon: ICONS[item.href] ?? Gauge })),
+}));
 
 /**
  * Navigation is filtered by permission, using the same map the page guard uses.
@@ -325,7 +301,6 @@ export function TopBar({
             asked to visit and is waiting on an answer. */}
         <VisitRequestsBell />
         {right}
-        <ThemeToggle />
         <div className="flex overflow-hidden rounded-full border border-ink-700/80 bg-ink-900/60 p-0.5 backdrop-blur-xl shadow-sm">
           {["7", "30", "90"].map((d) => (
             <button

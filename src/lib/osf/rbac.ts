@@ -279,9 +279,13 @@ export interface LiveMatrix {
  * one is descriptive documentation and enforces nothing; this one is the rule.
  */
 export async function liveMatrix(): Promise<LiveMatrix> {
-  const [{ data: catalogue }, { data: grants }] = await Promise.all([
+  const [{ data: catalogue }, { data: grants }, { data: mentioned }, { data: staffed }] = await Promise.all([
     db().from("villa_permissions").select("key, label, description, category").order("category").order("key"),
     db().from("villa_role_permissions").select("role, permission_key").eq("allowed", true),
+    // Every role the table knows about, including the ones whose rows are all
+    // allowed = false.
+    db().from("villa_role_permissions").select("role"),
+    db().from("villa_team_members").select("role"),
   ]);
 
   const byRole: Record<string, string[]> = {};
@@ -289,10 +293,27 @@ export async function liveMatrix(): Promise<LiveMatrix> {
     (byRole[row.role] ??= []).push(row.permission_key);
   }
 
+  /**
+   * The roles are deliberately NOT the keys of `byRole`.
+   *
+   * A revoke is an upsert of allowed = false, not a delete, so a role whose
+   * last capability is removed still exists — but it would vanish from a list
+   * built only from granted rows. On the Control Centre that means the chip
+   * disappears mid-edit and there is no longer any way to grant the role
+   * anything back: the screen has locked itself out of its own subject. The
+   * same omission hides a freshly created role that has not been given
+   * anything yet, which is exactly the state a person is in when they come
+   * here to set one up.
+   */
+  const roles = new Set<string>(Object.keys(byRole));
+  for (const row of [...((mentioned ?? []) as Array<{ role: string }>), ...((staffed ?? []) as Array<{ role: string }>)]) {
+    if (typeof row.role === "string" && row.role.trim()) roles.add(row.role);
+  }
+
   return {
     permissions: (catalogue ?? []) as PermissionCatalogueEntry[],
     byRole,
-    roles: Object.keys(byRole).sort(),
+    roles: [...roles].sort(),
   };
 }
 

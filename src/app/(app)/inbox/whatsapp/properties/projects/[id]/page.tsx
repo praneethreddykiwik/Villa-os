@@ -106,7 +106,7 @@ export default async function ProjectDossierPage({
           backgroundPosition: "center",
         }}
       >
-        <div className="bg-gradient-to-t from-[var(--color-void)] via-[rgba(10,10,12,0.82)] to-[rgba(10,10,12,0.35)] px-6 pb-6 pt-28 sm:pt-40">
+        <div className="bg-gradient-to-t from-[var(--color-void)] via-[color-mix(in_oklab,var(--color-void)_82%,transparent)] to-[color-mix(in_oklab,var(--color-void)_35%,transparent)] px-6 pb-6 pt-28 sm:pt-40">
           <div className="flex flex-wrap items-center gap-2">
             {project.status && <Badge tone="gold">{project.status}</Badge>}
             {project.phase && <Badge>{project.phase}</Badge>}

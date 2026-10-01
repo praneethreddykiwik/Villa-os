@@ -5,6 +5,7 @@ import { Bot, Loader2, UserCheck } from "lucide-react";
 import { LOAN_STATUSES } from "@/lib/ops/types";
 import type { LoanStatus } from "@/lib/ops/types";
 import { Card } from "../ui";
+import { requestJson } from "@/lib/ops/request-json";
 
 /**
  * Case-level controls: status, ownership, notes and the automation switch.
@@ -41,14 +42,17 @@ export function CaseControls({
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch("/api/ops/loan", {
+      const out = await requestJson<{ ok?: boolean; error?: string }>("/api/ops/loan", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ loanCaseId, ...body }),
       });
-      const json = await res.json();
-      if (!json.ok) setError(json.error ?? "Request failed");
-      return json;
+      if (!out.ok) {
+        setError(out.error);
+        return null;
+      }
+      if (!out.data.ok) setError(out.data.error ?? "Request failed");
+      return out.data;
     } finally {
       setBusy(null);
     }
@@ -58,14 +62,17 @@ export function CaseControls({
     const next = control === "AI_ACTIVE" ? "HUMAN_CONTROL" : "AI_ACTIVE";
     setBusy("control");
     try {
-      const res = await fetch("/api/ops/customers", {
+      const out = await requestJson<{ ok?: boolean; error?: string }>("/api/ops/customers", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ customerId, control: { lane: "LOAN", state: next } }),
       });
-      const json = await res.json();
-      if (!json.ok) {
-        setError(json.error);
+      if (!out.ok) {
+        setError(out.error);
+        return;
+      }
+      if (!out.data.ok) {
+        setError(out.data.error ?? "That change could not be saved.");
         return;
       }
       setControl(next);

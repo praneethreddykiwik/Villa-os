@@ -1,5 +1,5 @@
 import { revalidatePath } from "next/cache";
-import { readPost, respond, safePath, type ActionResult } from "@/lib/osf/form-post";
+import { denyPost, readPost, respond, safePath, type ActionResult } from "@/lib/osf/form-post";
 import {
   addMember,
   saveTenant,
@@ -34,10 +34,13 @@ const RETURN_TO: Record<string, string> = {
 };
 
 export async function POST(request: Request) {
-  const denied = await guard("workflows.manage");
-  if (denied) return denied;
   const body = await readPost(request);
   const action = body.get("action") ?? "";
+
+  const denied = await guard("workflows.manage");
+  if (denied) {
+    return denyPost(request, denied, body, safePath(body.get("next"), RETURN_TO[action] ?? "/inbox/whatsapp/settings"));
+  }
 
   let result: WriteResult;
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { readPost, respond, safePath, type ActionResult } from "@/lib/osf/form-post";
+import { denyPost, readPost, respond, safePath, type ActionResult } from "@/lib/osf/form-post";
 import {
   assignRep,
   completeFollowUp,
@@ -35,11 +35,14 @@ const CRM_PATHS = [
 ];
 
 export async function POST(request: Request) {
-  const denied = await guard("sales.write");
-  if (denied) return denied;
+  // Parsed before the guard so a refusal can redirect back to the page the
+  // form came from. readPost only reads; nothing is written before the check.
   const body = await readPost(request);
   const action = body.get("action");
   const redirectTo = safePath(body.get("next"), "/inbox/whatsapp/crm/leads");
+
+  const denied = await guard("sales.write");
+  if (denied) return denyPost(request, denied, body, redirectTo);
 
   let result: ActionResult;
 

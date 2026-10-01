@@ -184,7 +184,7 @@ export function YouTubeVideos({ brandId }: { brandId: string }) {
                 href={`https://www.youtube.com/${snap.handle}`}
                 target="_blank"
                 rel="noreferrer"
-                className="liquid-glass-button inline-flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-medium text-mist-200 hover:text-white"
+                className="liquid-glass-button inline-flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-medium text-mist-200 hover:text-mist-100"
               >
                 <Youtube size={13} className="text-red-500" />
                 <span>Open YouTube</span>
@@ -577,7 +577,7 @@ function VideoRowItem({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onToggle(); }}
-              className="rounded-lg border border-ink-700 bg-ink-800/80 px-2 py-1 text-[11px] font-medium text-mist-300 hover:text-white hover:bg-ink-700 transition-colors"
+              className="rounded-lg border border-ink-700 bg-ink-800/80 px-2 py-1 text-[11px] font-medium text-mist-300 hover:text-mist-100 hover:bg-ink-700 transition-colors"
             >
               {expanded ? "Hide" : "Details"}
             </button>

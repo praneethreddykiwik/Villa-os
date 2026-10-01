@@ -91,6 +91,35 @@ export function safePath(value: string | undefined, fallback: string): string {
 export type ActionResult = ({ ok: true } & Record<string, unknown>) | { ok: false; error: string };
 
 /**
+ * A permission refusal on a route that also serves native form posts.
+ *
+ * guard() answers with JSON, which is right for the fetch callers and wrong for
+ * the <form method="POST"> submissions these same routes accept: those are
+ * full-page navigations, so the browser paints `{"ok":false,...}` as the
+ * document and the operator loses the entire console with only Back to get out.
+ * Every other failure on these routes redirects back with ?error= and is
+ * rendered in place — this puts the authorization branch on that same path.
+ */
+export async function denyPost(
+  request: Request,
+  denied: NextResponse,
+  body: PostBody,
+  redirectTo: string,
+): Promise<NextResponse> {
+  if (body.json) return denied;
+  let error = "You do not have permission to do that.";
+  try {
+    // clone(), because the caller's response body can only be read once and
+    // the JSON branch above still has to be able to return it intact.
+    const parsed = (await denied.clone().json()) as { error?: unknown };
+    if (typeof parsed.error === "string" && parsed.error.trim()) error = parsed.error;
+  } catch {
+    // An unreadable body is not worth failing over; the generic message stands.
+  }
+  return respond(request, body, redirectTo, { ok: false, error });
+}
+
+/**
  * `request` is no longer read — the redirect is deliberately relative rather
  * than resolved against the request's own (Host-header-derived) URL. It stays
  * in the signature because every route handler passes it.

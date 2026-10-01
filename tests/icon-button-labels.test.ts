@@ -22,6 +22,8 @@ const CASES: Array<[file: string, label: string]> = [
   ["src/components/board-settings.tsx", "Close board settings"],
   ["src/components/messaging/message-composer.tsx", "Cancel reply"],
   ["src/components/voice/voice-panel.tsx", "Close call details"],
+  ["src/components/quick-settings.tsx", "Close settings"],
+  ["src/components/quick-settings.tsx", "Settings, appearance and account"],
 ];
 
 describe("icon-only buttons have accessible names", () => {

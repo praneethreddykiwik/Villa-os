@@ -67,7 +67,10 @@ export default function SimulatorPage() {
           leadScore: data.leadScore,
           temperature: data.temperature,
           toolsUsed: data.toolsUsed ?? [],
-          usage: data.usage,
+          // toolsUsed is already defended; usage was not, and the card below
+          // reads four counters straight off it. A provider path that reports
+          // no token counts would throw during render rather than show zeroes.
+          usage: data.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         });
       }
     } catch (e) {

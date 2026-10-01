@@ -5,23 +5,21 @@ import { getSession, hasPermission } from "@/lib/auth/session";
 import { TopBar } from "@/components/shell";
 import { Card, SectionTitle, Badge } from "@/components/ui";
 import { CardSkeleton } from "@/components/skeletons";
-import { listMemberAccounts, liveMatrix } from "@/lib/osf/rbac";
-import { groupIntoAreas, roleDisplayName } from "@/lib/osf/access-areas";
+import { accessMatrix, listAccounts, PROTECTED_ROLES } from "@/lib/access/app-rbac";
+import { ACTION_PERMISSIONS, tabRows } from "@/lib/access/tab-catalogue";
 import { AccessControl } from "@/components/ops/access-control";
 
 export const dynamic = "force-dynamic";
 
 /**
- * CONTROL CENTRE — the team, and what each role may do.
+ * CONTROL CENTRE — the people with accounts, and what each role may open.
  *
- * One screen answers both halves of "who can see this?": which people have
- * accounts, and what the role attached to each of them unlocks. They used to
- * be separate places, so checking an answer meant holding one screen in your
- * head while reading another.
- *
- * Everything here reads villa_team_members and villa_role_permissions — the
- * same tables the database consults when it enforces access. Nothing on this
- * page is a description of the rules; it is the rules.
+ * Everything on this screen reads the three tables the request path itself
+ * uses: profiles, user_roles and role_permissions. That is deliberate. The
+ * previous version read villa_team_members and villa_role_permissions, which
+ * list different people under different role names, and which nothing in the
+ * application has ever consulted when deciding whether to serve a page. It
+ * looked authoritative and changed nothing.
  */
 export default async function ControlCentrePage({
   searchParams,
@@ -31,7 +29,7 @@ export default async function ControlCentrePage({
   const session = await getSession();
   if (!session) redirect("/ops");
   // Reading who has access is itself sensitive: it is a map of which account
-  // to go after. Seeing the screen needs the team permission, not merely a
+  // to go after. Seeing the screen needs a management permission, not merely a
   // login.
   if (!hasPermission(session, "analytics.view")) redirect("/ops");
 
@@ -44,7 +42,7 @@ export default async function ControlCentrePage({
       <TopBar brands={db.brands} brandId={brandId} title="Control centre" subtitle={brand.name} />
       <div className="space-y-6 p-4 sm:p-6 lg:p-7">
         <Suspense fallback={<CardSkeleton rows={6} />}>
-          <TeamSection canEdit={canEdit} />
+          <AccountsSection canEdit={canEdit} />
         </Suspense>
         <Suspense fallback={<CardSkeleton rows={8} />}>
           <AccessSection canEdit={canEdit} />
@@ -54,17 +52,16 @@ export default async function ControlCentrePage({
   );
 }
 
-/** Who has an account, what role they hold, and whether they have ever signed in. */
-async function TeamSection({ canEdit }: { canEdit: boolean }) {
-  const members = await listMemberAccounts().catch(() => []);
+/** Who can sign in, and which role decides what they see. */
+async function AccountsSection({ canEdit }: { canEdit: boolean }) {
+  const accounts = await listAccounts().catch(() => []);
 
-  if (members.length === 0) {
+  if (accounts.length === 0) {
     return (
       <Card>
-        <SectionTitle title="Team members" hint="Nobody is set up yet" />
+        <SectionTitle title="Accounts" hint="Nobody is set up yet" />
         <p className="text-[12px] text-mist-400">
-          No team records were found. Add people in the team screen and they will appear here with the role they
-          hold.
+          No sign-in accounts were found. Until one exists, nobody can open anything.
         </p>
       </Card>
     );
@@ -73,8 +70,8 @@ async function TeamSection({ canEdit }: { canEdit: boolean }) {
   return (
     <Card>
       <SectionTitle
-        title="Team members"
-        hint={`${members.length} ${members.length === 1 ? "person" : "people"} · each one's role decides what they can see`}
+        title="Accounts"
+        hint={`${accounts.length} ${accounts.length === 1 ? "person" : "people"} · each one's role decides what they can open`}
       />
       <div className="overflow-x-auto">
         <table className="w-full text-left text-[12.5px]">
@@ -82,26 +79,26 @@ async function TeamSection({ canEdit }: { canEdit: boolean }) {
             <tr className="border-b border-ink-700 text-[10.5px] uppercase tracking-wider text-[var(--color-faint)]">
               <th className="py-2 pr-4 font-medium">Person</th>
               <th className="py-2 pr-4 font-medium">Role</th>
-              <th className="py-2 pr-4 font-medium">Can sign in</th>
-              <th className="py-2 font-medium">Access</th>
+              <th className="py-2 font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
-            {members.map((m) => (
-              <tr key={m.id} className="border-b border-ink-800 last:border-0">
+            {accounts.map((a) => (
+              <tr key={a.id} className="border-b border-ink-800 last:border-0">
                 <td className="py-2.5 pr-4">
-                  <div className="font-medium text-mist-100">{m.name || "Unnamed"}</div>
-                  {m.email && <div className="text-[11px] text-mist-400">{m.email}</div>}
+                  <div className="font-medium text-mist-100">{a.fullName}</div>
+                  <div className="text-[11px] text-mist-400">{a.email}</div>
                 </td>
-                <td className="py-2.5 pr-4 text-mist-200">{roleDisplayName(m.role)}</td>
-                <td className="py-2.5 pr-4">
-                  {/* An account with no login is a row in a table, not a person
-                      who can reach anything — worth saying plainly. */}
-                  <Badge tone={m.hasLogin ? "good" : "warn"}>{m.hasLogin ? "Yes" : "No login yet"}</Badge>
+                <td className="py-2.5 pr-4 capitalize text-mist-200">
+                  {a.role ? a.role.replace(/_/g, " ") : <span className="text-amber-400">No role</span>}
                 </td>
-                <td className="py-2.5 text-mist-400">
-                  {m.permissionCount} {m.permissionCount === 1 ? "capability" : "capabilities"}
-                  {!m.isActive && <span className="ml-2 text-amber-400">· deactivated</span>}
+                <td className="py-2.5">
+                  {/* An account with no role resolves to an empty permission
+                      set, so it can sign in and reach nothing. Worth saying
+                      plainly rather than leaving the column blank. */}
+                  <Badge tone={a.active && a.role ? "good" : "warn"}>
+                    {!a.active ? "Deactivated" : a.role ? "Active" : "Cannot open anything"}
+                  </Badge>
                 </td>
               </tr>
             ))}
@@ -117,32 +114,36 @@ async function TeamSection({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-/** The role × capability matrix, as cards per area. */
+/** The sidebar, as switches, per role. */
 async function AccessSection({ canEdit }: { canEdit: boolean }) {
-  const matrix = await liveMatrix().catch(() => null);
+  const matrix = await accessMatrix().catch(() => null);
 
-  if (!matrix || matrix.permissions.length === 0) {
+  if (!matrix || matrix.roles.length === 0) {
     return (
       <Card>
-        <SectionTitle title="Access control" hint="Who can see and do what" />
+        <SectionTitle title="Access control" hint="Who can open what" />
         <p className="text-[12px] text-amber-400">
-          The permission list could not be read just now. Access is still enforced by the database — this screen
-          simply cannot show it until the connection recovers.
+          The roles could not be read just now. Access is still enforced on every request — this screen simply
+          cannot show it until the connection recovers.
         </p>
       </Card>
     );
   }
 
+  const rows = tabRows();
+
   return (
     <Card>
       <SectionTitle
-        title="Access control — who can see and do what"
-        hint={`${matrix.roles.length} roles · ${matrix.permissions.length} capabilities · changes apply immediately`}
+        title="Access control — who can open what"
+        hint={`${matrix.roles.length} roles · changes apply immediately`}
       />
       <AccessControl
-        areas={groupIntoAreas(matrix.permissions)}
+        rows={rows}
+        actions={ACTION_PERMISSIONS}
         byRole={matrix.byRole}
-        roles={matrix.roles}
+        roles={matrix.roles.map((r) => ({ key: r.key, name: r.name, description: r.description }))}
+        protectedRoles={[...PROTECTED_ROLES]}
         canEdit={canEdit}
       />
     </Card>

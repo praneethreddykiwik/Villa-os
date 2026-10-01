@@ -107,7 +107,7 @@ export function ComboChart({
         <YAxis yAxisId="l" tickFormatter={compact} tickLine={false} axisLine={false} width={52} />
         <YAxis yAxisId="r" orientation="right" tickFormatter={compact} tickLine={false} axisLine={false} width={44} />
         <Tooltip content={<ChartTooltip />} />
-        <Legend wrapperStyle={{ fontSize: 11, color: "#93a0bb" }} iconType="circle" iconSize={7} />
+        <Legend wrapperStyle={{ fontSize: 11, color: "var(--t-muted)" }} iconType="circle" iconSize={7} />
         {bars.map((b, i) => (
           <Bar key={b.key} yAxisId="l" dataKey={b.key} name={b.name} fill={b.color ?? VIZ[i]} radius={[3, 3, 0, 0]} maxBarSize={22} />
         ))}

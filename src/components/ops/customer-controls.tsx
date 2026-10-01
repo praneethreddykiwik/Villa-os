@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Bot, Loader2, UserCheck } from "lucide-react";
 import clsx from "clsx";
 import { Card } from "../ui";
+import { requestJson } from "@/lib/ops/request-json";
 
 /**
  * Human takeover, per lane.
@@ -36,14 +37,17 @@ export function CustomerControls({
     setBusy(lane);
     setError(null);
     try {
-      const res = await fetch("/api/ops/customers", {
+      const out = await requestJson<{ ok?: boolean; error?: string }>("/api/ops/customers", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ customerId, control: { lane, state: next } }),
       });
-      const json = await res.json();
-      if (!json.ok) {
-        setError(json.error);
+      if (!out.ok) {
+        setError(out.error);
+        return;
+      }
+      if (!out.data.ok) {
+        setError(out.data.error ?? "That change could not be saved.");
         return;
       }
       setState((s) => ({ ...s, [lane]: next }));

@@ -238,7 +238,7 @@ function PlanCard({ asset }: { asset: AssetRow }) {
           )}
 
           {asset.is_ai_generated && (
-            <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[rgba(10,10,12,0.85)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-warm)] ring-1 ring-[color-mix(in_oklab,var(--c-warn)_45%,transparent)]">
+            <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[color-mix(in_oklab,var(--color-void)_85%,transparent)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--color-warm)] ring-1 ring-[color-mix(in_oklab,var(--c-warn)_45%,transparent)]">
               <Wand2 size={10} strokeWidth={2.2} aria-hidden />
               Artist&rsquo;s impression
             </span>

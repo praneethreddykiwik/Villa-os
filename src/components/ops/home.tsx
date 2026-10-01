@@ -100,7 +100,14 @@ export function OpsHome({
     } catch {
       /* fall through to server call */
     }
-    await fetch("/api/ops/session", { method: "DELETE" });
+    // If this rejects the navigation below must still run: the local Supabase
+    // session is already gone, so staying put would leave the operator looking
+    // at a signed-in page that no longer works, with Sign out apparently dead.
+    try {
+      await fetch("/api/ops/session", { method: "DELETE" });
+    } catch {
+      /* the redirect re-runs the server-side session check anyway */
+    }
     window.location.href = "/ops";
   }
 

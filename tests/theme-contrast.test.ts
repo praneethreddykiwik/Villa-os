@@ -157,8 +157,27 @@ const ALLOW: Record<string, string> = {
   "src/components/automation/v2-form.tsx:text-white": "channel icon on a fixed brand gradient tile",
   "src/components/automation/v2-form.tsx:from-zinc-700": "X's brand tile is deliberately near-black in both themes",
   "src/components/automation/v2-form.tsx:to-zinc-900": "the other stop of that same tile",
+  // A switch knob is white in both themes by design — it rides on an emerald
+  // track when on and a grey ink-600 track when off, both of which stay dark
+  // enough for it in light mode. This is the one element where following the
+  // surface token would make the control unreadable rather than readable.
+  "src/components/ops/access-control.tsx:bg-white": "switch knob, on a coloured or grey track",
   "src/components/whatsapp-inbox/simulator.tsx:text-white":
     "device mock of the WhatsApp chat UI — its chrome is fixed hex on purpose, it is a screenshot of another app",
+  // The rest of the phone pane used to carry semantic tokens, which is the one
+  // thing that cannot work here: the surfaces are fixed dark hex, so in light
+  // mode text-mist-100 resolved to #0f172a and the message you were typing
+  // became near-black on #2a3942. Literal white is correct on this skin.
+  "src/components/whatsapp-inbox/simulator.tsx:text-white/60":
+    "bubble timestamps and the close icon, on the fixed #202c33/#1f2c34 chrome",
+  "src/components/whatsapp-inbox/simulator.tsx:text-white/70":
+    "the \u201cAI is typing\u201d line, on the fixed #0b141a feed",
+  "src/components/whatsapp-inbox/simulator.tsx:placeholder:text-white/45":
+    "composer placeholder, on the fixed #2a3942 input",
+  "src/components/whatsapp-inbox/simulator.tsx:hover:text-white":
+    "hover of the close button, on that same fixed header",
+  "src/components/whatsapp-inbox/simulator.tsx:hover:bg-white/10":
+    "hover plate behind it — an ink-800 wash is invisible on fixed dark chrome",
 };
 
 function walk(dir: string, out: string[] = []): string[] {

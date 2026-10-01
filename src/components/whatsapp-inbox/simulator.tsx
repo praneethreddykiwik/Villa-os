@@ -247,7 +247,7 @@ export function WhatsAppSimulator({
                 GT
               </div>
               <div>
-                <div className="text-[13px] font-semibold text-mist-100">Glentree AI Assistant</div>
+                <div className="text-[13px] font-semibold text-white">Glentree AI Assistant</div>
                 <div className="text-[10.5px] text-emerald-400">Online · Instant replies 24/7</div>
               </div>
             </div>
@@ -255,7 +255,7 @@ export function WhatsAppSimulator({
               type="button"
               onClick={onClose}
               aria-label="Close simulator"
-              className="rounded-lg p-1.5 text-mist-400 hover:bg-ink-800 hover:text-mist-100"
+              className="rounded-lg p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
             >
               <X size={18} aria-hidden />
             </button>
@@ -276,7 +276,7 @@ export function WhatsAppSimulator({
                   }`}
                 >
                   <p className="whitespace-pre-wrap break-words">{h.text}</p>
-                  <div className="mt-1 flex items-center justify-end gap-1 text-[9.5px] text-mist-400">
+                  <div className="mt-1 flex items-center justify-end gap-1 text-[9.5px] text-white/60">
                     {h.sender === "ai" && h.tag && (
                       <span className="rounded bg-ink-900/60 px-1 py-0.2 text-emerald-400 font-mono">
                         {h.tag}
@@ -289,7 +289,7 @@ export function WhatsAppSimulator({
               </div>
             ))}
             {sending && (
-              <div className="flex items-center gap-2 text-[12px] text-mist-400">
+              <div className="flex items-center gap-2 text-[12px] text-white/70">
                 <div className="flex gap-1">
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-400" />
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-400 [animation-delay:0.2s]" />
@@ -314,7 +314,7 @@ export function WhatsAppSimulator({
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type a message as a buyer..."
               disabled={sending}
-              className="flex-1 rounded-xl border border-ink-700/80 bg-[#2a3942] px-3 py-2 text-[12.5px] text-mist-100 placeholder:text-mist-500 outline-none focus:border-emerald-500"
+              className="flex-1 rounded-xl border border-ink-700/80 bg-[#2a3942] px-3 py-2 text-[12.5px] text-white placeholder:text-white/45 outline-none focus:border-emerald-500"
             />
             <button
               type="submit"

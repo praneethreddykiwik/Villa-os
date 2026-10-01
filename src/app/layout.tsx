@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { THEME_COOKIE } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
  * prefers-color-scheme media query in globals.css.
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const choice = (await cookies()).get("glentree-theme")?.value;
+  const choice = (await cookies()).get(THEME_COOKIE)?.value;
   const explicit = choice === "light" || choice === "dark" ? choice : undefined;
 
   return (

@@ -5,7 +5,7 @@ import {
   sendWhatsAppText,
   setAiPaused,
 } from "@/lib/osf/communication";
-import { readPost, respond, safePath, type ActionResult } from "@/lib/osf/form-post";
+import { denyPost, readPost, respond, safePath, type ActionResult } from "@/lib/osf/form-post";
 import { guard } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
@@ -35,11 +35,12 @@ function splitParams(raw: string | undefined): string[] {
 }
 
 export async function POST(request: Request) {
-  const denied = await guard("customers.write");
-  if (denied) return denied;
   const body = await readPost(request);
   const action = body.get("action");
   const redirectTo = safePath(body.get("next"), "/inbox/whatsapp/communication/whatsapp");
+
+  const denied = await guard("customers.write");
+  if (denied) return denyPost(request, denied, body, redirectTo);
 
   let result: ActionResult;
   let leadId: string | undefined;

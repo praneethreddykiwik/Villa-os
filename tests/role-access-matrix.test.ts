@@ -244,22 +244,49 @@ describe("changing access is not available to everyone who can read it", () => {
   });
 
   test("a capability outside the catalogue cannot be invented", () => {
-    // Upserting an arbitrary key would put a row nothing reads into the table
-    // that decides access.
-    assert.match(api, /matrix\.permissions\.some\(\(p\) => p\.key === permission\)/);
+    // Storing an arbitrary key would put a row nothing reads into the table
+    // that decides access. PERMISSIONS is that catalogue — the same list the
+    // Permission type is derived from, so the check cannot drift from it.
+    assert.match(api, /PERMISSIONS as readonly string\[\]\)\.includes\(permissionRaw\)/);
   });
 
-  test("the roles that can repair the others cannot be limited", () => {
+  test("the role that can repair the others cannot be limited", () => {
     assert.match(api, /isProtectedRole\(role\)/);
-    const areas = fs.readFileSync(path.join(ROOT, "src/lib/osf/access-areas.ts"), "utf8");
-    assert.match(areas, /PROTECTED_ROLES = \["super_admin", "owner"\]/);
+    const rbac = fs.readFileSync(path.join(ROOT, "src/lib/access/app-rbac.ts"), "utf8");
+    // "admin" rather than super_admin/owner: those two are villa_* role names
+    // and do not exist in the `roles` table this application resolves sessions
+    // against, so protecting them protected nothing.
+    assert.match(rbac, /PROTECTED_ROLES = \["admin"\]/);
   });
 
-  test("the last role that can manage the team cannot revoke itself", () => {
+  test("the last role that can manage access cannot revoke itself", () => {
     // The lock works and the key is inside: nobody could reach this screen
     // again without a database console.
-    assert.match(api, /permission === "team:write"/);
-    assert.match(api, /last role that can manage the team/);
+    assert.match(api, /permission === "users\.manage"/);
+    assert.match(api, /last role that can manage access/);
+  });
+
+  test("the control centre edits the table the request path reads", () => {
+    const rbac = fs.readFileSync(path.join(ROOT, "src/lib/access/app-rbac.ts"), "utf8");
+    const session = fs.readFileSync(path.join(ROOT, "src/lib/auth/session.ts"), "utf8");
+    // This is the whole point of the screen. getSession() builds every
+    // permission set from role_permissions; if the editor wrote anywhere else
+    // its switches would save successfully and change nothing, which is
+    // exactly what villa_role_permissions did.
+    assert.match(session, /from\("user_roles"\)/);
+    assert.match(rbac, /from\("role_permissions"\)/);
+    // Scoped to a real query: the file names villa_role_permissions in prose,
+    // explaining why it is not the table being written.
+    assert.ok(
+      !/from\("villa_role_permissions"\)/.test(rbac),
+      "the control centre must not write to the matrix the request path ignores",
+    );
+  });
+
+  test("a change takes effect now, not when a cache expires", () => {
+    // Sessions cache resolved permissions for 30s. Without this a revoke stays
+    // live for half a minute and a grant looks like it failed.
+    assert.match(api, /clearAllSessions\(\)/);
   });
 
   test("every change is written to the audit trail", () => {

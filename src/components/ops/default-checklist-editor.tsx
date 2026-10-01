@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { Card, SectionTitle } from "../ui";
+import { requestJson } from "@/lib/ops/request-json";
 
 /**
  * The org's default document set — what every new loan case starts with and
@@ -39,13 +40,17 @@ export function DefaultChecklistEditor({ items: initial }: { items: DefaultItem[
     setError(null);
     setNote(null);
     try {
-      const res = await fetch("/api/ops/loan", {
+      const out = await requestJson<{ ok?: boolean; error?: string; items?: DefaultItem[] }>("/api/ops/loan", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "setDefaultChecklist", items }),
       });
-      const json = await res.json();
-      if (!json.ok) {
+      if (!out.ok) {
+        setError(out.error);
+        return;
+      }
+      const json = out.data;
+      if (!json.ok || !json.items) {
         setError(json.error ?? "Save failed");
         return;
       }

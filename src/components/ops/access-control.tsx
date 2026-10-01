@@ -1,61 +1,62 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Loader2, Pencil } from "lucide-react";
-import {
-  categoryLabel,
-  isProtectedRole,
-  orderedCategories,
-  roleDisplayName,
-  type AccessArea,
-} from "@/lib/osf/access-areas";
+import { Loader2, Lock } from "lucide-react";
+import clsx from "clsx";
+import type { Permission } from "@/lib/auth/session";
+import type { TabRow } from "@/lib/access/tab-catalogue";
 
 /**
- * ACCESS CONTROL — who can see and do what.
+ * ACCESS CONTROL — the sidebar, as switches.
  *
- * Pick a role, then read down the page: a green tick means that role can open
- * the area, a filled pencil means it can change things there. Both are one
- * click, and each click is a write to villa_role_permissions — the same table
- * villa_can() consults inside Postgres. There is no separate copy of the rules
- * to drift out of step.
+ * Every row here is a tab the person will see, named exactly as the sidebar
+ * names it, because that is the question actually being asked: "should sales be
+ * able to open Leads?" The previous version listed capability keys — Walk-ins,
+ * Documents, Pricing — that matched no tab in the product, so there was no way
+ * to tell what a switch had done.
  *
- * WHY THE STATE IS OPTIMISTIC
+ * Several tabs share one permission, so they are drawn as one row listing all
+ * of them. Four separate switches that always flip together would read as three
+ * broken ones.
  *
- * A permission grid where every click waits on a round trip feels broken, and
- * an owner setting up a role makes twenty clicks in a row. So the square
- * flips immediately and reverts if the server refuses — and the refusal is
- * shown, because silently reverting would read as the click not registering.
+ * A switch writes to role_permissions, which is where `getSession()` reads a
+ * person's permissions from, and therefore what both the page gate and every
+ * API `guard()` consult. Turning a tab off does not hide a link — it removes
+ * the permission, so typing the URL and calling the endpoint directly fail too.
  */
 
 interface Props {
-  areas: AccessArea[];
-  /** role -> granted permission keys */
-  byRole: Record<string, string[]>;
-  roles: string[];
+  rows: TabRow[];
+  actions: Array<{ key: Permission; label: string; hint: string }>;
+  byRole: Record<string, Permission[]>;
+  roles: Array<{ key: string; name: string; description: string | null }>;
+  protectedRoles: string[];
   canEdit: boolean;
 }
 
-export function AccessControl({ areas, byRole, roles, canEdit }: Props) {
-  const firstEditable = roles.find((r) => !isProtectedRole(r)) ?? roles[0] ?? "";
-  const [role, setRole] = useState(firstEditable);
-  const [grants, setGrants] = useState<Record<string, string[]>>(byRole);
-  const [busy, setBusy] = useState<string | null>(null);
+export function AccessControl({ rows, actions, byRole, roles, protectedRoles, canEdit }: Props) {
+  const isProtected = (key: string) => protectedRoles.includes(key);
+  const firstEditable = roles.find((r) => !isProtected(r.key)) ?? roles[0];
+  const [role, setRole] = useState(firstEditable?.key ?? "");
+  const [grants, setGrants] = useState<Record<string, Permission[]>>(byRole);
+  const [busy, setBusy] = useState<Permission | null>(null);
   const [error, setError] = useState("");
 
   const held = new Set(grants[role] ?? []);
-  const locked = isProtectedRole(role);
+  const locked = isProtected(role);
+  const current = roles.find((r) => r.key === role);
 
-  async function toggle(permission: string, next: boolean) {
+  async function toggle(permission: Permission, next: boolean) {
     if (!canEdit || locked) return;
     setError("");
     setBusy(permission);
 
-    // Flip first; the grid has to keep up with a person setting up a role.
+    // Flip first; somebody setting up a role makes twenty of these in a row.
     setGrants((g) => {
-      const current = new Set(g[role] ?? []);
-      if (next) current.add(permission);
-      else current.delete(permission);
-      return { ...g, [role]: [...current] };
+      const held = new Set(g[role] ?? []);
+      if (next) held.add(permission);
+      else held.delete(permission);
+      return { ...g, [role]: [...held] };
     });
 
     try {
@@ -64,100 +65,90 @@ export function AccessControl({ areas, byRole, roles, canEdit }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, permission, allowed: next }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) throw new Error(json.error || "That change was not saved.");
     } catch (e) {
+      // Reverting without saying why reads as the click not registering.
       setError((e as Error).message);
       setGrants((g) => {
-        const current = new Set(g[role] ?? []);
-        if (next) current.delete(permission);
-        else current.add(permission);
-        return { ...g, [role]: [...current] };
+        const held = new Set(g[role] ?? []);
+        if (next) held.delete(permission);
+        else held.add(permission);
+        return { ...g, [role]: [...held] };
       });
     } finally {
       setBusy(null);
     }
   }
 
-  const square = (permission: string | null, kind: "view" | "edit") => {
-    if (!permission) {
-      return (
-        <span
-          className="grid h-7 w-7 place-items-center rounded-lg border border-dashed border-ink-700 text-[10px] text-mist-500"
-          title={kind === "view" ? "This area has nothing to view" : "This area cannot be edited"}
-        >
-          —
-        </span>
-      );
-    }
+  function Switch({ permission }: { permission: Permission }) {
     const on = held.has(permission);
     const working = busy === permission;
-    const base = "grid h-7 w-7 place-items-center rounded-lg border transition disabled:cursor-not-allowed";
-
     return (
       <button
         type="button"
-        onClick={() => void toggle(permission, !on)}
+        role="switch"
+        aria-checked={on}
         disabled={!canEdit || locked || working}
-        aria-pressed={on}
-        title={`${on ? "Remove" : "Give"} ${permission} ${on ? "from" : "to"} ${roleDisplayName(role)}`}
-        className={
-          base +
-          " " +
-          (on
-            ? kind === "view"
-              ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-400"
-              : "border-[var(--color-gold-300)]/60 bg-[var(--color-gold-300)]/15 text-[var(--color-gold-300)]"
-            : "border-ink-700 bg-ink-900 text-mist-500 hover:border-ink-600 hover:text-mist-300")
-        }
-      >
-        {working ? (
-          <Loader2 size={13} className="animate-spin" aria-hidden />
-        ) : kind === "view" ? (
-          <Check size={14} strokeWidth={on ? 3 : 2} aria-hidden />
-        ) : (
-          <Pencil size={12} strokeWidth={on ? 2.5 : 2} aria-hidden />
+        onClick={() => void toggle(permission, !on)}
+        className={clsx(
+          "relative h-[22px] w-[38px] shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+          on ? "border-emerald-500/60 bg-emerald-500/80" : "border-ink-600 bg-ink-600",
         )}
+      >
+        <span
+          className={clsx(
+            "absolute top-[2px] grid h-[16px] w-[16px] place-items-center rounded-full bg-white shadow transition-all",
+            on ? "left-[18px]" : "left-[2px]",
+          )}
+        >
+          {working && <Loader2 size={10} className="animate-spin text-ink-800" aria-hidden />}
+        </span>
       </button>
     );
-  };
+  }
+
+  const groups = [...new Set(rows.map((r) => r.group))];
 
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-[12px] text-mist-400">
-          Pick a role, then give it access area by area. A tick means they can open it; a pencil means they can
-          change things there. Saved the moment you click.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {roles.map((r) => {
-            const active = r === role;
-            const count = (grants[r] ?? []).length;
+            const active = r.key === role;
+            const count = (grants[r.key] ?? []).length;
             return (
               <button
-                key={r}
+                key={r.key}
                 type="button"
-                onClick={() => { setRole(r); setError(""); }}
+                onClick={() => {
+                  setRole(r.key);
+                  setError("");
+                }}
                 aria-pressed={active}
-                className={
-                  "rounded-full border px-3 py-1.5 text-[12px] transition " +
-                  (active
+                className={clsx(
+                  "rounded-full border px-3 py-1.5 text-[12px] transition",
+                  active
                     ? "border-[var(--color-gold-300)] bg-[var(--color-gold-300)]/15 text-mist-100"
-                    : "border-ink-700 bg-ink-900 text-mist-400 hover:text-mist-200")
-                }
+                    : "border-ink-700 bg-ink-900 text-mist-400 hover:text-mist-200",
+                )}
               >
-                {roleDisplayName(r)}
+                {r.name}
+                {isProtected(r.key) && <Lock size={10} className="ml-1 inline-block" aria-hidden />}
                 <span className="ml-1.5 text-[10px] text-mist-500">{count}</span>
               </button>
             );
           })}
         </div>
+        {current?.description && (
+          <p className="mt-2 text-[12px] text-mist-400">{current.description}</p>
+        )}
       </div>
 
       {locked && (
         <p className="rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-[12px] text-mist-400">
-          <strong className="text-mist-200">{roleDisplayName(role)}</strong> always has full access. It is the
-          account that can repair the others, so it cannot be limited from here.
+          <strong className="text-mist-200">{current?.name}</strong> always has full access. It is the account
+          that can repair the others, so it cannot be limited from here.
         </p>
       )}
 
@@ -169,62 +160,69 @@ export function AccessControl({ areas, byRole, roles, canEdit }: Props) {
 
       {error && <p className="text-[12px] text-red-400">{error}</p>}
 
-      {orderedCategories(areas).map((cat) => (
-        <section key={cat}>
-          <h3 className="mb-2 text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
-            {categoryLabel(cat)}
-          </h3>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {areas
-              .filter((a) => a.category === cat)
-              .map((area) => {
-                const visible = area.view ? held.has(area.view) : held.has(area.edit ?? "");
-                return (
-                  <div
-                    key={area.key}
-                    className={
-                      "rounded-xl border p-3 transition " +
-                      (visible ? "border-emerald-500/40 bg-emerald-500/[0.06]" : "border-ink-700 bg-ink-900/60")
-                    }
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="truncate text-[12.5px] font-medium text-mist-100">{area.label}</span>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        {square(area.edit, "edit")}
-                        {square(area.view, "view")}
-                      </div>
-                    </div>
+      <section>
+        <h3 className="mb-1 text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
+          Tabs this role can open
+        </h3>
+        <p className="mb-3 text-[11.5px] text-mist-500">
+          Turning a tab off removes it from their sidebar and refuses the page and its data if they type the
+          address directly. Some tabs open together — those are listed on one row.
+        </p>
 
-                    {area.extras.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {area.extras.map((x) => {
-                          const on = held.has(x.key);
-                          return (
-                            <button
-                              key={x.key}
-                              type="button"
-                              onClick={() => void toggle(x.key, !on)}
-                              disabled={!canEdit || locked || busy === x.key}
-                              aria-pressed={on}
-                              className={
-                                "rounded-full border px-2 py-0.5 text-[10.5px] transition " +
-                                (on
-                                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
-                                  : "border-ink-700 bg-ink-950 text-mist-500 hover:text-mist-300")
-                              }
-                            >
-                              {x.label}
-                            </button>
-                          );
-                        })}
+        <div className="space-y-4">
+          {groups.map((group) => (
+            <div key={group}>
+              <h4 className="mb-1.5 text-[11.5px] font-medium text-mist-300">{group}</h4>
+              <div className="overflow-hidden rounded-xl border border-ink-700/80">
+                {rows
+                  .filter((r) => r.group === group)
+                  .map((row) => (
+                    <div
+                      key={`${group}:${row.permission}`}
+                      className="flex items-center gap-3 border-b border-ink-800/70 bg-ink-900/40 px-3 py-2.5 last:border-0"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[12.5px] text-mist-100">
+                          {row.tabs.map((t) => t.label).join(" · ")}
+                        </div>
+                        {row.tabs.length > 1 && (
+                          <div className="text-[10.5px] text-mist-500">
+                            {row.tabs.length} tabs — one decision
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        </section>
-      ))}
+                      <Switch permission={row.permission} />
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="mb-1 text-[11px] uppercase tracking-wider text-[var(--color-faint)]">
+          What they can change
+        </h3>
+        <p className="mb-3 text-[11.5px] text-mist-500">
+          Seeing a screen and being able to act on it are separate. These are checked by the endpoints behind
+          the buttons, so turning one off disables the action rather than only hiding it.
+        </p>
+        <div className="overflow-hidden rounded-xl border border-ink-700/80">
+          {actions.map((a) => (
+            <div
+              key={a.key}
+              className="flex items-center gap-3 border-b border-ink-800/70 bg-ink-900/40 px-3 py-2.5 last:border-0"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12.5px] text-mist-100">{a.label}</div>
+                <div className="truncate text-[10.5px] text-mist-500">{a.hint}</div>
+              </div>
+              <Switch permission={a.key} />
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,10 +1,12 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getSession, hasPermission } from "@/lib/auth/session";
 import { requiredPermissionFor } from "@/lib/auth/page-access";
 import { Sidebar } from "@/components/shell";
 import { NoAccess } from "@/components/ops/no-access";
+import { QuickSettings } from "@/components/quick-settings";
+import { readThemeChoice, THEME_COOKIE } from "@/lib/theme";
 
 /**
  * App shell and the single page-level authorization gate.
@@ -33,6 +35,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // invited into a door that is locked.
   const permissions = [...session.permissions];
 
+  // Read here rather than letting the control discover it after hydration, so
+  // the lit option is correct in the first paint instead of jumping.
+  const initialTheme = readThemeChoice((await cookies()).get(THEME_COOKIE)?.value);
+
   return (
     <div className="app-ambient flex min-h-screen">
       <div className="app-ambient-glow" aria-hidden="true" />
@@ -48,6 +54,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main className="min-w-0 flex-1 pb-24 pt-16 lg:pt-0">
         {allowed ? children : <NoAccess pathname={pathname} required={required} roles={session.roles} />}
       </main>
+      {/* Outside <main> and owned by the layout, so it is reachable on every
+          screen and for every role — including the no-access branch above,
+          where signing out is the only useful thing left to do. */}
+      <QuickSettings
+        initialTheme={initialTheme}
+        person={{ name: session.fullName, email: session.email, role: session.roles[0] }}
+      />
     </div>
   );
 }

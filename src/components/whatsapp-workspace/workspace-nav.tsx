@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import clsx from "clsx";
 import { NAV_GROUPS, activeHref } from "@/components/osf/shell/nav-config";
+import { requiredPermissionFor } from "@/lib/auth/page-access";
 
 /**
  * Second-level navigation for the WhatsApp workspace.
@@ -16,14 +17,36 @@ import { NAV_GROUPS, activeHref } from "@/components/osf/shell/nav-config";
  * elsewhere in the dashboard, so it reads as part of this product rather than
  * as something bolted on.
  */
-export function WorkspaceNav() {
+export function WorkspaceNav({ permissions = [] }: { permissions?: string[] }) {
   const pathname = usePathname();
   const active = useMemo(() => activeHref(pathname), [pathname]);
 
+  /**
+   * Filtered by exactly the rule the page gate applies, so a tab is offered
+   * only where it can actually be opened. Previously every group and every
+   * item rendered for everyone: a customers.read-only account was shown the
+   * Overview and System tabs and got the no-access screen for its trouble.
+   */
+  const groups = useMemo(() => {
+    const allowed = new Set(permissions);
+    return NAV_GROUPS.map((g) => ({
+      ...g,
+      items: g.items.filter((i) => {
+        const required = requiredPermissionFor(i.href);
+        if (required === "allow") return true;
+        if (required === null) return false;
+        return allowed.has(required);
+      }),
+    })).filter((g) => g.items.length > 0);
+  }, [permissions]);
+
   // The group holding the current page, so the second row is never empty and
   // never shows a section the reader is not in.
-  const group =
-    NAV_GROUPS.find((g) => g.items.some((i) => i.href === active)) ?? NAV_GROUPS[0];
+  const group = groups.find((g) => g.items.some((i) => i.href === active)) ?? groups[0];
+
+  // Nothing in this workspace is reachable for this account. The gate renders
+  // its own explanation; a strip of zero tabs would only add a stray border.
+  if (!group) return null;
 
   return (
     <div className="border-b border-ink-700/70 bg-ink-900/40">
@@ -31,7 +54,7 @@ export function WorkspaceNav() {
           wrapped onto four rows pushed the page itself off the bottom of the
           screen before any content appeared. */}
       <div className="flex items-center gap-1 overflow-x-auto px-4 pt-3 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:px-6 sm:pt-4 [&::-webkit-scrollbar]:hidden">
-        {NAV_GROUPS.map((g) => {
+        {groups.map((g) => {
           const current = g.label === group.label;
           // Link to the group's first screen — a group is a heading, not a page.
           const target = g.items[0]?.href ?? "/inbox/whatsapp";
