@@ -57,11 +57,21 @@ function base(): string {
   return url;
 }
 
+/**
+ * Evolution downloads the media itself before it can answer, so a send is only
+ * as fast as its fetch of our file. A 17 MB brochure over a slow link held this
+ * open indefinitely, and on a serverless function an un-timed fetch means the
+ * whole request is killed by the platform instead — losing the activity row
+ * that records what was already delivered.
+ */
+const SEND_TIMEOUT_MS = 45_000;
+
 async function post<T>(path: string, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${base()}${path}`, {
     method: "POST",
     headers: { apikey: env.evolutionApiKey, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");

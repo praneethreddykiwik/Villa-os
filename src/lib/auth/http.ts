@@ -36,3 +36,17 @@ export function apiOk<T extends Record<string, unknown>>(data: T, status = 200):
 export function apiFail(error: string, status = 400): NextResponse {
   return NextResponse.json({ ok: false, error }, { status });
 }
+
+/**
+ * Log a fault and hand back only a reference.
+ *
+ * For the places that cannot use `apiError` because they render into a
+ * redirect or a form response rather than returning JSON. A Supabase error
+ * message names tables, columns and constraints; roles below admin reach these
+ * screens, so the message stays on the server and the operator quotes the ref.
+ */
+export function errorRef(e: unknown, scope = "api"): string {
+  const ref = crypto.randomUUID();
+  console.error(`[${scope}:${ref}]`, e instanceof Error ? e.stack : e);
+  return ref;
+}

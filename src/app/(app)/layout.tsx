@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getSession, hasPermission } from "@/lib/auth/session";
 import { requiredPermissionFor } from "@/lib/auth/page-access";
-import { LiquidDock, Sidebar } from "@/components/shell";
+import { Sidebar } from "@/components/shell";
 import { NoAccess } from "@/components/ops/no-access";
 
 /**
@@ -48,7 +48,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main className="min-w-0 flex-1 pb-24 pt-16 lg:pt-0">
         {allowed ? children : <NoAccess pathname={pathname} required={required} roles={session.roles} />}
       </main>
-      <LiquidDock />
     </div>
   );
 }

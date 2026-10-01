@@ -107,6 +107,7 @@ export function getCustomer(customerId: string): Customer | undefined {
 }
 
 /** Patch the profile and record what changed, by whom. */
+
 export function updateCustomer(
   customerId: string,
   patch: Partial<Customer>,
@@ -116,6 +117,12 @@ export function updateCustomer(
   if (!before) return null;
 
   // Identity, ownership and audit columns are not patchable through this path.
+  //
+  // This is the LAST line of defence, not the only one: it is an internal API
+  // that setStage() and setControl() call with exactly the fields a request is
+  // not allowed to send, so it cannot itself be an allowlist. The allowlist
+  // that constrains untrusted input lives at the request boundary —
+  // PATCHABLE_CUSTOMER_FIELDS in src/app/api/ops/customers/route.ts.
   const { id: _i, orgId: _o, createdAt: _c, ...safe } = patch;
   const now = new Date().toISOString();
 

@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { apiError, apiFail, apiOk } from "@/lib/auth/http";
-import { bridgeCallToWhatsApp } from "@/lib/osf/voice-bridge";
+import { bridgeCallToWhatsApp, notifyMissedCall } from "@/lib/osf/voice-bridge";
 import { AuthError } from "@/lib/auth/session";
 import { read, resolveBrandId } from "@/lib/db";
 import { clientKey, rateLimit } from "@/lib/ops/ratelimit";
@@ -10,6 +10,16 @@ import { ingestExecution } from "@/lib/voice/calls";
 import { pumpQueue, settleQueueEntry } from "@/lib/voice/queue";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * This handler does real work before it answers: an LLM extraction pass of up
+ * to 20s, then Supabase writes, then a WhatsApp text, then one or more
+ * multi-megabyte document sends that Evolution must download from us first.
+ * Every comparable route in this app sets its own budget; without one this got
+ * the platform default and was killed mid-delivery, after the customer had
+ * already been told the brochure was on its way.
+ */
+export const maxDuration = 300;
 
 /**
  * VOICE AGENT — execution updates from the provider.
@@ -144,6 +154,7 @@ export async function POST(req: Request) {
      * nothing to do here and the cron heartbeat picks it up later.
      */
     let queue: { settled: string | null; dialled: number } | undefined;
+    let missedCall: Awaited<ReturnType<typeof notifyMissedCall>> | undefined;
     if (result.finalised) {
       const settled = settleQueueEntry({
         executionId: execution.id,
@@ -151,6 +162,27 @@ export async function POST(req: Request) {
         brandId,
         outcome: result.record.outcome,
       });
+
+      /**
+       * Nobody picked up, and we are not going to ring them again.
+       *
+       * `settleQueueEntry` returns "queued" while retries remain and "failed"
+       * once they are spent, so keying on "failed" is what makes this one
+       * message per person rather than one per attempt. A number that rang out
+       * is not a lead who said no — it is one we have not reached yet, and
+       * WhatsApp is the cheaper second door.
+       *
+       * Awaited, like the follow-up above: on a serverless function anything
+       * still in flight when the response returns is killed with the process.
+       */
+      if (settled?.status === "failed" && result.record.outcome === "no_answer") {
+        missedCall = await notifyMissedCall({
+          phone: result.record.callerPhone,
+          name: result.record.extracted?.name ?? null,
+          executionId: execution.id,
+        });
+      }
+
       const pumped = await pumpQueue(brandId).catch(() => ({ dialled: 0 }));
       queue = { settled: settled?.status ?? null, dialled: pumped.dialled };
     }
@@ -163,6 +195,7 @@ export async function POST(req: Request) {
       leadId: result.record.leadId,
       customerId: result.record.customerId,
       followUp,
+      missedCall,
       queue,
     });
   } catch (e) {

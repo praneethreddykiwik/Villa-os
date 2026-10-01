@@ -915,12 +915,57 @@ describe("every API route states a permission, or authenticates by its own mecha
   ]);
 
   const CHECKS =
-    /guard\(|requirePermission\(|requireSession\(|authorize\(|requireWorkerSecret\(|requireN8nSecret\(|requireVoiceSecret\(|verifySignature\(/;
+    /guard\(|requirePermission\(|requireSession\(|authorize\(|requireWorkerSecret\(|requireN8nSecret\(|requireVoiceSecret\(|verifySignature\(|verifyChallenge\(/;
+
+  /**
+   * `verifyChallenge` is listed because it IS an authentication mechanism, not
+   * because listing it made a test go green. It is the Meta webhook
+   * subscription handshake: Meta GETs the route with `hub.verify_token`, and
+   * src/lib/osf/whatsapp/verify.ts:58 compares that token against the
+   * configured one with a timing-safe compare and returns null — a 403 — when
+   * the token is absent, wrong, or unconfigured. It fails closed on every
+   * path, exactly like verifySignature on the POST side.
+   */
 
   for (const file of listRoutes("src/app/api")) {
     if (SELF_AUTHENTICATING.has(file)) continue;
     test(`${file} checks a permission`, () => {
       assert.match(stripComments(read(file)), CHECKS, `${file} relies on the session gate alone`);
+    });
+  }
+
+  /**
+   * PER METHOD, NOT PER FILE.
+   *
+   * The sweep above greps the whole file, so one `requirePermission` anywhere
+   * in it satisfies the check for every exported method. That is exactly how
+   * `GET /api/automation/workflow-url` shipped unguarded while the file's POST
+   * was correctly gated: the test was green the entire time.
+   *
+   * This splits each file at its exported handlers and requires every one of
+   * them to carry its own check. A route that guards POST and forgets GET now
+   * fails here by name.
+   */
+  const METHOD_RE = /export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\s*\(/g;
+
+  for (const file of listRoutes("src/app/api")) {
+    if (SELF_AUTHENTICATING.has(file)) continue;
+    const source = stripComments(read(file));
+
+    const starts: { method: string; at: number }[] = [];
+    for (const m of source.matchAll(METHOD_RE)) starts.push({ method: m[1], at: m.index ?? 0 });
+    if (starts.length < 2) continue; // single-handler files are covered above
+
+    starts.forEach((start, i) => {
+      const end = i + 1 < starts.length ? starts[i + 1].at : source.length;
+      const body = source.slice(start.at, end);
+      test(`${file} :: ${start.method} checks a permission of its own`, () => {
+        assert.match(
+          body,
+          CHECKS,
+          `${start.method} in ${file} has no permission check — another exported method in the same file does, which is why the file-level sweep passes`,
+        );
+      });
     });
   }
 });
@@ -1077,5 +1122,161 @@ describe("transport-security headers follow the actual scheme", () => {
   test("a proxy's forwarded scheme is trusted ahead of the socket", () => {
     assert.match(src, /x-forwarded-proto/);
     assert.match(src, /forwarded\.split\(","\)\[0\]/);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Remediation pass — each test fails if the corresponding fix is reverted.    */
+/* -------------------------------------------------------------------------- */
+
+describe("the workflow URL is a capability, not a setting", () => {
+  /**
+   * The workflow URL carries its own embedded token: anyone holding it can post
+   * into the publishing pipeline without authenticating to this app at all.
+   * GET shipped with no permission check, so every provisioned account could
+   * read it out — and the file-level sweep stayed green because POST next door
+   * was correctly gated.
+   */
+  const route = stripComments(read("src/app/api/automation/workflow-url/route.ts"));
+
+  test("GET requires a permission, not merely a session", () => {
+    const get = route.slice(route.indexOf("export async function GET"), route.indexOf("export async function POST"));
+    assert.match(get, /requirePermission\(/, "GET is readable by any signed-in account");
+  });
+
+  test("POST still requires publish rights", () => {
+    const post = route.slice(route.indexOf("export async function POST"));
+    assert.match(post, /requirePermission\("marketing\.publish"\)/);
+  });
+});
+
+describe("brand access is scoped, and refuses when it cannot be", () => {
+  /**
+   * The old body looked up the brand and then only asserted `session.orgId`
+   * was truthy — it never related the two, so any signed-in user passed for
+   * any brand id. It cannot be a plain id comparison either: `Brand.workspaceId`
+   * is a local JSON-store id and `session.orgId` is a Supabase organisations
+   * id, so comparing them directly denies everyone.
+   */
+  const source = stripComments(read("src/lib/auth/session.ts"));
+  const fn = source.slice(source.indexOf("export function assertBrandAccess"));
+  const body = fn.slice(0, fn.indexOf("\n}") + 2);
+
+  test("the brand's workspace must exist in this deployment", () => {
+    assert.match(body, /workspaces/, "a brand whose workspace is gone is still accepted");
+    assert.match(body, /some\(/);
+  });
+
+  test("more than one workspace fails closed rather than waving everyone through", () => {
+    assert.match(body, /workspaces\.length > 1/);
+    assert.match(body, /throw new AuthError/);
+  });
+
+  test("it does not compare the two id namespaces directly, which would deny everyone", () => {
+    assert.doesNotMatch(body, /brand\.workspaceId\s*!==\s*session\.orgId/);
+  });
+});
+
+describe("session introspection uses the shared rate limiter", () => {
+  /**
+   * This route kept a private Map keyed on the raw x-forwarded-for header:
+   * caller-chosen, so the key was spoofable and the map unbounded. Both are
+   * defects the shared limiter's own tests already forbid — the route simply
+   * had its own copy that those tests never looked at.
+   */
+  const route = stripComments(read("src/app/api/ops/session/route.ts"));
+
+  test("no private rate-limit map", () => {
+    assert.doesNotMatch(route, /new Map<string, \{ count: number/);
+  });
+
+  test("the key comes from clientKey, not a raw header read", () => {
+    assert.match(route, /clientKey\(req\)/);
+    assert.doesNotMatch(route, /headers\.get\("x-forwarded-for"\)/);
+  });
+});
+
+describe("customer profile edits are allowlisted", () => {
+  /**
+   * `body.patch` is an arbitrary object off the network. Forwarding it whole is
+   * mass assignment — and the fields that matters for are the dangerous ones:
+   * `optedOut` would let a profile edit un-opt-out someone who asked to be left
+   * alone, and the control lanes would hand a paused thread back to the AI
+   * mid-conversation.
+   */
+  const route = stripComments(read("src/app/api/ops/customers/route.ts"));
+
+  test("the patch is filtered before it reaches updateCustomer", () => {
+    assert.match(route, /pickPatchable\(body\.patch\)/);
+    assert.doesNotMatch(route, /updateCustomer\(body\.customerId, body\.patch/);
+  });
+
+  test("consent, scoring and the control lanes are not patchable", () => {
+    const list = route.slice(route.indexOf("PATCHABLE_CUSTOMER_FIELDS = ["), route.indexOf("] as const"));
+    for (const forbidden of ["optedOut", "leadScore", "salesControl", "loanControl", "leadStage", "orgId"]) {
+      assert.doesNotMatch(list, new RegExp(`"${forbidden}"`), `${forbidden} must not be writable by a profile edit`);
+    }
+    assert.match(list, /"name"/, "the allowlist should still permit ordinary profile fields");
+  });
+});
+
+describe("customer identifiers are masked in logs", () => {
+  /**
+   * Logs are shipped to Vercel and retained; a phone number written there is a
+   * customer contact detail sitting in a system nobody treats as a customer
+   * database. The last four digits are kept so a skipped reply can still be
+   * matched to a thread.
+   */
+  for (const file of [
+    "src/app/api/osf/evolution/route.ts",
+    "src/app/api/osf/whatsapp/route.ts",
+    "src/app/api/osf/instagram/route.ts",
+  ]) {
+    test(`${file} logs no raw identifier`, () => {
+      const source = stripComments(read(file));
+      const logs = source.match(/console\.log\([^;]*\);/g) ?? [];
+      for (const line of logs) {
+        assert.doesNotMatch(line, /\$\{phone\}|\$\{message\.from\}|\$\{senderId\}/, `raw identifier in: ${line}`);
+      }
+    });
+  }
+
+  test("the mask keeps only the last four digits", () => {
+    const { maskPhone } = require("../src/lib/osf/redact") as typeof import("../src/lib/osf/redact");
+    const masked = maskPhone("919876543210");
+    assert.match(masked, /3210$/);
+    assert.doesNotMatch(masked, /98765/, "the mask must not reveal the subscriber digits");
+    assert.equal(maskPhone(null), "(none)");
+  });
+});
+
+describe("provisioning scripts carry no credential", () => {
+  /**
+   * Both repositories are public. A default password committed here is a
+   * published password — and it was applied to all seven staff accounts with
+   * rotation disabled, so it was the credential for the whole business.
+   */
+  for (const file of ["scripts/recreate-all-users.mjs", "scripts/set-simple-passwords.mjs"]) {
+    test(`${file} has no hardcoded password and forces rotation`, () => {
+      const source = read(file);
+      assert.doesNotMatch(source, /\|\|\s*"[A-Za-z0-9]{4,20}"\s*;/, "a default password literal is back");
+      assert.doesNotMatch(source, /must_change_password:\s*false/, "rotation must not be disabled");
+      assert.match(source, /STAFF_PASSWORD/, "the password must come from the environment or be generated");
+    });
+  }
+});
+
+describe("the middleware carve-out means exactly the paths it names", () => {
+  /**
+   * The two video upload routes are excluded from the matcher for streaming
+   * latency. Unanchored, that is a prefix match, so a later `post-video-debug`
+   * would silently inherit the exclusion and ship with no session gate — and
+   * nothing in this suite would fail.
+   */
+  test("each excluded path is anchored", () => {
+    const source = read("src/middleware.ts");
+    const matcher = source.slice(source.indexOf("matcher: ["));
+    assert.match(matcher, /api\/automation\/post-video\$/);
+    assert.match(matcher, /api\/automation\/v2\/post-video\$/);
   });
 });

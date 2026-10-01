@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/osf/supabase";
 import { guard } from "@/lib/auth/guard";
+import { errorRef } from "@/lib/auth/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   }
 
   const { error } = await db().from("villa_content_drafts").update({ status }).eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: "That did not work. Quote this reference if you report it.", ref: errorRef(error, "osf:marketing") }, { status: 500 });
 
   return NextResponse.json({ ok: true });
 }

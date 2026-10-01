@@ -3,13 +3,19 @@
  * RECREATE ALL USERS CLEANLY
  * 
  * 1. Deletes all existing users from Supabase Auth, profiles, and user_roles.
- * 2. Re-creates all 7 staff accounts with password "tree123".
- * 3. Sets must_change_password = false so they can log in directly.
+ * 2. Re-creates all 7 staff accounts with a generated password.
+ * 3. Sets must_change_password = true so the password must be replaced.
+ *
+ * THERE IS NO DEFAULT PASSWORD, AND THERE MUST NEVER BE ONE AGAIN. This file
+ * previously hardcoded a 7-character literal, applied it to all seven accounts
+ * and disabled rotation. The repository is public, so that was a published
+ * credential for every account in the business.
  * 4. Links each user into organizations, profiles, and user_roles.
  * 5. Tests sign-in for each user to guarantee 100% working logins.
  */
 
 import { createClient } from "@supabase/supabase-js";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -34,7 +40,17 @@ if (!URL || !SERVICE) {
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
 const client = createClient(URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
 
-const PASSWORD = process.argv[2] || "tree123";
+/** 20 chars, no ambiguous glyphs — these get read off a screen and retyped. */
+function generatePassword() {
+  const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from(crypto.randomBytes(20), (b) => alphabet[b % alphabet.length]).join("");
+}
+
+const PASSWORD = process.env.STAFF_PASSWORD || generatePassword();
+if (PASSWORD.length < 12) {
+  console.error("STAFF_PASSWORD must be at least 12 characters. Refusing to set a weak password.");
+  process.exit(1);
+}
 const DOMAIN = process.env.GLENTREE_EMAIL_DOMAIN ?? "glentree.com";
 
 const STAFF = [
@@ -87,8 +103,8 @@ async function main() {
       email,
       password: PASSWORD,
       email_confirm: true,
-      app_metadata: { must_change_password: false, provider: "email", providers: ["email"] },
-      user_metadata: { full_name: s.name, role: s.role, must_change_password: false },
+      app_metadata: { must_change_password: true, provider: "email", providers: ["email"] },
+      user_metadata: { full_name: s.name, role: s.role, must_change_password: true },
     });
 
     if (createErr) {
@@ -142,7 +158,17 @@ async function main() {
     }
   }
 
-  console.log("\nAll users successfully recreated and verified with password: " + PASSWORD);
+  if (!process.env.STAFF_PASSWORD) {
+  fs.writeFileSync(
+    ".provisioned-credentials.txt",
+    `GLENTREE - staff accounts recreated ${new Date().toISOString()}\n\n` +
+      `Password (all accounts): ${PASSWORD}\n\n` +
+      `Every account must change this on first sign-in.\n`,
+    { mode: 0o600 },
+  );
+  console.log("\nPassword saved to .provisioned-credentials.txt (gitignored, chmod 600).");
+}
+console.log("All users recreated. Each must change their password on first sign-in.");
 }
 
 main().catch((e) => {

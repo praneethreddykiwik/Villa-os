@@ -9,6 +9,7 @@ import { db } from "@/lib/osf/supabase";
 import { deliverToEvolution, fetchEvolutionMedia, isOwnSentMessage } from "@/lib/osf/evolution/client";
 import { passesTrigger, isVillaRelated } from "@/lib/osf/whatsapp/trigger";
 import { transcribeAudio, transcriptionConfigured } from "@/lib/osf/whatsapp/media";
+import { maskPhone } from "@/lib/osf/redact";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -299,7 +300,7 @@ async function processMessage(m: EvolutionMessage): Promise<void> {
   });
 
   if (outcome.status === "skipped") {
-    console.log(`[evolution] skipped (${outcome.reason}) for +${phone}`);
+    console.log(`[evolution] skipped (${outcome.reason}) for ${maskPhone(phone)}`);
   }
 }
 

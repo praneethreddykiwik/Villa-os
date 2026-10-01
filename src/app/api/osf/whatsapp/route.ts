@@ -10,6 +10,7 @@ import {
 } from "@/lib/osf/whatsapp/inbound-media";
 import type { WhatsAppInboundMessage } from "@/lib/osf/whatsapp/types";
 import { textFrom, type WhatsAppWebhookBody } from "@/lib/osf/whatsapp/types";
+import { maskPhone } from "@/lib/osf/redact";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -134,7 +135,7 @@ async function processWebhook(body: WhatsAppWebhookBody) {
             : "[the customer sent a voice note that could not be transcribed — ask them to type it, politely]";
           if (transcript) {
             console.log(
-              `[whatsapp] transcribed voice note from +${message.from} (${transcript.language ?? "unknown"})`,
+              `[whatsapp] transcribed voice note from ${maskPhone(message.from)} (${transcript.language ?? "unknown"})`,
             );
           }
         } else {
@@ -172,7 +173,7 @@ async function processWebhook(body: WhatsAppWebhookBody) {
           });
 
           if (outcome.status === "skipped") {
-            console.log(`[whatsapp] skipped (${outcome.reason}) for +${message.from}`);
+            console.log(`[whatsapp] skipped (${outcome.reason}) for ${maskPhone(message.from)}`);
           }
         } catch (e) {
           console.error(`[whatsapp] failed handling message from +${message.from}`, e);

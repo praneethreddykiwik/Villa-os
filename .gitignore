@@ -21,3 +21,7 @@ _e2e.mjs
 .env.template-blank
 .env.*
 !.env.example
+
+# Launch-video artifacts: a 10MB mp4 and its frames. Reproducible from
+# brag-output/work, and not something a clone needs.
+brag-output/

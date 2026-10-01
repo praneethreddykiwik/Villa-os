@@ -64,6 +64,40 @@ export async function GET(req: Request) {
   }
 }
 
+
+/**
+ * The fields a profile edit may write.
+ *
+ * Deliberately absent, each because it has its own audited path:
+ *   · leadStage                  → the `stage` branch below, via setStage()
+ *   · salesControl / loanControl → the `control` branch below, via setControl()
+ *   · optedOut                   → the consent path; a profile edit must never
+ *                                  be able to un-opt-out somebody
+ *   · leadScore, sentiment, sentimentConfidence → written by scoring, not by hand
+ *   · id, orgId, createdAt, updatedAt           → identity and audit columns
+ *
+ * An allowlist rather than a denylist because a denylist fails open: every
+ * field later added to `Customer` would become remotely writable the moment it
+ * was declared, with nothing to notice.
+ */
+const PATCHABLE_CUSTOMER_FIELDS = [
+  "name", "phone", "email", "source", "leadStatus",
+  "assignedSalesManagerId", "assignedLoanOfficerId",
+  "loanRequired", "intent",
+  "lastInteractionAt", "nextFollowUpAt", "preferredChannel",
+  "preferences", "budgetMin", "budgetMax",
+  "purchaseInfo", "financingInfo", "notes", "tags",
+  "leadId", "contactId",
+] as const;
+
+function pickPatchable(patch: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const f of PATCHABLE_CUSTOMER_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(patch, f) && patch[f] !== undefined) out[f] = patch[f];
+  }
+  return out;
+}
+
 /** Profile edits, stage moves and human takeover. */
 export async function PATCH(req: Request) {
   try {
@@ -78,7 +112,16 @@ export async function PATCH(req: Request) {
 
     let customer = null;
     if (body.patch) {
-      customer = updateCustomer(body.customerId, body.patch, { id: session.memberId, type: "human" });
+      // Allowlisted, not passed through. `body.patch` is an arbitrary object
+      // from the network: forwarding it whole is mass assignment, and the
+      // fields it must not reach are the dangerous ones — `optedOut` would let
+      // a profile edit silently un-opt-out someone who asked to be left alone,
+      // and the control lanes would hand a paused thread back to the AI while
+      // a human is mid-conversation. Each of those has its own audited path.
+      customer = updateCustomer(body.customerId, pickPatchable(body.patch), {
+        id: session.memberId,
+        type: "human",
+      });
     }
     if (body.stage) {
       customer = setStage(body.customerId, body.stage, { id: session.memberId, type: "human" });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readPost, respond } from "@/lib/osf/form-post";
 import { db } from "@/lib/osf/supabase";
 import { guard } from "@/lib/auth/guard";
+import { errorRef } from "@/lib/auth/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
       .from("villa_templates")
       .update({ status, ...(body.get("meta_id") ? { meta_id: body.get("meta_id") } : {}) })
       .eq("id", id);
-    if (error) return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: false, error: error.message });
+    if (error) return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: false, error: `That did not work. Reference ${errorRef(error, "osf:marketing")}` });
     return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: true });
   }
 
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
     },
     { onConflict: "name,language" },
   );
-  if (error) return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: false, error: error.message });
+  if (error) return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: false, error: `That did not work. Reference ${errorRef(error, "osf:marketing")}` });
 
   return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: true, variables });
 }

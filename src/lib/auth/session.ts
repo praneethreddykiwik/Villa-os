@@ -310,9 +310,53 @@ export async function assertCustomerAccess(session: Session, customerId: string)
   if (!mine) throw new AuthError("This record is not assigned to you.", 403);
 }
 
+/**
+ * May this session act for this brand?
+ *
+ * WHY THIS IS NOT A ONE-LINE ID COMPARISON.
+ *
+ * `Brand.workspaceId` is an id in the local JSON store; `session.orgId` is a
+ * Supabase `organizations.id`. They are deliberately different namespaces —
+ * src/lib/ops/seed.ts documents the split and why it exists. Comparing them
+ * directly looks like scoping but denies every request, because the two
+ * strings never match.
+ *
+ * So this enforces the invariant that IS expressible today, and refuses rather
+ * than guesses where it is not:
+ *
+ *   · the brand must exist;
+ *   · the session must be a real, org-bearing session;
+ *   · the brand's workspace must be one this deployment actually serves.
+ *
+ * The last clause is the new protection. Previously a caller could name any
+ * string that happened to match a brand row and pass. A brand whose workspace
+ * has been removed — or which was written by a webhook under a stale id — is
+ * now refused instead of silently accepted.
+ *
+ * MULTI-WORKSPACE IS FAIL-CLOSED ON PURPOSE. This deployment has exactly one
+ * workspace, so "the brand's workspace exists" is equivalent to "the brand is
+ * ours". The moment a second workspace appears that equivalence breaks and
+ * there is no org→workspace mapping to fall back on, so this throws rather
+ * than continuing to wave everyone through. Whoever adds the second workspace
+ * has to add the mapping, and will find out immediately — which is the point.
+ */
 export function assertBrandAccess(session: Session, brandId: string): void {
+  if (!session.orgId) throw new AuthError("Not found", 403);
+  if (!brandId) throw new AuthError("Brand not found", 403);
+
   const db = require("../db").read();
   const brand = db.brands.find((b: import("../types").Brand) => b.id === brandId);
   if (!brand) throw new AuthError("Brand not found", 403);
-  if (!session.orgId) throw new AuthError("Not found", 403);
+
+  const workspaces: { id: string }[] = db.workspaces ?? [];
+  if (!workspaces.some((w) => w.id === brand.workspaceId)) {
+    throw new AuthError("Brand not found", 403);
+  }
+
+  if (workspaces.length > 1) {
+    throw new AuthError(
+      "This deployment has more than one workspace and brand scoping is not configured. Refusing rather than guessing.",
+      403,
+    );
+  }
 }

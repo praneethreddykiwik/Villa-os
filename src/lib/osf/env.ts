@@ -221,6 +221,26 @@ export const env = {
     return optional("INSTAGRAM_APP_SECRET") || env.whatsappAppSecret;
   },
 
+  // Facebook Messenger is the same Graph app as Instagram and WhatsApp — a
+  // Page id instead of an IG account id, and the same secrets underneath. The
+  // fallbacks mean one Meta app needs one paste, not three.
+  get messengerPageId() {
+    return required("MESSENGER_PAGE_ID");
+  },
+  get messengerAccessToken() {
+    return (
+      optional("MESSENGER_ACCESS_TOKEN") ||
+      optional("META_SYSTEM_USER_TOKEN") ||
+      env.whatsappAccessToken
+    );
+  },
+  get messengerVerifyToken() {
+    return optional("MESSENGER_VERIFY_TOKEN") || env.whatsappVerifyToken;
+  },
+  get messengerAppSecret() {
+    return optional("MESSENGER_APP_SECRET") || env.whatsappAppSecret;
+  },
+
   get salesTeamWhatsapp() {
     return optional("SALES_TEAM_WHATSAPP");
   },
@@ -283,6 +303,9 @@ export function configStatus() {
     instagram:
       Boolean(read("INSTAGRAM_ACCOUNT_ID")) &&
       Boolean(read("INSTAGRAM_ACCESS_TOKEN") ?? read("WHATSAPP_ACCESS_TOKEN") ?? read("META_SYSTEM_USER_TOKEN")),
+    messenger:
+      Boolean(read("MESSENGER_PAGE_ID")) &&
+      Boolean(read("MESSENGER_ACCESS_TOKEN") ?? read("META_SYSTEM_USER_TOKEN") ?? read("WHATSAPP_ACCESS_TOKEN")),
     salesHandoff: Boolean(read("SALES_TEAM_WHATSAPP")),
   };
 }

@@ -1,6 +1,7 @@
 import { logActivity } from "./activities";
 import { configStatus, env } from "./env";
 import { db } from "./supabase";
+import { messengerPsid } from "./conversation";
 import { sendPlainText, sendReengagement } from "./whatsapp/outbound";
 import type { Conversation, LeadTemperature, Message, MessageRole } from "./types";
 
@@ -304,8 +305,33 @@ export const EVOLUTION_ENV_VARS = [
  * correctly set up — the message never left, and the rep was told to configure
  * credentials the send path was never going to use.
  */
-function sendTransportReady(): { ok: true } | { ok: false; error: string } {
+function sendTransportReady(channel = "whatsapp"): { ok: true } | { ok: false; error: string } {
   const status = configStatus();
+
+  // Each channel is its own transport with its own credentials. Judging an
+  // Instagram reply by whether Evolution is connected gets it wrong in both
+  // directions: it lets an unconfigured Instagram send through to fail deep in
+  // the Graph call, and it refuses a perfectly good one on a deployment that
+  // simply has no WhatsApp.
+  if (channel === "instagram") {
+    return status.instagram
+      ? { ok: true }
+      : {
+          ok: false,
+          error:
+            "Instagram isn't connected. Set INSTAGRAM_ACCOUNT_ID and INSTAGRAM_ACCESS_TOKEN before sending.",
+        };
+  }
+  if (channel === "facebook") {
+    return status.messenger
+      ? { ok: true }
+      : {
+          ok: false,
+          error:
+            "Messenger isn't connected. Set MESSENGER_PAGE_ID and MESSENGER_ACCESS_TOKEN before sending.",
+        };
+  }
+
   if (env.whatsappProvider === "evolution") {
     return status.evolution
       ? { ok: true }
@@ -344,6 +370,43 @@ export function serviceWindowApplies(): boolean {
   return env.whatsappProvider === "meta";
 }
 
+/**
+ * Channels a human can reply on from this console, and what each one costs.
+ *
+ * `window` is whether Meta's 24-hour service rule binds. For WhatsApp it
+ * depends on the transport — Evolution drives a linked handset and has no such
+ * rule. Instagram and Messenger are always Meta's own surface, so the window
+ * applies there whatever WHATSAPP_PROVIDER happens to say; reading the
+ * WhatsApp provider to decide an Instagram send would let an Evolution
+ * deployment post a Page DM a week late and be refused by Meta at the edge.
+ *
+ * `limit` is the transport's own cap, so the composer refuses over-length text
+ * here rather than having Meta truncate it silently at the far end.
+ */
+const REPLYABLE: Record<string, { label: string; window: () => boolean; limit: number }> = {
+  whatsapp: { label: "WhatsApp", window: serviceWindowApplies, limit: 4096 },
+  instagram: { label: "Instagram", window: () => true, limit: 1000 },
+  facebook: { label: "Messenger", window: () => true, limit: 2000 },
+};
+
+export function replyableChannels(): string[] {
+  return Object.keys(REPLYABLE);
+}
+
+/** Whether Meta's 24-hour rule binds on this particular thread. */
+export function windowAppliesTo(channel: string): boolean {
+  return REPLYABLE[channel]?.window() ?? serviceWindowApplies();
+}
+
+/** The transport's own character cap, for the composer's counter. */
+export function channelTextLimit(channel: string): number {
+  return REPLYABLE[channel]?.limit ?? 4096;
+}
+
+export function canReplyOn(channel: string): boolean {
+  return Object.prototype.hasOwnProperty.call(REPLYABLE, channel);
+}
+
 interface SendTarget {
   conversation: Pick<Conversation, "id" | "message_count" | "channel">;
   lead: Pick<ThreadLead, "id" | "phone" | "opted_out" | "name"> & {
@@ -370,8 +433,12 @@ async function loadTarget(conversationId: string): Promise<SendTarget | { error:
   if (!row.lead) {
     return { error: "This conversation has no lead attached, so there is nobody to reply to." };
   }
-  if (row.channel !== "whatsapp") {
-    return { error: `This is a ${channelLabel(row.channel)} thread — only WhatsApp can be replied to from here.` };
+  if (!canReplyOn(row.channel)) {
+    return {
+      error:
+        `This is a ${channelLabel(row.channel)} thread. Replies can be sent from here on ` +
+        `${replyableChannels().map(channelLabel).join(", ")}.`,
+    };
   }
 
   return {
@@ -453,12 +520,8 @@ export async function sendWhatsAppText(input: {
   conversationId: string;
   text: string;
 }): Promise<SendResult> {
-  const ready = sendTransportReady();
-  if (!ready.ok) return { ok: false, error: ready.error };
-
   const body = input.text?.trim();
   if (!body) return { ok: false, error: "Type a message before sending." };
-  if (body.length > 4096) return { ok: false, error: "WhatsApp caps a text message at 4096 characters." };
 
   const target = await loadTarget(input.conversationId);
   if ("error" in target) return { ok: false, error: target.error };
@@ -466,23 +529,50 @@ export async function sendWhatsAppText(input: {
     return { ok: false, error: "This customer opted out. Nothing may be sent to them." };
   }
 
+  // After loadTarget, not before: which credentials have to be present depends
+  // on the thread's channel, and that is not known until the thread is read.
+  const ready = sendTransportReady(target.conversation.channel);
+  if (!ready.ok) return { ok: false, error: ready.error };
+
+  // Length is the transport's rule, not one global number: Instagram stops at
+  // 1000 characters where WhatsApp allows 4096.
+  const rules = REPLYABLE[target.conversation.channel]!;
+  if (body.length > rules.limit) {
+    return {
+      ok: false,
+      error: `${rules.label} caps a text message at ${rules.limit} characters.`,
+    };
+  }
+
   // Re-checked server-side: the UI hides the box, but a stale tab still has it.
-  // Only on Meta — see serviceWindowApplies(). On Evolution this check would
-  // refuse a perfectly legal reply, and the lookup it needs is a round trip.
-  if (serviceWindowApplies() && !serviceWindow(await lastInboundAt(input.conversationId)).open) {
+  // Skipped on Evolution, where the window does not exist and the lookup it
+  // needs is a round trip — see REPLYABLE.
+  if (rules.window() && !serviceWindow(await lastInboundAt(input.conversationId)).open) {
     return { ok: false, error: OUTSIDE_WINDOW_MESSAGE };
   }
 
   let messageId: string | null = null;
   try {
-    if (target.lead.phone) {
-      ({ messageId } = await sendPlainText(target.lead.phone, body));
-    } else if (target.lead.instagram_id) {
-      // Instagram-only lead: same inbox, different transport.
+    // The thread decides the transport, not whichever identifier happens to be
+    // populated. One person can reach us on WhatsApp and on Instagram and end
+    // up with both a phone and an IGSID on the same lead; answering their
+    // Instagram DM over WhatsApp because a phone number exists would be a
+    // reply in the wrong window, to a channel they did not use.
+    if (target.conversation.channel === "facebook") {
+      const psid = messengerPsid(target.lead.instagram_id);
+      if (!psid) return { ok: false, error: "This Messenger thread has no sender id to reply to." };
+      const { sendMessengerText } = await import("./messenger/client");
+      ({ messageId } = await sendMessengerText(psid, body));
+    } else if (target.conversation.channel === "instagram") {
+      if (!target.lead.instagram_id) {
+        return { ok: false, error: "This Instagram thread has no sender id to reply to." };
+      }
       const { sendInstagramText } = await import("./instagram/client");
       ({ messageId } = await sendInstagramText(target.lead.instagram_id, body));
+    } else if (target.lead.phone) {
+      ({ messageId } = await sendPlainText(target.lead.phone, body));
     } else {
-      return { ok: false, error: "This lead has no phone number or Instagram id to send to." };
+      return { ok: false, error: "This lead has no phone number to send to." };
     }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Send failed." };
@@ -528,6 +618,18 @@ export async function sendWhatsAppTemplate(input: {
   if ("error" in target) return { ok: false, error: target.error };
   if (target.lead.opted_out) {
     return { ok: false, error: "This customer opted out. Nothing may be sent to them." };
+  }
+
+  // loadTarget now admits Instagram and Messenger threads, which the free-text
+  // path can serve. Templates are a WhatsApp Business feature and have no
+  // counterpart on either, so a stale tab posting this form at one of them
+  // must be refused here rather than sending a WhatsApp template to a lead
+  // whose `phone` is null.
+  if (target.conversation.channel !== "whatsapp") {
+    return {
+      ok: false,
+      error: `${channelLabel(target.conversation.channel)} has no message templates. Only WhatsApp threads can be re-opened this way.`,
+    };
   }
 
   let messageId: string | null = null;

@@ -132,20 +132,25 @@ export function OpsHome({
                 <span>Glentree Command Center</span>
                 <span>·</span>
                 <span className="text-mist-300 font-medium">
-                  {session.permissions.length} active capability{session.permissions.length === 1 ? "" : "ies"}
+                  {session.permissions.length} active {session.permissions.length === 1 ? "capability" : "capabilities"}
                 </span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <Link
-              href="/setup"
-              className="liquid-glass-button px-4 py-2 text-[12px] font-medium text-mist-200 hover:text-mist-100"
-            >
-              <Sparkles size={13} className="text-brand-400 mr-1.5" />
-              Diagnostics
-            </Link>
+            {/* /setup is an operator surface and 404s without this permission.
+                Showing the button to everyone else offers a door that opens
+                onto nothing. */}
+            {allowed.has("workflows.manage") && (
+              <Link
+                href="/setup"
+                className="liquid-glass-button px-4 py-2 text-[12px] font-medium text-mist-200 hover:text-mist-100"
+              >
+                <Sparkles size={13} className="text-brand-400 mr-1.5" />
+                Diagnostics
+              </Link>
+            )}
             <button
               onClick={signOut}
               className="liquid-glass-button px-4 py-2 text-[12px] font-medium text-mist-300 hover:text-bad-400 hover:border-bad-500/30"

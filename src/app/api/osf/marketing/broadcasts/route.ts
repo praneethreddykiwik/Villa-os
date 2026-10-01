@@ -3,6 +3,7 @@ import { readPost, respond } from "@/lib/osf/form-post";
 import { db } from "@/lib/osf/supabase";
 import { prepareBroadcast, sendBroadcastBatch, resolveAudience, type AudienceFilter } from "@/lib/osf/broadcasts";
 import { guard } from "@/lib/auth/guard";
+import { errorRef } from "@/lib/auth/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
       .from("villa_broadcasts")
       .update({ status: action === "pause" ? "paused" : "cancelled" })
       .eq("id", id);
-    if (error) return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: false, error: error.message });
+    if (error) return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: false, error: `That did not work. Reference ${errorRef(error, "osf:marketing")}` });
     return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: true });
   }
 
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
     })
     .select("id")
     .single();
-  if (error) return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: false, error: error.message });
+  if (error) return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: false, error: `That did not work. Reference ${errorRef(error, "osf:marketing")}` });
 
   return respond(request, body, "/inbox/whatsapp/marketing/broadcasts", { ok: true, id: data.id });
 }

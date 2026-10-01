@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { verifyChallenge, verifySignature } from "@/lib/osf/whatsapp/verify";
-import { deliverToInstagram } from "@/lib/osf/instagram/client";
+import { MESSENGER_CHANNEL, deliverToMessenger } from "@/lib/osf/messenger/client";
 import { handleInbound } from "@/lib/osf/conversation";
 import { autoReplyEnabled, autoReplyStatus } from "@/lib/osf/autoreply";
 import { env } from "@/lib/osf/env";
@@ -11,32 +11,32 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Instagram Direct webhook.
+ * Facebook Messenger webhook.
  *
- * Deliberately a thin transport: it unwraps Meta's Messenger envelope and
- * hands the text to the same handleInbound() the WhatsApp webhook uses, so
- * both channels get identical qualification, scoring, CRM writes and handoff
- * behaviour. Anything the agent learns on Instagram lands on the same lead.
+ * A thin transport, like the Instagram route beside it: unwrap Meta's
+ * envelope and hand the text to the same handleInbound() every channel uses,
+ * so a Page DM produces the same lead, the same scoring and the same CRM
+ * writes as a WhatsApp message from the same person.
+ *
+ * Whether the agent *answers* is a separate decision, taken by
+ * src/lib/osf/autoreply.ts and off unless this deployment is explicitly told
+ * otherwise. The message is recorded either way — a silent channel still
+ * fills the inbox for a human to reply from.
  */
 
-/**
- * Reads the Instagram secrets without throwing.
- *
- * The env getters throw on missing configuration, which is right for code
- * paths an operator drives — but Meta drives this one. An unconfigured
- * channel must answer 403/401 (fail closed), not 500, because a string of
- * 5xxs makes Meta mark the whole webhook subscription as broken.
- */
-function instagramConfig(): { verifyToken: string; appSecret: string } | null {
+function messengerConfig(): { verifyToken: string; appSecret: string } | null {
+  // The env getters throw on missing configuration, which is right where an
+  // operator is driving. Meta drives this one, and a run of 5xxs makes Meta
+  // disable the subscription outright — so unconfigured must mean 403/401.
   try {
-    return { verifyToken: env.instagramVerifyToken, appSecret: env.instagramAppSecret };
+    return { verifyToken: env.messengerVerifyToken, appSecret: env.messengerAppSecret };
   } catch {
     return null;
   }
 }
 
 export async function GET(request: Request) {
-  const config = instagramConfig();
+  const config = messengerConfig();
   if (!config) return new NextResponse("Verification failed", { status: 403 });
 
   const params = new URL(request.url).searchParams;
@@ -63,7 +63,7 @@ interface MessagingEvent {
 }
 
 export async function POST(request: Request) {
-  const config = instagramConfig();
+  const config = messengerConfig();
   if (!config) return new NextResponse("Invalid signature", { status: 401 });
 
   const raw = await request.text();
@@ -79,15 +79,14 @@ export async function POST(request: Request) {
     return new NextResponse("Bad payload", { status: 400 });
   }
 
-  // Same reason as the WhatsApp route: Meta retries anything slower than ~20s,
-  // which would mean answering the same person twice. after() keeps the
-  // serverless instance alive past the response — a naked promise would be
-  // frozen mid-reply.
+  // Meta retries anything slower than ~20s, which on a channel that answers
+  // would mean replying to the same person twice. after() keeps the instance
+  // alive past the response; a bare promise would be frozen mid-turn.
   after(async () => {
     try {
       await process(body);
     } catch (e) {
-      console.error("[instagram] processing failed", e);
+      console.error("[messenger] processing failed", e);
     }
   });
 
@@ -95,7 +94,7 @@ export async function POST(request: Request) {
 }
 
 async function process(body: { entry?: Array<{ messaging?: MessagingEvent[] }> }) {
-  const mayReply = autoReplyEnabled("instagram");
+  const mayReply = autoReplyEnabled("messenger");
 
   for (const entry of body.entry ?? []) {
     for (const event of entry.messaging ?? []) {
@@ -103,38 +102,37 @@ async function process(body: { entry?: Array<{ messaging?: MessagingEvent[] }> }
       const message = event.message;
       if (!senderId || !message) continue;
 
-      // Our own outbound messages come back as echoes. Answering one would
-      // put the agent in a conversation with itself.
+      // Our own outbound messages come back as echoes — including the ones a
+      // human just typed in the inbox. Answering one would put the agent in a
+      // conversation with itself.
       if (message.is_echo) continue;
 
-      // A quick-reply tap carries the payload we set, which is the option id
-      // the agent chose — more precise than the visible label.
       const text =
         message.quick_reply?.payload ??
         message.text ??
         (message.attachments?.length
-          ? "[the customer sent an attachment on Instagram — acknowledge it and ask what they'd like to know]"
+          ? "[the customer sent an attachment on Messenger — acknowledge it and ask what they'd like to know]"
           : null);
 
       if (!text) continue;
 
       try {
         const outcome = await handleInbound({
-          instagramId: senderId,
+          messengerId: senderId,
           text,
-          channel: "instagram",
+          channel: MESSENGER_CHANNEL,
           waMessageId: message.mid ?? null,
           reply: mayReply,
-          deliver: (reply) => deliverToInstagram(senderId, reply),
+          deliver: (reply) => deliverToMessenger(senderId, reply),
         });
 
         if (outcome.status === "skipped") {
           console.log(
-            `[instagram] stored, no reply (${outcome.reason}) for ${maskId(senderId)} — ${autoReplyStatus("instagram")}`,
+            `[messenger] stored, no reply (${outcome.reason}) for ${maskId(senderId)} — ${autoReplyStatus("messenger")}`,
           );
         }
       } catch (e) {
-        console.error(`[instagram] failed handling message from ${maskId(senderId)}`, e);
+        console.error(`[messenger] failed handling message from ${maskId(senderId)}`, e);
       }
     }
   }

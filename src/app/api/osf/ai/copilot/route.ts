@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { operatorText } from "@/lib/whitelabel";
 import { answerQuestion, gatherContext } from "@/lib/osf/ai/copilot";
@@ -53,8 +54,14 @@ export async function POST(request: Request) {
   try {
     context = await gatherContext();
   } catch (e) {
+    // The upstream message here is a PostgREST/Postgres error — it names
+    // tables, columns and constraints. Auditors hold analytics.view too, so
+    // this is not an admin-only surface; the detail goes to the server log
+    // under a reference the operator can quote instead.
+    const ref = crypto.randomUUID();
+    console.error(`[osf:copilot:${ref}]`, e instanceof Error ? e.stack : e);
     return NextResponse.json(
-      { error: `Could not read the data context: ${e instanceof Error ? e.message : String(e)}` },
+      { error: "Could not read the data context. Quote this reference if you report it.", ref },
       { status: 500 },
     );
   }
@@ -71,8 +78,12 @@ export async function POST(request: Request) {
     // the model was allowed to see when it said what it said.
     return NextResponse.json({ ...result, context });
   } catch (e) {
+    // Same reasoning as the context failure above: an LLM-provider error can
+    // carry the request body or the key prefix back with it.
+    const ref = crypto.randomUUID();
+    console.error(`[osf:copilot:${ref}]`, e instanceof Error ? e.stack : e);
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : String(e) },
+      { error: "The assistant could not answer. Quote this reference if you report it.", ref },
       { status: 502 },
     );
   }

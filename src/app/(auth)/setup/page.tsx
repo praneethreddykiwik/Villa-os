@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import path from "node:path";
 import { AlertTriangle, ArrowLeft, Check, Circle, X } from "lucide-react";
@@ -9,6 +10,7 @@ import { checkGoogleSheetsStatus } from "@/lib/sheets/client";
 import { checkBolnaStatus } from "@/lib/bolna/client";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 import { operatorText, showOperatorDetail } from "@/lib/whitelabel";
+import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +63,22 @@ function envRow(label: string, keys: string[], action: string): Row {
 }
 
 export default async function SetupPage() {
+  /**
+   * Operators only.
+   *
+   * Every row on this page is a live probe of the infrastructure behind the
+   * product: which vendors are wired, which account each one authenticated as,
+   * and which secrets are still unset. That last part is a target list, and
+   * none of it is any of a staff user's business. `workflows.manage` is held by
+   * admin alone.
+   *
+   * notFound() rather than a 403: a page that says "you may not see this"
+   * confirms it exists. Somebody without the permission should find nothing
+   * here to ask about.
+   */
+  const session = await getSession();
+  if (!session?.permissions.has("workflows.manage")) notFound();
+
   const [supabase, uploadPost, sheets, bolna] = await Promise.all([
     checkSupabase(),
     checkUploadPostStatus(),

@@ -30,6 +30,8 @@ export default function ReplyBox({
   initialLabel,
   preferredLanguage,
   windowApplies = true,
+  channel = "whatsapp",
+  textLimit = MAX_TEXT,
   returnTo,
 }: {
   conversationId: string;
@@ -44,6 +46,13 @@ export default function ReplyBox({
    * deployment they do not govern invents a deadline the rep does not have.
    */
   windowApplies?: boolean;
+  /**
+   * Which transport this thread is on, so the copy names the surface the rep
+   * is actually typing into rather than always saying WhatsApp.
+   */
+  channel?: string;
+  /** The transport's own cap — Instagram stops at 1000 where WhatsApp allows 4096. */
+  textLimit?: number;
   /**
    * Where to land after sending. The composer now appears on the inbox as well
    * as the WhatsApp console, and a rep who replies from the inbox should stay
@@ -74,8 +83,17 @@ export default function ReplyBox({
   const open = !windowApplies || (live ? now < closesAt : initiallyOpen);
   const label = live ? formatLeft(closesAt - now) : initialLabel;
 
-  const composing = open ? mode : "template";
-  const over = text.length > MAX_TEXT;
+  // Message templates are a WhatsApp Business feature; Instagram Direct and
+  // Messenger have no equivalent, so a closed window there is simply closed.
+  const templatesAvailable = channel === "whatsapp";
+  const channelName =
+    channel === "instagram" ? "Instagram" : channel === "facebook" ? "Messenger" : "this channel";
+
+  // A closed window falls back to the template composer — but only where
+  // templates exist. On Instagram and Messenger it would be a form that cannot
+  // send, so the composer is withheld entirely and the notice above stands alone.
+  const composing = open ? mode : templatesAvailable ? "template" : "none";
+  const over = text.length > textLimit;
   const params = templateParams
     .split("|")
     .map((value) => value.trim())
@@ -103,7 +121,7 @@ export default function ReplyBox({
           </span>
         )}
 
-        {open && (
+        {open && templatesAvailable && (
           <div className="flex items-center gap-1 rounded-xl border border-[var(--color-line)] bg-[var(--color-void)] p-1">
             {(["text", "template"] as const).map((value) => (
               <button
@@ -129,16 +147,26 @@ export default function ReplyBox({
             <Lock size={14} strokeWidth={2} aria-hidden />
             Free text is disabled
           </h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink)]">
-            Meta only accepts a free-form message within 24 hours of the customer&apos;s last
-            inbound one. That window has closed, so the only message the WhatsApp Cloud API will
-            deliver to this number is a <strong>pre-approved template</strong>. Sending one
-            re-opens the window as soon as the customer replies.
-          </p>
-          <p className="mt-2 text-xs text-[var(--color-muted)]">
-            Templates are created and approved in the Meta Business Manager, not here — this box
-            takes the approved template&apos;s name.
-          </p>
+          {templatesAvailable ? (
+            <>
+              <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink)]">
+                Meta only accepts a free-form message within 24 hours of the customer&apos;s last
+                inbound one. That window has closed, so the only message the WhatsApp Cloud API
+                will deliver to this number is a <strong>pre-approved template</strong>. Sending
+                one re-opens the window as soon as the customer replies.
+              </p>
+              <p className="mt-2 text-xs text-[var(--color-muted)]">
+                Templates are created and approved in the Meta Business Manager, not here — this
+                box takes the approved template&apos;s name.
+              </p>
+            </>
+          ) : (
+            <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink)]">
+              Meta only accepts a message within 24 hours of the customer&apos;s last inbound one,
+              and {channelName} has no template to re-open it with. Nothing can be sent on this
+              thread until they write again. If it matters now, reach them on another channel.
+            </p>
+          )}
         </div>
       )}
 
@@ -171,7 +199,7 @@ export default function ReplyBox({
                   over ? "text-[var(--color-danger)]" : "text-[var(--color-faint)]"
                 }`}
               >
-                {text.length.toLocaleString("en-IN")} / {MAX_TEXT.toLocaleString("en-IN")}
+                {text.length.toLocaleString("en-IN")} / {textLimit.toLocaleString("en-IN")}
               </span>
               <button type="submit" className="btn-gold" disabled={text.trim() === "" || over}>
                 <Send size={14} strokeWidth={2} aria-hidden />
@@ -180,7 +208,7 @@ export default function ReplyBox({
             </div>
           </div>
         </form>
-      ) : (
+      ) : composing === "none" ? null : (
         <form action="/api/osf/communication" method="POST" className="space-y-3">
           <input type="hidden" name="action" value="send_template" />
           <input type="hidden" name="conversationId" value={conversationId} />

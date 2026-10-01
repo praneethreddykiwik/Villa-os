@@ -2,7 +2,7 @@ import { read } from "../db";
 import { normalisePhone } from "../ops/customers";
 import { defaultOrgId } from "../ops/seed";
 import {
-  checkBolnaStatus, configuredAgentId, getAccount, isConfigured, listAgents, listExecutions,
+  checkBolnaStatus, configuredAgentId, configuredAgentIds, getAccount, isConfigured, listAgents, listExecutions,
 } from "../bolna/client";
 import { ingestExecution } from "./calls";
 import type { VoiceCallRecord } from "./types";
@@ -72,8 +72,9 @@ const FUNNEL_VISIT_STATUSES = new Set(["site_visit_scheduled", "negotiation", "b
  */
 async function backfill(brandId: string): Promise<string[]> {
   const problems: string[] = [];
-  const pinned = configuredAgentId();
-  let agentIds: string[] = pinned ? [pinned] : [];
+  // Both directions. An inbound-only agent's calls would otherwise never
+  // appear in the history at all.
+  let agentIds: string[] = configuredAgentIds();
   if (!agentIds.length) {
     const agents = await listAgents();
     if (!agents.ok) return [`Could not list agents: ${agents.error}`];

@@ -59,7 +59,12 @@ const SELF_AUTHENTICATING = [
  * CRON_SECRET. Exact matching matters — /api/osf/whatsapp/test-voice is an
  * operator tool that burns transcription credit and must stay behind the gate.
  */
-const OSF_WEBHOOKS_EXACT = ["/api/osf/whatsapp", "/api/osf/instagram", "/api/osf/evolution"];
+const OSF_WEBHOOKS_EXACT = [
+  "/api/osf/whatsapp",
+  "/api/osf/instagram",
+  "/api/osf/messenger",
+  "/api/osf/evolution",
+];
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true;
@@ -353,7 +358,25 @@ export async function middleware(req: NextRequest) {
   return refreshed;
 }
 
+/**
+ * Everything except static assets and the two large multipart video upload
+ * routes.
+ *
+ * WHY THE TWO UPLOAD ROUTES ARE EXCLUDED. They stream multi-megabyte video
+ * bodies, and running them through the middleware's session round-trip on the
+ * edge adds latency to every chunk. Both call `requirePermission("marketing.publish")`
+ * in-route — `post-video/route.ts:59` and `v2/post-video/route.ts:35` — so they
+ * are authenticated, just not double-fenced.
+ *
+ * WHY EACH EXCLUSION IS ANCHORED WITH `$`. Without the anchor these are prefix
+ * matches, so a future route named `post-video-callback` or
+ * `post-video/debug` would silently inherit the exclusion and ship with no
+ * session gate at all. Nothing in the test suite inspects this matcher, so
+ * that would not fail CI — it would just be quietly unauthenticated. The
+ * anchor makes the carve-out mean the two paths it names and nothing else.
+ */
 export const config = {
-  // Everything except static assets and large multipart video streaming routes.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/automation/post-video|api/automation/v2/post-video).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/automation/post-video$|api/automation/v2/post-video$).*)",
+  ],
 };

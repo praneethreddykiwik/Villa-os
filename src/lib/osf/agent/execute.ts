@@ -602,16 +602,42 @@ export async function deliverApprovedAssets(params: {
 }): Promise<number> {
   const { lead, conversationId, kind, deliver, caption, skip } = params;
   const supabase = db();
-  let query = supabase
-    .from("villa_assets")
-    .select("url, title")
-    .eq("kind", kind)
-    .eq("is_current", true)
-    .eq("shareable_by_ai", true)
-    .limit(params.limit ?? (kind === "image" ? 3 : 4));
-  if (lead.project_interest) query = query.eq("project_id", lead.project_interest);
+  /**
+   * One document, not the whole shelf.
+   *
+   * Somebody who asks for "the brochure" wants a brochure. There are two
+   * flagged shareable here — a 12 MB full one and a 17 MB mini — and sending
+   * both meant 30 MB of WhatsApp arriving unasked, the caption landing on
+   * whichever row Postgres happened to return first, and both files saved on
+   * the phone under the same generated name. Images are the one kind where
+   * several genuinely answer the request.
+   *
+   * `created_at` descending makes the choice deterministic and gives the most
+   * recently uploaded version, which is the one a human would have picked.
+   */
+  const fanOut = params.limit ?? (kind === "image" ? 3 : 1);
 
-  const { data } = await query;
+  const build = (scoped: boolean) => {
+    let q = supabase
+      .from("villa_assets")
+      .select("url, title")
+      .eq("kind", kind)
+      .eq("is_current", true)
+      .eq("shareable_by_ai", true)
+      .order("created_at", { ascending: false })
+      .limit(fanOut);
+    if (scoped && lead.project_interest) q = q.eq("project_id", lead.project_interest);
+    return q;
+  };
+
+  // Project-scoped first, then unscoped. A lead tagged to a project whose
+  // assets carry a different or null project_id used to match zero rows, so
+  // the customer was told the brochure was coming and then got nothing —
+  // a filter meant to make the file *more* relevant made it disappear.
+  let { data } = await build(true);
+  if ((!data || data.length === 0) && lead.project_interest) {
+    ({ data } = await build(false));
+  }
   if (!data || data.length === 0) return 0;
 
   let sent = 0;

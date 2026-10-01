@@ -241,8 +241,14 @@ export async function pumpQueue(brandId?: string): Promise<PumpResult> {
   for (;;) {
     const now = Date.now();
     const claimed = mutate((db) => {
-      const all = (db.voiceCallQueue ??= []).filter((e) => !brandId || e.brandId === brandId);
-      const inFlight = all.filter((e) => e.status === "calling").length;
+      const queue = (db.voiceCallQueue ??= []);
+      const all = queue.filter((e) => !brandId || e.brandId === brandId);
+      // Counted across every brand, deliberately. The limit exists because one
+      // outbound number can hold one conversation at a time, and brands share
+      // that number — counting per brand meant three brands each believed they
+      // had the line to themselves and the customer got a busy tone we still
+      // paid for.
+      const inFlight = queue.filter((e) => e.status === "calling").length;
       if (inFlight >= MAX_CONCURRENT_CALLS) return { entry: null, reason: "a call is already in progress" };
 
       const next = all

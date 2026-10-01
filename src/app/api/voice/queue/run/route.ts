@@ -55,9 +55,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // Every brand with something waiting, not just the default one.
+  // Every brand with something waiting OR something stuck.
+  //
+  // `queued` alone was not enough. reclaimStalled() only runs inside
+  // pumpQueue, so a campaign whose LAST entry is stuck in `calling` — a
+  // dropped webhook — has no queued entries left, is skipped here, and is
+  // never unstuck: the 15-minute call timeout elapses in no code path at all
+  // and that brand's dialler is blocked for good.
   const brands = [
-    ...new Set((read().voiceCallQueue ?? []).filter((e) => e.status === "queued").map((e) => e.brandId)),
+    ...new Set(
+      (read().voiceCallQueue ?? [])
+        .filter((e) => e.status === "queued" || e.status === "calling")
+        .map((e) => e.brandId),
+    ),
   ];
 
   const report: Record<string, unknown> = {};

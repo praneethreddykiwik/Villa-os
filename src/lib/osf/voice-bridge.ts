@@ -394,6 +394,26 @@ export async function fulfilCallRequests(input: {
     }
   }
 
+  /**
+   * Take back the promise when nothing arrived.
+   *
+   * The "as promised on the call, here is the brochure" line goes out before
+   * the files, because a document landing with no context reads as spam. The
+   * cost of that order is this case: every send failed — an unreachable file,
+   * a refused upload, a closed session — and the customer is left holding a
+   * sentence about an attachment that does not exist. Saying nothing is worse
+   * than admitting it; they would sit there waiting and conclude we are
+   * broken. A human is already being brought in by the handoff below.
+   */
+  const deliveredAny = Object.keys(result.delivered).length > 0 || result.locationSent;
+  if (!deliveredAny) {
+    await sendPlainText(
+      phone,
+      "Sorry — that didn't attach properly at my end. " +
+        "Someone from our team will send it across to you shortly.",
+    ).catch(() => {});
+  }
+
   return result;
 }
 
@@ -573,6 +593,113 @@ export async function bridgeCallToWhatsApp(input: {
     return { leadId: lead.id, temperature: finalTemperature, score, messaged: true, requests: requests ?? undefined };
   } catch (e) {
     console.error("[voice-bridge] follow-up failed", e);
+    return { ...empty, skipped: e instanceof Error ? e.message : "unknown failure" };
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Missed calls                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The template a missed call earns, when Meta's rules demand one.
+ *
+ * Deliberately separate from FOLLOW_UP_TEMPLATE: that one thanks somebody for
+ * a conversation, and sending it to a person who never picked up reads as a
+ * machine talking to itself.
+ */
+export const MISSED_CALL_TEMPLATE = "call_missed";
+
+/** What we say when nobody picked up. One message, never a series. */
+function missedCallText(name: string | null): string {
+  const greeting = name ? `Hi ${name}` : "Hi";
+  return (
+    `${greeting} — this is ${env.salesTeamName ?? "the team"} at Glentree Serenity, Nadergul. ` +
+    `We just tried calling you about the project and couldn't reach you.\n\n` +
+    `Happy to send the brochure here on WhatsApp, or call back at a time that suits you — ` +
+    `just reply and let me know which you'd prefer.`
+  );
+}
+
+export interface MissedCallResult {
+  leadId: string | null;
+  messaged: boolean;
+  /** Why nothing was sent, when nothing was sent. */
+  skipped?: string;
+}
+
+/**
+ * Run when an outbound call finishes without being answered and will not be
+ * retried again.
+ *
+ * A number that rang out is not a lead that said no — it is a lead we have not
+ * reached yet, and WhatsApp is the cheaper second attempt. This opens that
+ * door once, on the last attempt only, so a three-attempt campaign produces
+ * one message rather than three.
+ *
+ * Never throws, for the same reason bridgeCallToWhatsApp does not: the call
+ * record is already written, and a failed follow-up must not cost it.
+ */
+export async function notifyMissedCall(input: {
+  phone: string | null | undefined;
+  name?: string | null;
+  executionId: string;
+}): Promise<MissedCallResult> {
+  const empty: MissedCallResult = { leadId: null, messaged: false };
+  const phone = (input.phone ?? "").replace(/[^\d+]/g, "");
+  if (!phone) return { ...empty, skipped: "the call carried no phone number" };
+
+  try {
+    // Bolna retries any non-2xx, and this runs after the queue entry is
+    // already settled, so without this the same person is messaged twice.
+    const { data: seen } = await db()
+      .from("villa_activities")
+      .select("id")
+      .eq("activity_type", "missed_call_followup")
+      .contains("metadata", { executionId: input.executionId })
+      .limit(1);
+    if (seen && seen.length > 0) {
+      return { ...empty, skipped: "already handled — this is a webhook retry" };
+    }
+
+    const lead = await getOrCreateLead({
+      phone,
+      name: input.name ?? null,
+      channel: "voice",
+      attribution: { source: "voice_call" },
+    });
+
+    // Section 25 again: an opt-out outranks a campaign.
+    if (lead.opted_out) {
+      return { leadId: lead.id, messaged: false, skipped: "lead has opted out" };
+    }
+
+    const body = missedCallText(lead.name ?? input.name ?? null);
+
+    if (activeProvider() === "meta") {
+      // They have never messaged us, so there is no open window and Meta will
+      // only accept an approved template. sendReengagement renders the
+      // registry body on Evolution and calls the template API on Meta.
+      await sendReengagement(phone, {
+        name: MISSED_CALL_TEMPLATE,
+        language: "en",
+        params: [lead.name ?? "there"],
+      }, body);
+    } else {
+      await sendPlainText(phone, body);
+    }
+
+    await logActivity({
+      leadId: lead.id,
+      type: "missed_call_followup",
+      channel: "whatsapp",
+      description: "Called and not answered — WhatsApp follow-up sent.",
+      metadata: { executionId: input.executionId },
+    }).catch(() => {});
+
+    return { leadId: lead.id, messaged: true };
+  } catch (e) {
+    console.error("[voice-bridge] missed-call follow-up failed", e);
     return { ...empty, skipped: e instanceof Error ? e.message : "unknown failure" };
   }
 }

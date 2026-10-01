@@ -60,10 +60,39 @@ export interface InboundAttribution {
   utm?: Record<string, string>;
 }
 
+/**
+ * Messenger PSIDs share the `instagram_id` column, prefixed.
+ *
+ * villa_leads has one opaque-id column and no `messenger_id`, and the schema
+ * is maintained outside this repo. Storing a raw PSID there would be worse
+ * than a workaround: Meta mints both IGSIDs and PSIDs as bare digit strings
+ * from overlapping ranges, so an unprefixed collision would silently merge two
+ * different people into one lead. The prefix makes the id space explicit.
+ *
+ * When the schema can be changed, the clean fix is a `messenger_id` column
+ * with its own unique index and a `villa_upsert_lead_messenger` RPC.
+ */
+export const MESSENGER_ID_PREFIX = "msgr:";
+
+export function messengerLeadKey(psid: string): string {
+  return `${MESSENGER_ID_PREFIX}${psid}`;
+}
+
+export function isMessengerLeadKey(id: string | null | undefined): boolean {
+  return typeof id === "string" && id.startsWith(MESSENGER_ID_PREFIX);
+}
+
+/** The PSID to send to, back out of a stored key. Null for a real IGSID. */
+export function messengerPsid(id: string | null | undefined): string | null {
+  return isMessengerLeadKey(id) ? id!.slice(MESSENGER_ID_PREFIX.length) : null;
+}
+
 export async function getOrCreateLead(params: {
   /** Required for WhatsApp. Instagram leads often have no number at all. */
   phone?: string | null;
   instagramId?: string | null;
+  /** Facebook Messenger PSID. Stored prefixed — see MESSENGER_ID_PREFIX. */
+  messengerId?: string | null;
   name?: string | null;
   channel?: string;
   attribution?: InboundAttribution;
@@ -73,11 +102,19 @@ export async function getOrCreateLead(params: {
   // Instagram identifies people by an opaque IGSID, so it gets its own
   // keyed upsert rather than a synthetic phone number that would later be
   // mistaken for something we could actually send a WhatsApp message to.
-  if (params.instagramId) {
+  // Messenger rides the same upsert under a prefixed key.
+  const opaqueId = params.instagramId
+    ? params.instagramId
+    : params.messengerId
+      ? messengerLeadKey(params.messengerId)
+      : null;
+
+  if (opaqueId) {
+    const viaMessenger = Boolean(params.messengerId && !params.instagramId);
     const { data, error } = await db().rpc("villa_upsert_lead_instagram", {
-      p_instagram_id: params.instagramId,
+      p_instagram_id: opaqueId,
       p_name: params.name ?? null,
-      p_source: a.source ?? "instagram",
+      p_source: a.source ?? (viaMessenger ? "facebook" : "instagram"),
     });
     if (error) throw new Error(`Could not create lead: ${error.message}`);
 
@@ -90,8 +127,9 @@ export async function getOrCreateLead(params: {
       await logActivity({
         leadId: row.lead.id,
         type: "lead_created",
-        description: "New lead from Instagram DM",
-        channel: "instagram",
+        description: viaMessenger ? "New lead from a Facebook Messenger DM" : "New lead from Instagram DM",
+        // villa_comm_channel spells Messenger `facebook`; see MESSENGER_CHANNEL.
+        channel: viaMessenger ? "facebook" : "instagram",
       });
       await fireAutomations("lead_created", row.lead);
     }
@@ -99,7 +137,7 @@ export async function getOrCreateLead(params: {
   }
 
   if (!params.phone) {
-    throw new Error("getOrCreateLead needs either a phone number or an Instagram id");
+    throw new Error("getOrCreateLead needs a phone number, an Instagram id or a Messenger id");
   }
 
   // One statement, not select-then-insert. Two webhooks for the same new
@@ -190,6 +228,8 @@ export async function handleInbound(params: {
   /** WhatsApp identity. Omit for Instagram, which uses instagramId instead. */
   phone?: string | null;
   instagramId?: string | null;
+  /** Facebook Messenger PSID. Stored prefixed — see MESSENGER_ID_PREFIX. */
+  messengerId?: string | null;
   text: string;
   profileName?: string | null;
   channel?: string;
@@ -215,6 +255,7 @@ export async function handleInbound(params: {
   const lead = await getOrCreateLead({
     phone: params.phone,
     instagramId: params.instagramId,
+    messengerId: params.messengerId,
     name: params.profileName,
     channel,
     attribution: params.attribution,

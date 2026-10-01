@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { cacheKeyFromCookies, clearSessionCache, getSession } from "@/lib/auth/session";
 import { apiError, apiOk } from "@/lib/auth/http";
+import { clientKey, rateLimit } from "@/lib/ops/ratelimit";
 
 /**
  * Session introspection and sign-out.
@@ -12,24 +13,30 @@ import { apiError, apiOk } from "@/lib/auth/http";
  * disabling someone in Supabase disables them everywhere immediately.
  */
 
-const rateLimit = new Map<string, { count: number; time: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimit.get(ip) ?? { count: 0, time: now };
-  if (now - entry.time > 60000) {
-    entry.count = 1;
-    entry.time = now;
-  } else {
-    entry.count += 1;
-  }
-  rateLimit.set(ip, entry);
-  return entry.count > 5;
-}
+/**
+ * Rate limiting uses the shared limiter, not a local Map.
+ *
+ * The previous version kept its own `Map<string, …>` keyed on the raw
+ * `x-forwarded-for` header. That header is written by the caller, so the key
+ * was attacker-chosen and the map had no bound: a flood of made-up values grew
+ * it until the instance ran out of memory, and rotating the value walked
+ * straight past the limit it was supposed to enforce.
+ *
+ * `clientKey()` reads the trusted proxy hop instead of the leftmost one and
+ * bounds the key to address characters, and `rateLimit()` evicts rotated keys
+ * and keeps active lockouts under load. Both properties are pinned by
+ * tests/security.test.ts — this route simply had its own copy that the tests
+ * never saw.
+ */
 
 export async function GET(req: Request) {
-  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
-  if (isRateLimited(ip)) return NextResponse.json({ ok: false, error: "Too many requests" }, { status: 429 });
+  const limit = rateLimit(`ops-session:${clientKey(req)}`, { max: 5, windowSeconds: 60, lockoutSeconds: 300 });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { ok: false, error: `Too many requests. Retry in ${limit.retryAfterSeconds ?? 60}s.` },
+      { status: 429 },
+    );
+  }
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ ok: false, error: "Not signed in." }, { status: 401 });

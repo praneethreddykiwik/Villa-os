@@ -11,6 +11,9 @@ import {
   loadThread,
   serviceWindow,
   serviceWindowApplies,
+  canReplyOn,
+  windowAppliesTo,
+  channelTextLimit,
   windowLabel,
 } from "@/lib/osf/communication";
 import { configStatus, env } from "@/lib/osf/env";
@@ -58,11 +61,16 @@ export default async function WhatsAppPage({
   const connected = provider === "evolution" ? status.evolution : status.whatsapp;
   const missingVars = provider === "evolution" ? EVOLUTION_ENV_VARS : WHATSAPP_ENV_VARS;
 
-  // A thread reached from the inbox may not be WhatsApp at all. The send path
-  // refuses those anyway; saying so here beats offering a composer that can't work.
-  const wrongChannel = thread !== null && thread.conversation.channel !== "whatsapp";
+  // A thread reached from the inbox may be on another channel. Instagram and
+  // Messenger can be answered from here too, so the composer is withheld only
+  // for the ones the send path genuinely refuses (email, SMS, a web form).
+  const threadChannel = thread?.conversation.channel ?? "whatsapp";
+  const wrongChannel = thread !== null && !canReplyOn(threadChannel);
 
-  const windowApplies = serviceWindowApplies();
+  // Per thread, not per deployment. Meta's 24-hour rule always binds on an
+  // Instagram or Messenger DM, even where WHATSAPP_PROVIDER is Evolution and
+  // the WhatsApp threads beside it have no window at all.
+  const windowApplies = windowAppliesTo(threadChannel);
   const window = thread ? serviceWindow(lastInboundFrom(thread.messages)) : null;
   const closesAt =
     window?.lastInboundAt !== null && window?.lastInboundAt !== undefined
@@ -76,7 +84,7 @@ export default async function WhatsAppPage({
     <>
       <PageHeader
         title="WhatsApp"
-        sub="The only channel with a live send integration. Replying here hands the thread to you — the AI stops answering on it until you give it back."
+        sub="WhatsApp, Instagram and Messenger threads can all be answered from here. Replying hands the thread to you — the AI stops answering on it until you give it back."
         actions={
           <div className="flex items-center gap-3">
             <StartChat returnTo={BASE} />
@@ -195,6 +203,8 @@ export default async function WhatsAppPage({
                   initialLabel={window ? windowLabel(window) : "No inbound message yet"}
                   preferredLanguage={thread.lead?.preferred_language ?? "en"}
                   windowApplies={windowApplies}
+                  channel={threadChannel}
+                  textLimit={channelTextLimit(threadChannel)}
                 />
               )}
             </>

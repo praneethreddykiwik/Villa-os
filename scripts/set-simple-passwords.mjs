@@ -1,15 +1,37 @@
 #!/usr/bin/env node
 /**
- * Quick script to update staff passwords in Supabase Auth.
- * Usage: node scripts/set-simple-passwords.mjs [new_password]
- * Default password: tree123 (6 chars for Supabase GoTrue compliance)
+ * Reset staff passwords in Supabase Auth.
+ *
+ * Usage: STAFF_PASSWORD=<value> node scripts/set-simple-passwords.mjs
+ *    or: node scripts/set-simple-passwords.mjs            (generates one)
+ *
+ * THERE IS NO DEFAULT PASSWORD, AND THERE MUST NEVER BE ONE AGAIN.
+ * This file previously hardcoded a 7-character literal and applied it to all
+ * seven staff accounts. The repository is public, so that password was
+ * readable by anyone who found the repo, on every account, with rotation
+ * disabled. A committed default credential is a published credential.
+ *
+ * The generated password is written to .provisioned-credentials.txt
+ * (gitignored, mode 600) rather than printed, because terminal scrollback ends
+ * up in screenshots and support tickets.
  */
 
 import { createClient } from "@supabase/supabase-js";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const newPassword = process.argv[2] || "tree123";
+/** 20 chars, no ambiguous glyphs — these get read off a screen and retyped. */
+function generatePassword() {
+  const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from(crypto.randomBytes(20), (b) => alphabet[b % alphabet.length]).join("");
+}
+
+const newPassword = process.env.STAFF_PASSWORD || generatePassword();
+if (newPassword.length < 12) {
+  console.error("STAFF_PASSWORD must be at least 12 characters. Refusing to set a weak password.");
+  process.exit(1);
+}
 
 // Load .env
 const envPath = path.join(process.cwd(), ".env");
@@ -41,7 +63,7 @@ const EMAILS = [
 ];
 
 async function run() {
-  console.log(`Setting password to "${newPassword}" for ${EMAILS.length} staff accounts...`);
+  console.log(`Setting a new password for ${EMAILS.length} staff accounts...`);
   const { data: { users }, error: listError } = await admin.auth.admin.listUsers({ perPage: 100 });
   if (listError) throw listError;
 
@@ -53,13 +75,31 @@ async function run() {
     }
     const { error: updateError } = await admin.auth.admin.updateUserById(u.id, {
       password: newPassword,
+      // Forced rotation. An administrator-issued password is a delivery
+      // mechanism, not a credential — the person must replace it before the
+      // session is good for anything. requirePermission() refuses every
+      // permission while this flag is set, so it cannot be navigated around.
+      app_metadata: { ...(u.app_metadata ?? {}), must_change_password: true },
     });
     if (updateError) {
       console.log(`- ${email}: FAILED (${updateError.message})`);
     } else {
-      console.log(`- ${email}: SUCCESS -> ${newPassword}`);
+      console.log(`- ${email}: SUCCESS`);
     }
   }
+
+  if (!process.env.STAFF_PASSWORD) {
+    // Written, not printed: scrollback ends up in screenshots and tickets.
+    fs.writeFileSync(
+      ".provisioned-credentials.txt",
+      `GLENTREE - staff password reset ${new Date().toISOString()}\n\n` +
+        `Password (all accounts): ${newPassword}\n\n` +
+        `Every account must change this on first sign-in.\n`,
+      { mode: 0o600 },
+    );
+    console.log("\nPassword saved to .provisioned-credentials.txt (gitignored, chmod 600).");
+  }
+  console.log("All accounts must change their password on next sign-in.");
 }
 
 run().catch((e) => console.error(e));

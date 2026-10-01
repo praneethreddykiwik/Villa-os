@@ -217,6 +217,31 @@ export function configuredAgentId(): string | null {
 }
 
 /**
+ * The agent that answers calls coming IN, when it is a different one.
+ *
+ * A single agent cannot greet both directions correctly: Bolna speaks one
+ * `agent_welcome_message` before the model gets a turn, and "is this a good
+ * time for a quick chat?" is the wrong first sentence for somebody who just
+ * dialled us on purpose. Two agents, two greetings.
+ *
+ * Null when unset, which means one agent handles everything — the existing
+ * behaviour, and correct while no inbound number is connected.
+ */
+export function inboundAgentId(): string | null {
+  return process.env.BOLNA_INBOUND_AGENT_ID?.trim() || null;
+}
+
+/**
+ * Every agent whose call history belongs to this workspace.
+ *
+ * Outbound first. De-duped, because pointing both variables at one agent is a
+ * reasonable thing to do and must not double every row in the history.
+ */
+export function configuredAgentIds(): string[] {
+  return [...new Set([configuredAgentId(), inboundAgentId()].filter((id): id is string => Boolean(id)))];
+}
+
+/**
  * Remove the key from anything on its way to a screen or a log.
  *
  * Providers do echo request context back in error bodies. One that echoed the
