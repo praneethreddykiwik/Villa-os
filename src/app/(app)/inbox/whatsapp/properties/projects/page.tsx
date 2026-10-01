@@ -13,6 +13,7 @@ import {
   formatPercent,
 } from "@/components/osf/ui";
 import { gatedLoad } from "@/lib/osf/queries";
+import { getSession, hasPermission } from "@/lib/auth/session";
 import {
   absorption,
   cssUrl,
@@ -50,7 +51,15 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  // Adding a project decides what the agents will talk about at all, so it
+  // takes the publish permission rather than the read one.
+  const canEdit = hasPermission(await getSession(), "marketing.publish");
   const page = await gatedLoad({ table: "villa_projects", migration: "001_schema.sql" }, projectPortfolio);
   if (!page.ok) {
     return (
@@ -75,6 +84,14 @@ export default async function ProjectsPage() {
         sub="The developments in the knowledge base. Approvals, land area and pricing here are what the AI agent is permitted to quote — nothing is inferred."
       />
 
+      {error && (
+        <div className="mb-4 rounded-xl border border-[color-mix(in_oklab,var(--c-bad)_35%,transparent)] bg-[color-mix(in_oklab,var(--c-bad)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-danger)]">
+          {error}
+        </div>
+      )}
+
+      {canEdit && <AddProject />}
+
       {/* A refused query is a setup problem, not an empty portfolio. Saying
           "no active projects" about a database the read never reached would be
           the console inventing a fact about the business. */}
@@ -82,11 +99,10 @@ export default async function ProjectsPage() {
         <SetupNotice missing={[]} detail={schemaError} />
       ) : projects.length === 0 ? (
         <Empty>
-          <p className="font-medium text-[var(--color-ink)]">No active projects.</p>
+          <p className="font-medium text-[var(--color-ink)]">No projects yet.</p>
           <p className="mx-auto mt-2 max-w-lg">
-            <code className="rounded bg-[var(--color-canvas)] px-1.5 py-0.5 text-xs">villa_projects</code>{" "}
-            holds no active row, so every downstream page — villas, inventory, floor plans, amenities —
-            has nothing to describe, and the agent has no project to talk about.
+            Until one is added, every screen that follows — villas, stock, floor plans, amenities — has
+            nothing to describe, and the agents have no project to talk about. Add your first one above.
           </p>
         </Empty>
       ) : (
@@ -215,6 +231,93 @@ function ProjectCard({ project, stats }: { project: ProjectCardRow; stats?: Proj
           <ArrowUpRight className="h-4 w-4" />
         </Link>
       </div>
+    </Card>
+  );
+}
+
+/**
+ * Adding a project.
+ *
+ * A plain form POST, like the stock board: it works with no client JS, and a
+ * refused save comes back to this page with the reason in ?error= rather than
+ * replacing the screen with a JSON body.
+ *
+ * Only the name is required. Everything else is genuinely optional, and a blank
+ * field is stored as absent rather than as an empty string or a zero — a price
+ * nobody has set is not a price of nothing, and the agent is built to say "the
+ * sales team will confirm" instead of quoting a number that was never agreed.
+ */
+function AddProject() {
+  const field =
+    "w-full rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-gold-300)]";
+
+  return (
+    <Card className="mb-5">
+      <p className="label">Add a project</p>
+      <p className="mt-1 text-xs text-[var(--color-muted)]">
+        Only the name is needed to start. Anything left blank stays blank, and the agents will say the
+        sales team will confirm it.
+      </p>
+      <form action="/api/osf/properties" method="POST" className="mt-4 grid gap-3 lg:grid-cols-12">
+        <input type="hidden" name="action" value="create-project" />
+        <input type="hidden" name="next" value="/inbox/whatsapp/properties/projects" />
+
+        <label className="lg:col-span-4">
+          <span className="label">Project name</span>
+          <input name="name" required placeholder="Serenity Phase II" className={field + " mt-1.5"} />
+        </label>
+        <label className="lg:col-span-3">
+          <span className="label">Developer</span>
+          <input name="developer" placeholder="Glentree Homes" className={field + " mt-1.5"} />
+        </label>
+        <label className="lg:col-span-2">
+          <span className="label">Phase</span>
+          <input name="phase" placeholder="Phase II" className={field + " mt-1.5"} />
+        </label>
+        <label className="lg:col-span-3">
+          <span className="label">Possession</span>
+          <input name="expectedDelivery" placeholder="Dec 2027" className={field + " mt-1.5"} />
+        </label>
+
+        <label className="lg:col-span-3">
+          <span className="label">Village</span>
+          <input name="village" placeholder="Shankarpally" className={field + " mt-1.5"} />
+        </label>
+        <label className="lg:col-span-3">
+          <span className="label">District</span>
+          <input name="district" placeholder="Rangareddy" className={field + " mt-1.5"} />
+        </label>
+        <label className="lg:col-span-3">
+          <span className="label">Starting price (₹)</span>
+          <input
+            name="startingPriceInr"
+            type="number"
+            min="0"
+            step="100000"
+            inputMode="numeric"
+            placeholder="21500000"
+            className={field + " mt-1.5 tabular-nums"}
+          />
+        </label>
+        <label className="lg:col-span-2">
+          <span className="label">Rate per sft (₹)</span>
+          <input
+            name="pricePerSftInr"
+            type="number"
+            min="0"
+            step="50"
+            inputMode="numeric"
+            placeholder="7450"
+            className={field + " mt-1.5 tabular-nums"}
+          />
+        </label>
+
+        <div className="flex items-end lg:col-span-1">
+          <button type="submit" className="btn-gold w-full justify-center !py-2 text-xs">
+            Add
+          </button>
+        </div>
+      </form>
     </Card>
   );
 }

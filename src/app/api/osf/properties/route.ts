@@ -1,7 +1,15 @@
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/osf/activities";
 import { readPost, respond, safePath, type ActionResult } from "@/lib/osf/form-post";
-import { UNIT_STATUS_LABELS, createUnit, isUnitStatus, updateUnitStatus } from "@/lib/osf/properties";
+import {
+  UNIT_STATUS_LABELS,
+  createProject,
+  createUnit,
+  isUnitStatus,
+  updateProjectPricing,
+  updateUnitStatus,
+  updateVillaTypePrice,
+} from "@/lib/osf/properties";
 import { guard } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
@@ -28,9 +36,102 @@ export async function POST(request: Request) {
   const action = body.get("action") ?? "create-unit";
 
   const finish = (result: ActionResult) => {
-    if (result.ok) revalidatePath("/inbox/whatsapp/properties/inventory");
+    if (result.ok) {
+      // Every Properties screen reads the same records, and so do both agents.
+      // Revalidating only the board left the catalogue showing the old price.
+      for (const path of [
+        "/inbox/whatsapp/properties/inventory",
+        "/inbox/whatsapp/properties/projects",
+        "/inbox/whatsapp/properties/villas",
+        "/settings/properties",
+      ]) {
+        revalidatePath(path);
+      }
+    }
     return respond(request, body, back, result);
   };
+
+  /** A rupee amount from a form field: absent is absent, not zero. */
+  const money = (name: string): number | null | { error: string } => {
+    const raw = body.get(name);
+    if (raw === undefined) return null;
+    const value = Number(String(raw).replace(/[,\s₹]/g, ""));
+    if (!Number.isFinite(value) || value < 0) return { error: `${name} must be a positive number` };
+    return value;
+  };
+
+  if (action === "create-project") {
+    const starting = money("startingPriceInr");
+    if (starting !== null && typeof starting === "object") return finish({ ok: false, error: starting.error });
+    const perSft = money("pricePerSftInr");
+    if (perSft !== null && typeof perSft === "object") return finish({ ok: false, error: perSft.error });
+
+    const result = await createProject({
+      name: body.get("name") ?? "",
+      developer: body.get("developer") ?? null,
+      phase: body.get("phase") ?? null,
+      status: body.get("status") ?? null,
+      expectedDelivery: body.get("expectedDelivery") ?? null,
+      village: body.get("village") ?? null,
+      district: body.get("district") ?? null,
+      startingPriceInr: starting,
+      pricePerSftInr: perSft,
+    });
+    if (!result.ok) return finish(result);
+
+    // A new project changes what the agent will talk about at all, so it is
+    // traceable to whoever added it.
+    await logActivity({
+      type: "inventory_updated",
+      description: `Project "${result.name}" added`,
+      actorName: "Console",
+      metadata: { project_id: result.id },
+    });
+    return finish({ ok: true, id: result.id });
+  }
+
+  if (action === "update-project-pricing") {
+    const starting = money("startingPriceInr");
+    if (starting !== null && typeof starting === "object") return finish({ ok: false, error: starting.error });
+    const perSft = money("pricePerSftInr");
+    if (perSft !== null && typeof perSft === "object") return finish({ ok: false, error: perSft.error });
+
+    const result = await updateProjectPricing(body.get("projectId") ?? "", {
+      startingPriceInr: starting,
+      pricePerSftInr: perSft,
+      clear: body.bool("clear"),
+    });
+    if (!result.ok) return finish(result);
+
+    await logActivity({
+      type: "inventory_updated",
+      description: `Pricing updated for "${result.name}"`,
+      actorName: "Console",
+      metadata: { project_id: body.get("projectId") ?? "" },
+    });
+    return finish({ ok: true });
+  }
+
+  if (action === "update-villa-price") {
+    const clear = body.bool("clear");
+    const price = money("priceInr");
+    if (price !== null && typeof price === "object") return finish({ ok: false, error: price.error });
+
+    const result = await updateVillaTypePrice(body.get("villaTypeId") ?? "", price, { clear });
+    if (!result.ok) return finish(result);
+
+    // The number the agent quotes. If this is wrong a customer is told the
+    // wrong price, so it is logged with both the villa type and the new value.
+    await logActivity({
+      type: "inventory_updated",
+      description: result.price === null
+        ? `${result.name} price cleared — the agent will stop quoting it`
+        : `${result.name} priced at ₹${result.price.toLocaleString("en-IN")}`,
+      actorName: "Console",
+      metadata: { villa_type_id: body.get("villaTypeId") ?? "", price_inr: result.price },
+    });
+    return finish({ ok: true });
+  }
 
   if (action === "unit-status") {
     const status = body.get("status") ?? "";

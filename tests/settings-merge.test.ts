@@ -81,6 +81,38 @@ describe("the client never meets the plumbing", () => {
     assert.ok(!/WhatsAppHealthCard/.test(src), "the health card leaks provider ids and status codes");
   });
 
+  test("the restored status panel uses its own words, never the checks' own", () => {
+    // It derives from the same readiness checks, so the guarantee cannot be
+    // "it does not read them" — it is that it throws every string away and
+    // takes only the state. Rendering check.label/detail/fix would put
+    // "Evolution server connected" back on a client screen.
+    // Comments stripped first: the file's own header names these fields in
+    // prose to explain what it refuses to render, and matching that prose
+    // would fail the test for saying the right thing.
+    const mod = read("src/lib/osf/whatsapp/client-status.ts")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    for (const leak of ["c.label", "c.detail", "c.fix", "check.label", "check.detail", "check.fix"]) {
+      assert.ok(!mod.includes(leak), `client status must not render ${leak}`);
+    }
+    // Only the state is taken off each check.
+    assert.match(mod, /\[c\.id, c\.state\]/);
+    const page = read("src/app/(app)/settings/whatsapp/page.tsx");
+    assert.match(page, /whatsappClientStatus/);
+  });
+
+  test("no vendor or infrastructure word reaches the client status rows", () => {
+    const mod = read("src/lib/osf/whatsapp/client-status.ts");
+    // Strings only — the prose in the file's own header explains what it is
+    // avoiding and legitimately names those things.
+    const strings = [...mod.matchAll(/(?:ready|pending|label):\s*"([^"]+)"/g)].map((m) => m[1]!);
+    assert.ok(strings.length >= 8, "expected the row wordings to be found");
+    const banned = /\b(meta|graph|evolution|baileys|supabase|groq|anthropic|bolna|whisper|webhook|token|api|endpoint|env|deploy)\b/i;
+    for (const line of strings) {
+      assert.ok(!banned.test(line), `client-facing status text leaks: "${line}"`);
+    }
+  });
+
   test("the go-live checklist is gated on the operator flag, not a permission", () => {
     // workflows.manage was the wrong gate: the client's own administrator
     // holds it, so the check let the detail through to exactly the person it

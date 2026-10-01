@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { pageContext } from "@/lib/page-context";
 import { TopBar } from "@/components/shell";
-import { Card, SectionTitle } from "@/components/ui";
+import { Card, SectionTitle, Badge } from "@/components/ui";
+import { CardSkeleton } from "@/components/skeletons";
 import { KnowledgeEditor } from "@/components/knowledge-editor";
+import { whatsappClientStatus } from "@/lib/osf/whatsapp/client-status";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +36,14 @@ export default async function WhatsAppSettingsPage({
     <>
       <TopBar brands={db.brands} brandId={brandId} title="Settings" subtitle={`${brand.name} · WhatsApp`} />
       <div className="space-y-6 p-4 sm:p-6 lg:p-7">
+        {/* Restored after the go-live checklist was removed, but rewritten:
+            the panel that used to sit here was the operator's readiness list,
+            which named the vendors and printed raw API errors. This reads the
+            same checks and uses none of their words. */}
+        <Suspense fallback={<CardSkeleton rows={4} />}>
+          <StatusSection />
+        </Suspense>
+
         <KnowledgeEditor brandId={brandId} />
 
         <Card>
@@ -52,5 +63,38 @@ export default async function WhatsAppSettingsPage({
         </Card>
       </div>
     </>
+  );
+}
+
+/**
+ * Four rows, each answering a question an owner would actually ask. Streamed,
+ * because confirming the number is reachable is an outbound call and the rest
+ * of the page should not wait on it.
+ */
+async function StatusSection() {
+  const status = await whatsappClientStatus();
+  if (!status) return null;
+
+  return (
+    <Card>
+      <SectionTitle
+        title="WhatsApp status"
+        hint={status.allReady ? "Everything needed to answer buyers is in place" : "Some things still need setting up"}
+      />
+      <ul>
+        {status.rows.map((row) => (
+          <li
+            key={row.label}
+            className="flex items-start justify-between gap-4 border-b border-ink-700 py-3 last:border-0"
+          >
+            <div className="min-w-0">
+              <div className="text-[12.5px] font-medium text-mist-100">{row.label}</div>
+              <p className="mt-1 text-[11.5px] leading-relaxed text-mist-400">{row.detail}</p>
+            </div>
+            <Badge tone={row.ready ? "good" : "warn"}>{row.ready ? "Ready" : "Not yet"}</Badge>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }

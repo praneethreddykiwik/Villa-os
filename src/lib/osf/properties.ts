@@ -1005,3 +1005,148 @@ export async function updateUnitStatus(
   if (!data) return { ok: false, error: "unit not found" };
   return { ok: true, unit: data as UnitRow };
 }
+
+// -----------------------------------------------------------------------------
+// Editing the records the agents quote from
+// -----------------------------------------------------------------------------
+
+/**
+ * These three writes exist because the Properties screens were read-only: the
+ * records could be looked at but not changed, so "put the new phase in" and
+ * "the 4BHK went up by two lakh" both meant a developer running SQL.
+ *
+ * The NULL rule from the top of this file still holds. A price is not cleared
+ * by submitting an empty box — that would silently revoke the agent's
+ * permission to quote it, which is a different decision from correcting it, and
+ * one nobody makes by tabbing past a field. Clearing is explicit.
+ */
+
+/** Slug for a new project: stable, readable, and unique within the table. */
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+export interface NewProject {
+  name: string;
+  developer?: string | null;
+  phase?: string | null;
+  status?: string | null;
+  expectedDelivery?: string | null;
+  village?: string | null;
+  district?: string | null;
+  startingPriceInr?: number | null;
+  pricePerSftInr?: number | null;
+}
+
+export async function createProject(
+  input: NewProject,
+): Promise<{ ok: true; id: string; name: string } | { ok: false; error: string }> {
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "a project name is required" };
+
+  const base = slugify(name);
+  if (!base) return { ok: false, error: "that name cannot be turned into a web address" };
+
+  // `slug` is unique. Rather than let the insert fail on a second "Phase II",
+  // find the first free suffix — the person naming a project should not have to
+  // know that a column needs to be unique.
+  const { data: taken } = await db().from("villa_projects").select("slug").like("slug", `${base}%`);
+  const used = new Set((taken ?? []).map((r: { slug: string }) => r.slug));
+  let slug = base;
+  for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`;
+
+  const { data, error } = await db()
+    .from("villa_projects")
+    .insert({
+      slug,
+      name,
+      developer: input.developer?.trim() || null,
+      phase: input.phase?.trim() || null,
+      status: input.status?.trim() || "upcoming",
+      expected_delivery: input.expectedDelivery?.trim() || null,
+      village: input.village?.trim() || null,
+      district: input.district?.trim() || null,
+      starting_price_inr: input.startingPriceInr ?? null,
+      price_per_sft_inr: input.pricePerSftInr ?? null,
+      is_active: true,
+    })
+    .select("id, name")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: "the project could not be created" };
+  return { ok: true, id: data.id, name: data.name };
+}
+
+/**
+ * The headline numbers on a project.
+ *
+ * `clear: true` is how a price is removed, and it is a separate decision from
+ * changing one: an empty field means "not submitted", not "the agent may stop
+ * quoting this".
+ */
+export async function updateProjectPricing(
+  projectId: string,
+  input: { startingPriceInr?: number | null; pricePerSftInr?: number | null; clear?: boolean },
+): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  if (!projectId) return { ok: false, error: "a project is required" };
+
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (input.clear) {
+    patch.starting_price_inr = null;
+    patch.price_per_sft_inr = null;
+  } else {
+    if (input.startingPriceInr !== undefined && input.startingPriceInr !== null) {
+      patch.starting_price_inr = input.startingPriceInr;
+    }
+    if (input.pricePerSftInr !== undefined && input.pricePerSftInr !== null) {
+      patch.price_per_sft_inr = input.pricePerSftInr;
+    }
+    if (Object.keys(patch).length === 1) return { ok: false, error: "nothing to change" };
+  }
+
+  const { data, error } = await db()
+    .from("villa_projects")
+    .update(patch)
+    .eq("id", projectId)
+    .select("name")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  // PostgREST reports no error for an UPDATE that matched zero rows, so the
+  // absent row is the only signal that the id was wrong.
+  if (!data) return { ok: false, error: "that project no longer exists" };
+  return { ok: true, name: data.name };
+}
+
+/** The price of one villa type — the number the agent quotes for that plot. */
+export async function updateVillaTypePrice(
+  villaTypeId: string,
+  priceInr: number | null,
+  options: { clear?: boolean } = {},
+): Promise<{ ok: true; name: string; price: number | null } | { ok: false; error: string }> {
+  if (!villaTypeId) return { ok: false, error: "a villa type is required" };
+  if (!options.clear && (priceInr === null || !Number.isFinite(priceInr))) {
+    return { ok: false, error: "a price is required" };
+  }
+  if (!options.clear && priceInr !== null && priceInr <= 0) {
+    return { ok: false, error: "a price must be more than zero" };
+  }
+
+  const { data, error } = await db()
+    .from("villa_types")
+    .update({ price_inr: options.clear ? null : priceInr })
+    .eq("id", villaTypeId)
+    .select("name, price_inr")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: "that villa type no longer exists" };
+  return { ok: true, name: data.name, price: data.price_inr };
+}

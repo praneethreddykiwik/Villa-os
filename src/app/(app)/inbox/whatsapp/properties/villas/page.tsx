@@ -13,6 +13,7 @@ import {
   formatNumber,
 } from "@/components/osf/ui";
 import { gatedLoad } from "@/lib/osf/queries";
+import { getSession, hasPermission } from "@/lib/auth/session";
 import {
   UNIT_STATUSES,
   UNIT_STATUS_DOT,
@@ -38,9 +39,12 @@ const BASE = "/inbox/whatsapp/properties/villas";
 export default async function VillasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ project?: string }>;
+  searchParams: Promise<{ project?: string; error?: string }>;
 }) {
-  const { project } = await searchParams;
+  const { project, error } = await searchParams;
+  // Reading the catalogue is marketing.read; changing a price the agent quotes
+  // out loud is marketing.publish — the same permission the stock board needs.
+  const canEdit = hasPermission(await getSession(), "marketing.publish");
 
   const page = await gatedLoad({ table: "villa_types", migration: "001_schema.sql" }, villaCatalog);
 
@@ -69,6 +73,14 @@ export default async function VillasPage({
         title="Villas"
         sub="Every configuration in the knowledge base. Where a price or a bedroom count is missing, that is the record speaking — the agent defers to sales rather than inventing one."
       />
+
+      {/* A refused save redirects back with ?error=. Without this the page
+          simply re-rendered the old price and the save looked like a no-op. */}
+      {error && (
+        <div className="mb-4 rounded-xl border border-[color-mix(in_oklab,var(--c-bad)_35%,transparent)] bg-[color-mix(in_oklab,var(--c-bad)_8%,transparent)] px-4 py-3 text-sm text-[var(--color-danger)]">
+          {error}
+        </div>
+      )}
 
       {/* A schema gap wins over the empty state: "no villa types" would be a
           claim about the data, and the query never got far enough to make it. */}
@@ -119,7 +131,7 @@ export default async function VillasPage({
 
           <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
             {entries.map((entry) => (
-              <VillaTypeCard key={entry.type.id} entry={entry} />
+              <VillaTypeCard key={entry.type.id} entry={entry} canEdit={canEdit} />
             ))}
           </div>
         </>
@@ -179,7 +191,7 @@ function Spec({ icon, label, value }: { icon: ReactNode; label: string; value: s
   );
 }
 
-function VillaTypeCard({ entry }: { entry: CatalogEntry }) {
+function VillaTypeCard({ entry, canEdit }: { entry: CatalogEntry; canEdit: boolean }) {
   const { type, units, unitTotal } = entry;
   const unverified = isUnverified(entry);
   const absorbed = units.sold + units.reserved + units.under_booking;
@@ -256,6 +268,35 @@ function VillaTypeCard({ entry }: { entry: CatalogEntry }) {
           </p>
         ) : (
           <p className="mt-1 text-base font-semibold text-[var(--color-warm)]">Confirm with sales</p>
+        )}
+
+        {/* Edited here rather than in a separate screen: this is the number the
+            agent quotes to a buyer, and the person correcting it is looking at
+            the villa it belongs to. A real form, so it works with no client JS,
+            the same as the stock board. */}
+        {canEdit && (
+          <form action="/api/osf/properties" method="POST" className="mt-2.5 flex items-center gap-2">
+            <input type="hidden" name="action" value="update-villa-price" />
+            <input type="hidden" name="villaTypeId" value={type.id} />
+            <input type="hidden" name="next" value={BASE} />
+            <label className="sr-only" htmlFor={`price-${type.id}`}>
+              Price for {type.name} in rupees
+            </label>
+            <input
+              id={`price-${type.id}`}
+              name="priceInr"
+              type="number"
+              min="1"
+              step="1000"
+              inputMode="numeric"
+              defaultValue={type.price_inr ?? undefined}
+              placeholder="Set a price"
+              className="min-w-0 flex-1 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--color-ink)] outline-none focus:border-[var(--color-gold-300)]"
+            />
+            <button type="submit" className="btn-ghost shrink-0 !py-1.5 text-xs">
+              Save
+            </button>
+          </form>
         )}
       </div>
 

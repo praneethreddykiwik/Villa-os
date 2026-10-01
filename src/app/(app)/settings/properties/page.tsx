@@ -19,12 +19,12 @@ const SECTIONS = [
   {
     href: "/inbox/whatsapp/properties/projects",
     label: "Projects",
-    detail: "Name, developer, address, approvals, possession date and the headline price.",
+    detail: "Add a project, or change its developer, approvals, possession date and headline price.",
   },
   {
     href: "/inbox/whatsapp/properties/villas",
     label: "Villa types",
-    detail: "Each plot size and facing, with its built-up area and its own price.",
+    detail: "Each plot size and facing, with its built-up area — and the price the agents quote for it.",
   },
   {
     href: "/inbox/whatsapp/properties/inventory",
