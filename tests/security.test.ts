@@ -961,10 +961,29 @@ describe("every API route states a permission, or authenticates by its own mecha
       const end = i + 1 < starts.length ? starts[i + 1].at : source.length;
       const body = source.slice(start.at, end);
       test(`${file} :: ${start.method} checks a permission of its own`, () => {
-        assert.match(
-          body,
-          CHECKS,
-          `${start.method} in ${file} has no permission check — another exported method in the same file does, which is why the file-level sweep passes`,
+        if (CHECKS.test(body)) return;
+
+        // A handler may delegate to a local helper instead — GET and POST of
+        // the same route often differ only by one argument, and duplicating
+        // the guard in both is how the two drift apart. Follow the call: the
+        // requirement is that the handler REACHES a check, not that the check
+        // is written inside it.
+        const delegated = [...body.matchAll(/\b(?:await\s+|return\s+(?:await\s+)?)([a-z][A-Za-z0-9_]*)\s*\(/g)]
+          .map((m) => m[1])
+          .filter((name) => new RegExp(`(?:async\\s+function|function|const)\\s+${name}\\b`).test(source));
+
+        const guardedVia = delegated.find((name) => {
+          const at = source.search(new RegExp(`(?:async\\s+function|function|const)\\s+${name}\\b`));
+          if (at < 0) return false;
+          // Up to the next top-level declaration, which is where the helper ends.
+          const after = source.slice(at + 1);
+          const stop = after.search(/\n(?:export\s|async\s+function\s|function\s)/);
+          return CHECKS.test(source.slice(at, stop < 0 ? source.length : at + 1 + stop));
+        });
+
+        assert.ok(
+          guardedVia,
+          `${start.method} in ${file} has no permission check and does not delegate to one — another exported method in the same file does, which is why the file-level sweep passes`,
         );
       });
     });

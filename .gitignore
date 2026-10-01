@@ -1,5 +1,8 @@
 node_modules
-.next
+# Every Next build output, whatever the dist directory is called.
+# .next and .next-build were listed by name, so .next-prod was not ignored
+# and a 234MB webpack cache went into a commit.
+.next*
 .data
 .env
 .env.local
@@ -13,7 +16,6 @@ media/renders
 .security-audit/
 .claude/
 _e2e.mjs
-.next-build
 
 # Timestamped .env backups taken before a live config change.
 .env.bak.*

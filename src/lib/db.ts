@@ -14,14 +14,73 @@ import { EMPTY_OPS } from "./ops/types";
  */
 
 // Overridable so tests run against an isolated store instead of the dev data.
-// In serverless environments like Vercel or AWS Lambda, process.cwd() is read-only at runtime,
-// so fallback to /tmp/.data where writes are permitted.
-const DATA_DIR = process.env.OPS_DATA_DIR
+/**
+ * Where the store lives.
+ *
+ * On a serverless host the deployment directory is read-only and only /tmp can
+ * be written. Detecting that from environment variables alone is not reliable:
+ * this broke in production with
+ *
+ *     ENOENT: no such file or directory, mkdir '/var/task/.data'
+ *
+ * because Vercel's "Automatically expose System Environment Variables" setting
+ * was off, so `VERCEL` was unset and the writable-path branch never ran. Every
+ * page backed by this store returned a server error while the Postgres-backed
+ * pages were fine.
+ *
+ * So the env check is only a fast path. The real guarantee is behavioural:
+ * `writableDir()` below tries the chosen directory and falls back to /tmp when
+ * the filesystem actually refuses, which no dashboard toggle can defeat.
+ */
+const PREFERRED_DIR = process.env.OPS_DATA_DIR
   ? path.resolve(process.env.OPS_DATA_DIR)
-  : process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+  : process.env.VERCEL ||
+    process.env.VERCEL_ENV ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT
   ? path.join("/tmp", ".data")
   : path.join(process.cwd(), ".data");
-const DB_PATH = path.join(DATA_DIR, "db.json");
+
+const FALLBACK_DIR = path.join("/tmp", ".data");
+
+/** Codes a read-only or non-existent deployment directory raises. */
+const NOT_WRITABLE = new Set(["EROFS", "EACCES", "EPERM", "ENOENT"]);
+
+let resolvedDir: string | null = null;
+
+/**
+ * The first directory that actually accepts a write. Resolved once per process;
+ * an explicit OPS_DATA_DIR is honoured as-is so tests stay isolated.
+ */
+function dataDir(): string {
+  if (resolvedDir) return resolvedDir;
+  const candidates = process.env.OPS_DATA_DIR
+    ? [PREFERRED_DIR]
+    : PREFERRED_DIR === FALLBACK_DIR
+      ? [FALLBACK_DIR]
+      : [PREFERRED_DIR, FALLBACK_DIR];
+
+  let lastError: unknown = null;
+  for (const dir of candidates) {
+    try {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+      fs.accessSync(dir, fs.constants.W_OK);
+      resolvedDir = dir;
+      return dir;
+    } catch (e) {
+      lastError = e;
+      const code = (e as NodeJS.ErrnoException).code ?? "";
+      // Anything other than "the filesystem said no" is a real fault worth
+      // surfacing rather than papering over with a silent fallback.
+      if (!NOT_WRITABLE.has(code)) throw e;
+    }
+  }
+  throw lastError ?? new Error("No writable data directory found.");
+}
+
+function dbPath(): string {
+  return path.join(dataDir(), "db.json");
+}
 
 const EMPTY: Database = {
   workspaces: [],
@@ -64,15 +123,15 @@ let cache: Database | null = null;
 let cacheMtime = 0;
 
 function ensureFile(): void {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
-  if (!fs.existsSync(DB_PATH)) {
+  if (!fs.existsSync(dataDir())) fs.mkdirSync(dataDir(), { recursive: true, mode: 0o700 });
+  if (!fs.existsSync(dbPath())) {
     // If a seeded db exists in the repo bundle, copy it to the writable store
     const repoSeed = path.join(process.cwd(), "src", "lib", "seed-db.json");
     const dotDataSeed = path.join(process.cwd(), ".data", "db.json");
     const seedToUse = fs.existsSync(repoSeed) ? repoSeed : fs.existsSync(dotDataSeed) ? dotDataSeed : null;
-    if (seedToUse && seedToUse !== DB_PATH) {
+    if (seedToUse && seedToUse !== dbPath()) {
       try {
-        fs.copyFileSync(seedToUse, DB_PATH);
+        fs.copyFileSync(seedToUse, dbPath());
         return;
       } catch {
         // fallback to buildBootstrap()
@@ -83,16 +142,16 @@ function ensureFile(): void {
     // 0600, and the directory 0700. This file holds plaintext OAuth tokens and
     // customer PII; the default 0644 made it readable by every account and every
     // process on the host.
-    fs.writeFileSync(DB_PATH, JSON.stringify(buildBootstrap(), null, 0), { mode: 0o600 });
+    fs.writeFileSync(dbPath(), JSON.stringify(buildBootstrap(), null, 0), { mode: 0o600 });
   }
 }
 
 /** Read the whole DB. Cached until the file changes on disk. */
 export function read(): Database {
   ensureFile();
-  const mtime = fs.statSync(DB_PATH).mtimeMs;
+  const mtime = fs.statSync(dbPath()).mtimeMs;
   if (!cache || mtime !== cacheMtime) {
-    cache = { ...EMPTY, ...(JSON.parse(fs.readFileSync(DB_PATH, "utf8")) as Database) };
+    cache = { ...EMPTY, ...(JSON.parse(fs.readFileSync(dbPath(), "utf8")) as Database) };
     cacheMtime = mtime;
 
     // Self-healing: if connections are missing (e.g. from an empty cold-start /tmp file on Vercel),
@@ -105,8 +164,8 @@ export function read(): Database {
         cache.brands = boot.brands;
       }
       try {
-        fs.writeFileSync(DB_PATH, JSON.stringify(cache, null, 0), { mode: 0o600 });
-        cacheMtime = fs.statSync(DB_PATH).mtimeMs;
+        fs.writeFileSync(dbPath(), JSON.stringify(cache, null, 0), { mode: 0o600 });
+        cacheMtime = fs.statSync(dbPath()).mtimeMs;
       } catch {}
     }
   }
@@ -120,12 +179,12 @@ export function read(): Database {
 export function mutate<T>(fn: (db: Database) => T): T {
   const db = read();
   const result = fn(db);
-  const tmp = `${DB_PATH}.${process.pid}.tmp`;
+  const tmp = `${dbPath()}.${process.pid}.tmp`;
   // The temp file inherits the same restriction, or the atomic rename would
   // publish a 0644 copy of the tokens on every single write.
   fs.writeFileSync(tmp, JSON.stringify(db, null, 0), { mode: 0o600 });
-  fs.renameSync(tmp, DB_PATH);
-  cacheMtime = fs.statSync(DB_PATH).mtimeMs;
+  fs.renameSync(tmp, dbPath());
+  cacheMtime = fs.statSync(dbPath()).mtimeMs;
   cache = db;
   return result;
 }
@@ -133,9 +192,9 @@ export function mutate<T>(fn: (db: Database) => T): T {
 /** Overwrite everything — used by the reseed endpoint. */
 export function replaceAll(db: Database): void {
   ensureFile();
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 0), { mode: 0o600 });
+  fs.writeFileSync(dbPath(), JSON.stringify(db, null, 0), { mode: 0o600 });
   cache = db;
-  cacheMtime = fs.statSync(DB_PATH).mtimeMs;
+  cacheMtime = fs.statSync(dbPath()).mtimeMs;
 }
 
 /**
