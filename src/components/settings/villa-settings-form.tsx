@@ -75,7 +75,7 @@ export function VillaSettingsForm({
         body: JSON.stringify(form),
       });
       const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error || "Could not save those settings.");
+      if (!res.ok || !json.ok) throw new Error("Could not save those settings.");
       setSaved(json.settings);
       setForm(json.settings);
       setNotice("Saved. The queue picks this up within 30 seconds.");
@@ -172,7 +172,7 @@ export function VillaSettingsForm({
           {number(
             "maxConcurrentCalls",
             bounds.maxConcurrentCalls,
-            "Phones ringing at the same time from one number. Above a handful, callers hear a busy tone and the provider bills for it anyway.",
+            "Phones ringing at the same time from one number. Above a handful, callers hear a busy tone and the call is still charged.",
           )}
           {number(
             "maxAttempts",

@@ -7,7 +7,7 @@ import { VoiceSettingsForm } from "@/components/voice/voice-settings-form";
 export const dynamic = "force-dynamic";
 
 /**
- * What the voice agent says, as a tab of the villa profile.
+ * What the voice agent says, as a tab of Settings.
  *
  * The same form that lived at /voice/settings. It is here because "what the
  * agent says" and "when the agent calls" are one decision made by one person,
@@ -24,12 +24,12 @@ export default async function VillaVoiceSettingsPage({
 
   return (
     <>
-      <TopBar brands={db.brands} brandId={brandId} title="Villa profile" subtitle={`${brand.name} · voice agent`} />
+      <TopBar brands={db.brands} brandId={brandId} title="Settings" subtitle={`${brand.name} · voice agent`} />
       <div className="space-y-6 p-4 sm:p-6 lg:p-7">
         <Card>
           <SectionTitle
             title="What the agent says"
-            hint="Wording only — the voice, model and telephony are configured by your operator and cannot be broken from here"
+            hint="Wording only — the voice itself and the phone line are already set up and cannot be broken from here"
           />
           <VoiceSettingsForm initial={config} brandId={brandId} />
         </Card>

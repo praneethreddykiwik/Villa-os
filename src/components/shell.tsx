@@ -59,7 +59,6 @@ const ICONS: Record<string, NavItem["icon"]> = {
   "/ops/admin": ShieldCheck,
   "/reports": FileText,
   "/settings": Settings,
-  "/settings/villa": Building2,
 };
 
 /**

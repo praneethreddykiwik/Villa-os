@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * The Villa profile tab strip.
+ * The Settings tab strip.
  *
  * A client component only so it can mark the current tab. Each panel behind it
  * stays a server component, and the tabs stay real links — so a deep link,
@@ -12,10 +12,10 @@ import { usePathname } from "next/navigation";
  */
 
 const TABS = [
-  { href: "/settings/villa", label: "General" },
-  { href: "/settings/villa/properties", label: "Properties" },
-  { href: "/settings/villa/whatsapp", label: "WhatsApp" },
-  { href: "/settings/villa/voice", label: "Voice agent" },
+  { href: "/settings", label: "General" },
+  { href: "/settings/properties", label: "Properties" },
+  { href: "/settings/whatsapp", label: "WhatsApp" },
+  { href: "/settings/voice", label: "Voice agent" },
 ] as const;
 
 export function VillaTabs() {
@@ -23,12 +23,12 @@ export function VillaTabs() {
 
   return (
     <nav
-      aria-label="Villa profile sections"
+      aria-label="Settings sections"
       className="flex flex-wrap gap-1 border-b border-ink-800 px-4 pt-3 sm:px-6 lg:px-7"
     >
       {TABS.map((t) => {
-        // Exact match only: "/settings/villa" is a prefix of every other tab,
-        // so a startsWith test would light up General on all of them.
+        // Exact match only: "/settings" is a prefix of every other tab, so a
+        // startsWith test would light up General on all of them.
         const active = pathname === t.href;
         return (
           <Link

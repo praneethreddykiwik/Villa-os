@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Button, Card, SectionTitle } from "@/components/ui";
+import { requestJson } from "@/lib/ops/request-json";
 
 /**
  * WhatsApp knowledge base editor. One card: the entries the assistant answers
@@ -26,12 +27,19 @@ export function KnowledgeEditor({ brandId }: { brandId: string }) {
 
   const load = useCallback(async () => {
     setError(null);
-    const res = await fetch(`/api/ops/knowledge?brand=${encodeURIComponent(brandId)}`);
-    const json = await res.json();
-    if (!json.ok) { setError(json.error ?? "Could not load the knowledge base."); return; }
-    setEntries(json.entries);
-    setGaps(json.gaps);
-    setTopics(json.topics);
+    // No catch here at all previously: offline, or a proxy error page instead
+    // of JSON, escaped as an unhandled rejection and the card simply stayed
+    // empty — indistinguishable from having no entries yet.
+    const out = await requestJson<{ ok?: boolean; error?: string; entries?: Entry[]; gaps?: Gap[]; topics?: string[] }>(
+      `/api/ops/knowledge?brand=${encodeURIComponent(brandId)}`,
+      { method: "GET" },
+    );
+    if (!out.ok) { setError(out.error); return; }
+    const json = out.data;
+    if (!json.ok) { setError("Could not load the knowledge base."); return; }
+    setEntries(json.entries ?? []);
+    setGaps(json.gaps ?? []);
+    setTopics(json.topics ?? []);
   }, [brandId]);
 
   useEffect(() => { void load(); }, [load]);
@@ -40,15 +48,18 @@ export function KnowledgeEditor({ brandId }: { brandId: string }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/ops/knowledge?brand=${encodeURIComponent(brandId)}${query}`, {
-        method,
-        headers: body ? { "content-type": "application/json" } : undefined,
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const json = await res.json();
-      if (!json.ok) setError(json.error ?? "Request failed.");
+      const out = await requestJson<{ ok?: boolean; error?: string }>(
+        `/api/ops/knowledge?brand=${encodeURIComponent(brandId)}${query}`,
+        {
+          method,
+          headers: body ? { "content-type": "application/json" } : undefined,
+          body: body ? JSON.stringify(body) : undefined,
+        },
+      );
+      if (!out.ok) { setError(out.error); return false; }
+      if (!out.data.ok) setError("That change could not be saved.");
       await load();
-      return Boolean(json.ok);
+      return Boolean(out.data.ok);
     } finally {
       setBusy(false);
     }
@@ -79,8 +90,8 @@ export function KnowledgeEditor({ brandId }: { brandId: string }) {
         <div className="min-w-0 space-y-3">
           <div className="flex items-center gap-2">
             <input className={input} placeholder="Filter entries…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <Button variant="secondary" size="sm" disabled={busy} onClick={() => void call("POST", { brand: brandId, resync: true })} title="Re-read docs/glentree-facts.md; your own edits are kept">
-              Re-sync facts
+            <Button variant="secondary" size="sm" disabled={busy} onClick={() => void call("POST", { brand: brandId, resync: true })} title="Reload the standard villa facts — anything you have written here is kept">
+              Reload facts
             </Button>
           </div>
           <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
@@ -92,7 +103,7 @@ export function KnowledgeEditor({ brandId }: { brandId: string }) {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Badge tone="neutral">{e.topic}</Badge>
                       {e.public && <Badge tone="good">public</Badge>}
-                      {e.source && e.source !== "admin" && <Badge tone="warn">{e.source}</Badge>}
+                      {e.source && e.source !== "admin" && <Badge tone="warn">Standard answer</Badge>}
                     </div>
                     <div className="mt-1 text-[12.5px] font-medium text-mist-100">{e.question}</div>
                     <div className="mt-0.5 text-[12px] leading-relaxed text-mist-300">{e.answer}</div>

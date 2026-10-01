@@ -303,7 +303,9 @@ describe("the whole matrix, so a change to any rule is visible", () => {
     // — but it must be deliberate, and reviewed, rather than noticed in
     // production by the wrong person seeing the wrong screen.
     assert.deepEqual(counts, {
-      admin: 65,
+      // 66 rather than 65: the villa-profile paths were folded into Settings
+      // and a catch-all redirect left behind so old links still land.
+      admin: 66,
       audit: 51,
       construction: 1,
       front_desk: 10,

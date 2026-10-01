@@ -10,7 +10,6 @@ import {
   FileSignature,
   FileText,
   Filter,
-  KeyRound,
   GitBranch,
   Grid3X3,
   Home,
@@ -20,7 +19,6 @@ import {
   Mail,
   MapPin,
   Megaphone,
-  MessageCircle,
   MessageSquare,
   Plug,
   Ruler,
@@ -99,9 +97,13 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/inbox/whatsapp/settings", label: "Settings", icon: Settings, keywords: ["preferences", "config"] },
       { href: "/inbox/whatsapp/settings/team", label: "Team & Roles", icon: Shield, keywords: ["users", "permissions", "access"] },
-      { href: "/inbox/whatsapp/settings/access", label: "Access & Sign-in", icon: KeyRound, keywords: ["rbac", "login", "accounts", "permissions", "roles"] },
-      { href: "/inbox/whatsapp/settings/integrations", label: "Integrations", icon: Plug, keywords: ["api keys", "webhooks", "meta"] },
-      { href: "/inbox/whatsapp/whatsapp", label: "WhatsApp Setup", icon: MessageCircle, keywords: ["go live", "webhook", "meta", "voice", "readiness"] },
+      // "Access & Sign-in" pointed at a second access matrix that governed
+      // nothing and now redirects to the control centre, so it was an entry
+      // that took you somewhere else. "WhatsApp Setup" is the go-live
+      // checklist, which names the messaging and AI vendors and is now shown
+      // only on the operator's own deployments. Neither belongs in the
+      // client's navigation.
+      { href: "/inbox/whatsapp/settings/integrations", label: "Connected accounts", icon: Plug, keywords: ["channels", "connections"] },
       { href: "/inbox/whatsapp/simulator", label: "Simulator", icon: Bot, keywords: ["test", "sandbox", "agent"] },
     ],
   },

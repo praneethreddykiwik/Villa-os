@@ -68,7 +68,7 @@ const ALLOWED_HREFS = new Set([
   "/inbox/whatsapp/crm/leads",
   "/inbox/whatsapp/crm/pipeline",
   "/inbox/whatsapp/crm/follow-ups",
-  "/settings/villa/properties",
+  "/settings/properties",
 ]);
 
 // -----------------------------------------------------------------------------
@@ -416,7 +416,7 @@ export function ruleBasedInsights(s: InsightSignals): DraftInsight[] {
       recommendation: "Add the missing facts to the project record or FAQs so the agent can answer these itself.",
       expected_impact: "Fewer stalled conversations and fewer handoffs for questions the agent could answer.",
       action_label: "Open properties",
-      action_href: "/settings/villa/properties",
+      action_href: "/settings/properties",
       category: "knowledge",
       generated_by_ai: false,
     });

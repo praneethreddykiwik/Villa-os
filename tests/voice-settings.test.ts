@@ -126,10 +126,16 @@ describe("provider push", () => {
 });
 
 describe("routes and access", () => {
-  test("PUT /api/voice/settings requires workflows.manage and never returns provider detail to non-admins", () => {
+  test("PUT /api/voice/settings requires workflows.manage and never returns provider detail to the client", () => {
     const route = src("src/app/api/voice/settings/route.ts");
     assert.match(route, /guard\("workflows\.manage"\)/);
-    assert.match(route, /hasPermission\(session, "users\.manage"\)/);
+    // The detail carries the provider's own error text, which names the
+    // vendor. It used to be gated on users.manage — but the client's own
+    // administrator holds that permission, so the gate let it through to
+    // exactly the person it was meant to keep it from. The operator flag is
+    // set on the vendor's deployments and not on the client's.
+    assert.match(route, /const admin = showOperatorDetail\(\);/);
+    assert.doesNotMatch(route, /hasPermission\(session, "users\.manage"\)/);
   });
 
   test("/voice/settings is mapped before the general /voice rule", () => {

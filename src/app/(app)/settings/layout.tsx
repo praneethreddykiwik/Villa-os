@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { VillaTabs } from "@/components/settings/villa-tabs";
 
 /**
- * VILLA PROFILE — one place for everything about how this business behaves.
+ * SETTINGS — one place for everything about how this business behaves.
  *
  * Before this, the three things an operator actually tunes lived in three
  * unrelated corners: calling hours were constants in the source, what the
@@ -10,7 +10,7 @@ import { VillaTabs } from "@/components/settings/villa-tabs";
  * buried in the System group of a nested workspace nav. Nobody could answer
  * "where do I change that?" without being told.
  */
-export default function VillaSettingsLayout({ children }: { children: ReactNode }) {
+export default function SettingsLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <VillaTabs />

@@ -96,8 +96,11 @@ export const TAB_CATALOGUE: TabGroup[] = [
     group: "System",
     items: [
       { href: "/reports", label: "Reports" },
+      // One entry. "Settings" and "Villa profile" were two sidebar items for
+      // one subject, and the split was never meaningful to anyone using it:
+      // the brand's details sat in one and the hours its agents work in the
+      // other. They are tabs of a single screen now.
       { href: "/settings", label: "Settings" },
-      { href: "/settings/villa", label: "Villa profile" },
     ],
   },
 ];

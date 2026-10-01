@@ -1,4 +1,5 @@
 import { Badge, Card, PageHeader, type BadgeTone } from "@/components/osf/ui";
+import { redirect } from "next/navigation";
 import { whatsappReadiness, type Check } from "@/lib/osf/whatsapp/readiness";
 import { operatorNote, operatorText, showOperatorDetail } from "@/lib/whitelabel";
 import { VoiceTester } from "./VoiceTester";
@@ -43,7 +44,22 @@ function CheckRow({ check }: { check: Check }) {
   );
 }
 
+/**
+ * The go-live checklist is an operator's screen, not the client's.
+ *
+ * Its rows name the messaging vendor, the AI vendor and the hosting
+ * arrangement, and they print raw API error bodies with their status codes —
+ * "Evolution server connected", "Meta rejected the credentials (401)". It used
+ * to be reachable by anyone holding `workflows.manage`, which the client's own
+ * administrator holds, so the permission was never the right gate for it.
+ *
+ * SHOW_VENDOR_DIAGNOSTICS is set on the operator's own deployments and not on
+ * the client's, which is the same switch the rest of the vendor-facing
+ * surfaces already use.
+ */
 export default async function WhatsAppPage() {
+  if (!showOperatorDetail()) redirect("/settings/whatsapp");
+
   const { checks, ready, blockingCount } = await whatsappReadiness();
 
   return (

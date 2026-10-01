@@ -7,7 +7,7 @@ import { loadKb } from "@/lib/osf/agent/kb";
 export const dynamic = "force-dynamic";
 
 /**
- * The villas themselves, as a tab of the villa profile.
+ * The villas themselves, as a tab of Settings.
  *
  * These records are not a reference table — they are what both agents say on
  * the phone and in a chat. A wrong price here is quoted to a customer, so the
@@ -57,7 +57,7 @@ export default async function VillaPropertiesPage({
 
   return (
     <>
-      <TopBar brands={db.brands} brandId={brandId} title="Villa profile" subtitle={`${brand.name} · properties`} />
+      <TopBar brands={db.brands} brandId={brandId} title="Settings" subtitle={`${brand.name} · properties`} />
       <div className="space-y-6 p-4 sm:p-6 lg:p-7">
         <Card>
           <SectionTitle

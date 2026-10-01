@@ -16,7 +16,12 @@ const ROOT = process.cwd();
 // The WhatsApp workspace lives under src/app/(app)/inbox/whatsapp, so the whole
 // ported console is swept by this guard rather than sitting outside it.
 const SCAN = ["src/components", "src/app/(app)"];
-const ADMIN_ONLY = new Set(["src/components/settings/admin-diagnostics.tsx"]);
+// Previously held src/components/settings/admin-diagnostics.tsx, a card whose
+// entire purpose was listing which supplier sits behind each product name. It
+// was gated on an environment flag, which made it one deleted condition away
+// from being the worst leak in the product. The file is gone, so the guard has
+// no exceptions left — which is the state it should stay in.
+const ADMIN_ONLY = new Set<string>();
 // Widened when the WhatsApp workspace was folded in: that console was built
 // against a different set of providers, and every one of them is a name the
 // client must not meet.
