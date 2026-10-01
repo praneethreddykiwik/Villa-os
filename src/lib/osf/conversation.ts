@@ -87,6 +87,26 @@ export function messengerPsid(id: string | null | undefined): string | null {
   return isMessengerLeadKey(id) ? id!.slice(MESSENGER_ID_PREFIX.length) : null;
 }
 
+/**
+ * One phone number, one spelling.
+ *
+ * The voice bridge hands Bolna's `+919912341655`; Evolution hands
+ * `919912341655`; the outreach box hands whatever was pasted. villa_upsert_lead
+ * matches on the stored string, so the same person reached two ways became two
+ * leads — two timelines, two scores, and a rep who rings somebody that another
+ * rep spoke to yesterday.
+ *
+ * Canonical form is digits only, country code kept. Applied here, at the one
+ * place every channel passes through, rather than in each caller — a rule each
+ * caller has to remember is a rule that will be forgotten.
+ *
+ * (src/lib/ops/customers.ts has the same function for the other datastore and
+ * the same reasoning in its comment. Both must agree.)
+ */
+export function canonicalPhone(phone: string): string {
+  return phone.replace(/\D/g, "").replace(/^0+/, "");
+}
+
 export async function getOrCreateLead(params: {
   /** Required for WhatsApp. Instagram leads often have no number at all. */
   phone?: string | null;
@@ -144,7 +164,7 @@ export async function getOrCreateLead(params: {
   // number used to both see "no lead" and both insert; the unique index then
   // turned the loser into a hard error that dropped a real customer message.
   const { data, error } = await db().rpc("villa_upsert_lead", {
-    p_phone: params.phone,
+    p_phone: canonicalPhone(params.phone),
     p_name: params.name ?? null,
     p_source: a.source ?? params.channel ?? "whatsapp",
     p_campaign: a.campaign ?? null,

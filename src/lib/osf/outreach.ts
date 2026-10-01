@@ -1,7 +1,7 @@
 import { db } from "./supabase";
 import { env } from "./env";
 import { logActivity } from "./activities";
-import { getOrCreateConversation, getOrCreateLead } from "./conversation";
+import { canonicalPhone, getOrCreateConversation, getOrCreateLead } from "./conversation";
 import { sendPlainText } from "./whatsapp/outbound";
 
 /**
@@ -138,7 +138,10 @@ export async function screenRecipients(recipients: Recipient[]): Promise<{
 
   try {
     const supabase = db();
-    const phones = recipients.map((r) => r.phone);
+    // Match the spelling leads are stored in. parseRecipients already strips
+    // to digits, but a lead written before canonicalPhone existed may still
+    // carry a leading +, so compare on the canonical form of both sides.
+    const phones = recipients.map((r) => canonicalPhone(r.phone));
     const { data: leads } = await supabase
       .from("villa_leads")
       .select("id, phone, opted_out")
@@ -155,10 +158,10 @@ export async function screenRecipients(recipients: Recipient[]): Promise<{
     const talkedTo = new Set(
       (conversations ?? []).filter((c) => (c.message_count ?? 0) > 0).map((c) => c.lead_id),
     );
-    const byPhone = new Map(leads.map((l) => [l.phone, l]));
+    const byPhone = new Map(leads.map((l) => [canonicalPhone(l.phone), l]));
 
     const sendable = recipients.filter((r) => {
-      const lead = byPhone.get(r.phone);
+      const lead = byPhone.get(canonicalPhone(r.phone));
       if (!lead) return true;
       if (lead.opted_out) {
         blocked.push({ ...r, reason: "opted out — nothing may be sent to them" });

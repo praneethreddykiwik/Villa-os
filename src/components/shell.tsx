@@ -91,7 +91,6 @@ const NAV: NavSection[] = [
   ]},
   { group: "System", items: [
     { href: "/reports", label: "Reports", icon: FileText },
-    { href: "/activity", label: "Activity", icon: Activity },
     { href: "/settings", label: "Settings", icon: Settings },
     // The operational side of the business — calling hours, retry policy —
     // as opposed to which vendors are wired up, which is /settings.
