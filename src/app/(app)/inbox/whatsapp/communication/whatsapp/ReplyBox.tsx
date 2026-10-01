@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, FileText, Lock, Send } from "lucide-react";
+import { Clock, FileText, Loader2, Lock, Send } from "lucide-react";
 
 /**
  * The WhatsApp composer.
@@ -71,6 +71,20 @@ export default function ReplyBox({
   const [text, setText] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [templateParams, setTemplateParams] = useState("");
+
+  /**
+   * One send per press.
+   *
+   * These are ordinary form POSTs, so the browser navigates and the page
+   * reloads — but that takes as long as the server takes, and nothing stopped
+   * a second press in the meantime. Somebody who pressed Send five times
+   * because the page had not moved yet sent the customer five messages.
+   *
+   * Set on submit and never cleared: the navigation replaces this component,
+   * so there is no state to restore, and leaving it latched means a failed
+   * submit cannot be retried by hammering the button either.
+   */
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     setNow(Date.now());
@@ -171,7 +185,17 @@ export default function ReplyBox({
       )}
 
       {composing === "text" ? (
-        <form action="/api/osf/communication" method="POST">
+        <form
+          action="/api/osf/communication"
+          method="POST"
+          onSubmit={(event) => {
+            if (sending) {
+              event.preventDefault();
+              return;
+            }
+            setSending(true);
+          }}
+        >
           <input type="hidden" name="action" value="send_text" />
           <input type="hidden" name="conversationId" value={conversationId} />
           <input type="hidden" name="next" value={next} />
@@ -201,15 +225,34 @@ export default function ReplyBox({
               >
                 {text.length.toLocaleString("en-IN")} / {textLimit.toLocaleString("en-IN")}
               </span>
-              <button type="submit" className="btn-gold" disabled={text.trim() === "" || over}>
-                <Send size={14} strokeWidth={2} aria-hidden />
-                Send
+              <button
+                type="submit"
+                className="btn-gold"
+                disabled={sending || text.trim() === "" || over}
+              >
+                {sending ? (
+                  <Loader2 size={14} className="animate-spin" aria-hidden />
+                ) : (
+                  <Send size={14} strokeWidth={2} aria-hidden />
+                )}
+                {sending ? "Sending…" : "Send"}
               </button>
             </div>
           </div>
         </form>
       ) : composing === "none" ? null : (
-        <form action="/api/osf/communication" method="POST" className="space-y-3">
+        <form
+          action="/api/osf/communication"
+          method="POST"
+          className="space-y-3"
+          onSubmit={(event) => {
+            if (sending) {
+              event.preventDefault();
+              return;
+            }
+            setSending(true);
+          }}
+        >
           <input type="hidden" name="action" value="send_template" />
           <input type="hidden" name="conversationId" value={conversationId} />
           <input type="hidden" name="next" value={next} />
@@ -262,7 +305,7 @@ export default function ReplyBox({
                   }.`
                 : "The name must match the template exactly as approved in Meta."}
             </p>
-            <button type="submit" className="btn-gold" disabled={templateName.trim() === ""}>
+            <button type="submit" className="btn-gold" disabled={sending || templateName.trim() === ""}>
               <FileText size={14} strokeWidth={2} aria-hidden />
               Send template
             </button>
