@@ -1,13 +1,18 @@
 import { redirect } from "next/navigation";
+import { getSession, hasPermission } from "@/lib/auth/session";
 
 /**
- * The workspace home, not the dashboard.
+ * Where signing in lands you.
  *
- * `/dashboard` needs `analytics.view`, so sending everyone there meant a front
- * desk or construction account's very first screen was a locked door. `/ops`
- * is open to anyone signed in and offers only the destinations that person's
- * role actually unlocks.
+ * The dashboard, for anyone who can open it. It needs `analytics.view`, so
+ * this used to send everybody to /ops instead — which meant an admin's first
+ * screen after signing in was a workspace index rather than their business.
+ *
+ * The fallback still matters: a front-desk or construction account has no
+ * `analytics.view`, and redirecting them to a locked door would be a worse
+ * first impression than the workspace they can actually use.
  */
-export default function Home() {
-  redirect("/ops");
+export default async function Home() {
+  const session = await getSession();
+  redirect(hasPermission(session, "analytics.view") ? "/dashboard" : "/ops");
 }

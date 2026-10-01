@@ -1,162 +1,150 @@
 import { redirect } from "next/navigation";
-import { read } from "@/lib/db";
+import { Suspense } from "react";
+import { pageContext } from "@/lib/page-context";
 import { getSession, hasPermission } from "@/lib/auth/session";
-import { workload } from "@/lib/ops/assignment";
-import { getConfig } from "@/lib/ops/config";
-import { caseProgress } from "@/lib/ops/loan";
-import { LEAD_STAGES } from "@/lib/ops/types";
-import { AdminTabs, type AdminData } from "@/components/ops/admin-tabs";
+import { TopBar } from "@/components/shell";
+import { Card, SectionTitle, Badge } from "@/components/ui";
+import { CardSkeleton } from "@/components/skeletons";
+import { listMemberAccounts, liveMatrix } from "@/lib/osf/rbac";
+import { groupIntoAreas, roleDisplayName } from "@/lib/osf/access-areas";
+import { AccessControl } from "@/components/ops/access-control";
 
 export const dynamic = "force-dynamic";
 
-/** Human-readable stage names — the internal enum is not for an owner to read. */
-const STAGE_LABEL: Record<string, string> = {
-  NEW: "New enquiry",
-  QUALIFYING: "Being qualified",
-  QUALIFIED: "Qualified",
-  SALES_CALL: "Sales call done",
-  FINANCING_REQUIRED: "Needs financing",
-  LOAN_CASE: "Loan opened",
-  DOCUMENT_COLLECTION: "Collecting documents",
-  DOCUMENT_REVIEW: "Documents under review",
-  READY_FOR_ANALYSIS: "Ready for decision",
-  DECISION: "Decision made",
-  COMPLETED: "Completed",
-};
-
-export default async function AdminPage() {
+/**
+ * CONTROL CENTRE — the team, and what each role may do.
+ *
+ * One screen answers both halves of "who can see this?": which people have
+ * accounts, and what the role attached to each of them unlocks. They used to
+ * be separate places, so checking an answer meant holding one screen in your
+ * head while reading another.
+ *
+ * Everything here reads villa_team_members and villa_role_permissions — the
+ * same tables the database consults when it enforces access. Nothing on this
+ * page is a description of the rules; it is the rules.
+ */
+export default async function ControlCentrePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getSession();
   if (!session) redirect("/ops");
+  // Reading who has access is itself sensitive: it is a map of which account
+  // to go after. Seeing the screen needs the team permission, not merely a
+  // login.
   if (!hasPermission(session, "analytics.view")) redirect("/ops");
 
-  const db = read();
-  // The session's org is the Supabase `organizations.id`, which is what every
-  // other ops surface (/ops/sales, /ops/loans, the webhook) scopes its writes
-  // to. This screen used to read the local `workspaces[0].id` instead — a
-  // different string — so the control centre counted a different org's records
-  // and reported zeroes while the queues had work in them.
-  const org = session.orgId ?? db.workspaces[0]?.id ?? "";
-  const now = Date.now();
-  const cfg = getConfig(org);
-
-  const customers = db.customers.filter((c) => c.orgId === org);
-  const tasks = db.salesTasks.filter((t) => t.orgId === org);
-  const cases = db.loanCases.filter((l) => l.orgId === org);
-  const docs = db.documents.filter((d) => d.orgId === org);
-  const members = db.teamMembers.filter((m) => m.orgId === org && m.active);
-  const audit = db.auditEvents.filter((a) => a.orgId === org);
-  const nameOf = (id?: string) => members.find((m) => m.id === id)?.name ?? "Unassigned";
-  const customerName = (id?: string) => customers.find((c) => c.id === id)?.name ?? "";
-
-  const salesLoad = workload(org, "SALES");
-  const loanLoad = workload(org, "LOAN");
-
-  const data: AdminData = {
-    totals: {
-      Customers: customers.length,
-      "New enquiries": customers.filter((c) => c.leadStage === "NEW").length,
-      "Hot leads": customers.filter((c) => c.leadScore > cfg.scoring.bands.warm).length,
-      "Calls pending": tasks.filter((t) => ["OPEN", "IN_PROGRESS"].includes(t.status)).length,
-      "Loan cases": cases.filter((l) => !["COMPLETED", "REJECTED"].includes(l.status)).length,
-      "Documents received": docs.length,
-      "Documents rejected": docs.filter((d) => d.status === "REJECTED").length,
-      "Ready for decision": cases.filter((l) => l.status === "READY_FOR_ANALYSIS").length,
-    },
-
-    pipeline: LEAD_STAGES.filter((s) => s !== "LOST").map((s) => ({
-      stage: STAGE_LABEL[s] ?? s,
-      count: customers.filter((c) => c.leadStage === s).length,
-    })),
-
-    sales: members
-      .filter((m) => m.role === "SALES_MANAGER" || m.role === "ADMIN")
-      .map((m) => {
-        const mine = customers.filter((c) => c.assignedSalesManagerId === m.id);
-        const myTasks = tasks.filter((t) => t.assignedToId === m.id);
-        const done = myTasks.filter((t) => t.status === "COMPLETED" && t.completedAt);
-        const times = done
-          .map((t) => new Date(t.completedAt!).getTime() - new Date(t.createdAt).getTime())
-          .sort((a, b) => a - b);
-        const acts = audit.filter((a) => a.actorId === m.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        return {
-          id: m.id,
-          name: m.name,
-          assigned: salesLoad.get(m.id) ?? 0,
-          open: mine.filter((c) => !["COMPLETED", "LOST"].includes(c.leadStage)).length,
-          callsPending: myTasks.filter((t) => ["OPEN", "IN_PROGRESS"].includes(t.status)).length,
-          callsCompleted: done.length,
-          overdue: myTasks.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status) && new Date(t.dueAt).getTime() < now).length,
-          hotLeads: mine.filter((c) => c.leadScore > cfg.scoring.bands.warm).length,
-          medianResponseHours: times.length ? Math.round(times[Math.floor(times.length / 2)] / 3600_000) : null,
-          lastActivityAt: acts[0]?.createdAt,
-          recent: acts.slice(0, 5).map((a) => ({
-            at: a.createdAt,
-            what: a.action.replace(/[._]/g, " "),
-            customer: customerName(a.customerId),
-          })),
-        };
-      }),
-
-    loans: members
-      .filter((m) => m.role === "LOAN_OFFICER" || m.role === "ADMIN")
-      .map((m) => {
-        const mine = cases.filter((l) => l.assignedOfficerId === m.id);
-        const progresses = mine.map((l) => caseProgress(l.id));
-        const acts = audit.filter((a) => a.actorId === m.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        return {
-          id: m.id,
-          name: m.name,
-          activeCases: loanLoad.get(m.id) ?? 0,
-          awaitingReview: progresses.reduce((a, p) => a + p.awaitingReview.length, 0),
-          waitingOnCustomer: progresses.filter((p) => p.missing.length > 0 || p.rejected.length > 0).length,
-          overdue: mine.filter(
-            (l) => caseProgress(l.id).awaitingReview.length > 0 &&
-              now - new Date(l.updatedAt).getTime() > cfg.sla.documentReviewHours * 3600_000,
-          ).length,
-          docsAccepted: docs.filter((d) => d.reviewedById === m.id && d.status === "ACCEPTED").length,
-          docsRejected: docs.filter((d) => d.reviewedById === m.id && d.status === "REJECTED").length,
-          recent: acts.slice(0, 5).map((a) => ({
-            at: a.createdAt,
-            what: a.action.replace(/[._]/g, " "),
-            customer: customerName(a.customerId),
-          })),
-        };
-      }),
-
-    escalations: db.escalations
-      .filter((e) => e.orgId === org && e.status === "OPEN")
-      .map((e) => ({
-        id: e.id,
-        customerId: e.customerId,
-        customer: customerName(e.customerId) || "Unknown",
-        reason: e.reason,
-        severity: e.severity,
-        lane: e.lane,
-        createdAt: e.createdAt,
-      })),
-
-    activity: audit
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, 200)
-      .map((a) => ({
-        id: a.id,
-        at: a.createdAt,
-        actor: nameOf(a.actorId) || a.actorType,
-        actorType: a.actorType,
-        action: a.action,
-        customer: customerName(a.customerId),
-      })),
-  };
+  const sp = await searchParams;
+  const { db, brand, brandId } = pageContext(sp);
+  const canEdit = hasPermission(session, "users.manage");
 
   return (
-    <div className="space-y-5 p-4 sm:p-6 lg:p-7">
-      <div>
-        <h1 className="text-[19px] font-semibold tracking-tight">Control centre</h1>
-        <p className="text-[12px] text-mist-400">
-          Signed in as {session.fullName} · everything happening across the business
-        </p>
+    <>
+      <TopBar brands={db.brands} brandId={brandId} title="Control centre" subtitle={brand.name} />
+      <div className="space-y-6 p-4 sm:p-6 lg:p-7">
+        <Suspense fallback={<CardSkeleton rows={6} />}>
+          <TeamSection canEdit={canEdit} />
+        </Suspense>
+        <Suspense fallback={<CardSkeleton rows={8} />}>
+          <AccessSection canEdit={canEdit} />
+        </Suspense>
       </div>
-      <AdminTabs data={data} permissions={[...session.permissions]} />
-    </div>
+    </>
+  );
+}
+
+/** Who has an account, what role they hold, and whether they have ever signed in. */
+async function TeamSection({ canEdit }: { canEdit: boolean }) {
+  const members = await listMemberAccounts().catch(() => []);
+
+  if (members.length === 0) {
+    return (
+      <Card>
+        <SectionTitle title="Team members" hint="Nobody is set up yet" />
+        <p className="text-[12px] text-mist-400">
+          No team records were found. Add people in the team screen and they will appear here with the role they
+          hold.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <SectionTitle
+        title="Team members"
+        hint={`${members.length} ${members.length === 1 ? "person" : "people"} · each one's role decides what they can see`}
+      />
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-[12.5px]">
+          <thead>
+            <tr className="border-b border-ink-700 text-[10.5px] uppercase tracking-wider text-[var(--color-faint)]">
+              <th className="py-2 pr-4 font-medium">Person</th>
+              <th className="py-2 pr-4 font-medium">Role</th>
+              <th className="py-2 pr-4 font-medium">Can sign in</th>
+              <th className="py-2 font-medium">Access</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((m) => (
+              <tr key={m.id} className="border-b border-ink-800 last:border-0">
+                <td className="py-2.5 pr-4">
+                  <div className="font-medium text-mist-100">{m.name || "Unnamed"}</div>
+                  {m.email && <div className="text-[11px] text-mist-400">{m.email}</div>}
+                </td>
+                <td className="py-2.5 pr-4 text-mist-200">{roleDisplayName(m.role)}</td>
+                <td className="py-2.5 pr-4">
+                  {/* An account with no login is a row in a table, not a person
+                      who can reach anything — worth saying plainly. */}
+                  <Badge tone={m.hasLogin ? "good" : "warn"}>{m.hasLogin ? "Yes" : "No login yet"}</Badge>
+                </td>
+                <td className="py-2.5 text-mist-400">
+                  {m.permissionCount} {m.permissionCount === 1 ? "capability" : "capabilities"}
+                  {!m.isActive && <span className="ml-2 text-amber-400">· deactivated</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!canEdit && (
+        <p className="mt-3 text-[11.5px] text-mist-400">
+          Changing roles or adding people needs an administrator.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/** The role × capability matrix, as cards per area. */
+async function AccessSection({ canEdit }: { canEdit: boolean }) {
+  const matrix = await liveMatrix().catch(() => null);
+
+  if (!matrix || matrix.permissions.length === 0) {
+    return (
+      <Card>
+        <SectionTitle title="Access control" hint="Who can see and do what" />
+        <p className="text-[12px] text-amber-400">
+          The permission list could not be read just now. Access is still enforced by the database — this screen
+          simply cannot show it until the connection recovers.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <SectionTitle
+        title="Access control — who can see and do what"
+        hint={`${matrix.roles.length} roles · ${matrix.permissions.length} capabilities · changes apply immediately`}
+      />
+      <AccessControl
+        areas={groupIntoAreas(matrix.permissions)}
+        byRole={matrix.byRole}
+        roles={matrix.roles}
+        canEdit={canEdit}
+      />
+    </Card>
   );
 }

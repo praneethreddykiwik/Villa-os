@@ -213,38 +213,57 @@ describe("the loan desk sees loans, not marketing or configuration", () => {
   });
 });
 
-describe("staff management is not visible to everyone who can open /ops/admin", () => {
-  // /ops/admin is gated on `analytics.view` so the sales, loans and activity
-  // views reach the people who read the business. The "People & access" tab
-  // inside it creates accounts and changes roles, and its API requires
-  // `users.manage`. Those are different permissions, and the audit role holds
-  // the first but not the second — so before the tab carried its own gate, a
-  // read-only auditor saw the staff roster, the create-account form and the
-  // disable buttons. The writes failed at the API; none of it belonged on screen.
-  const adminTabs = fs.readFileSync(path.join(ROOT, "src/components/ops/admin-tabs.tsx"), "utf8");
+describe("changing access is not available to everyone who can read it", () => {
+  // /ops/admin is gated on `analytics.view` so the people who read the
+  // business can open it. Granting and revoking capabilities is a different
+  // thing entirely, and needs `users.manage` — which the audit role does not
+  // hold. Before this split, a read-only auditor saw the toggles. The writes
+  // failed at the API, but none of it belonged on screen.
+  const page = fs.readFileSync(path.join(ROOT, "src/app/(app)/ops/admin/page.tsx"), "utf8");
+  const control = fs.readFileSync(path.join(ROOT, "src/components/ops/access-control.tsx"), "utf8");
+  const api = fs.readFileSync(path.join(ROOT, "src/app/api/osf/access/route.ts"), "utf8");
 
-  test("the audit role can open /ops/admin at all — which is why the tab needs its own gate", () => {
+  test("the audit role can open the page at all — which is why editing needs its own gate", () => {
     assert.equal(canOpen("audit", "/ops/admin"), true);
     assert.equal(GRANTS.audit!.has("users.manage"), false);
   });
 
-  test("the People & access tab declares users.manage", () => {
-    assert.match(adminTabs, /id: "team"[^}]*needs: "users\.manage"/);
+  test("the right to edit is decided on the server, not in the browser", () => {
+    assert.match(page, /const canEdit = hasPermission\(session, "users\.manage"\)/);
+    assert.match(page, /canEdit=\{canEdit\}/);
   });
 
-  test("the tab strip renders the filtered list, not every tab", () => {
-    assert.match(adminTabs, /const tabs = TABS\.filter\(/);
-    assert.match(adminTabs, /\{tabs\.map\(/);
-    assert.ok(!/\{TABS\.map\(/.test(adminTabs), "the unfiltered list must not be rendered");
+  test("the grid refuses to act without it — hiding a button is not access control", () => {
+    assert.match(control, /if \(!canEdit \|\| locked\) return;/);
   });
 
-  test("the tab CONTENT is gated too — hiding a button is not access control", () => {
-    assert.match(adminTabs, /tab === "team" && held\.has\("users\.manage"\) && <TeamManager \/>/);
+  test("and the API enforces it regardless of what the browser sends", () => {
+    assert.match(api, /await guard\("users\.manage"\)/);
+    const at = api.indexOf('guard("users.manage")');
+    assert.ok(at > 0 && at < api.indexOf("setRolePermission("), "the guard must precede the write");
   });
 
-  test("permissions come from the server, never from the browser", () => {
-    const page = fs.readFileSync(path.join(ROOT, "src/app/(app)/ops/admin/page.tsx"), "utf8");
-    assert.match(page, /<AdminTabs data=\{data\} permissions=\{\[\.\.\.session\.permissions\]\} \/>/);
+  test("a capability outside the catalogue cannot be invented", () => {
+    // Upserting an arbitrary key would put a row nothing reads into the table
+    // that decides access.
+    assert.match(api, /matrix\.permissions\.some\(\(p\) => p\.key === permission\)/);
+  });
+
+  test("the roles that can repair the others cannot be limited", () => {
+    assert.match(api, /isProtectedRole\(role\)/);
+    const areas = fs.readFileSync(path.join(ROOT, "src/lib/osf/access-areas.ts"), "utf8");
+    assert.match(areas, /PROTECTED_ROLES = \["super_admin", "owner"\]/);
+  });
+
+  test("the last role that can manage the team cannot revoke itself", () => {
+    // The lock works and the key is inside: nobody could reach this screen
+    // again without a database console.
+    assert.match(api, /permission === "team:write"/);
+    assert.match(api, /last role that can manage the team/);
+  });
+
+  test("every change is written to the audit trail", () => {
+    assert.match(api, /action: allowed \? "access\.granted" : "access\.revoked"/);
   });
 });
 
