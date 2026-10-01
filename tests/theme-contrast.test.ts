@@ -76,6 +76,14 @@ const ALLOW: Record<string, string> = {
   "src/components/showcase/cinematic-stage.tsx:border-white/20": "hairline on those controls, over the image",
   "src/components/showcase/cinematic-stage.tsx:bg-white/40": "slide indicator dots, over the image",
   "src/components/showcase/cinematic-stage.tsx:bg-white/70": "active slide indicator dot, over the image",
+  // The 3D viewer's overlays sit on the WebGL canvas, whose background is set
+  // by the scene itself (#e6e9eb in daylight, #8995a7 in evening) and never by
+  // the app theme. A token that flipped with the theme would be the bug here:
+  // in dark mode it would paint dark chrome onto a light render.
+  "src/components/showcase/villa-360.tsx:bg-white/70":
+    "badge and compass, over the fixed-colour 3D canvas",
+  "src/components/showcase/villa-360.tsx:border-black/10":
+    "hairline on those same two overlays",
   "src/components/showcase/serenity-master-plan.tsx:bg-black/80": "modal scrim over the aerial master plan",
   "src/components/osf/shell/CommandPalette.tsx:bg-black/70":
     "scrim behind the command dialog — a dark veil is correct under a modal in either theme",

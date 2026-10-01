@@ -1,9 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Maximize2, Play } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Box, ChevronLeft, ChevronRight, Images, Maximize2, Play } from "lucide-react";
 import clsx from "clsx";
 import { Card, SectionTitle } from "../ui";
+
+/**
+ * three is ~600KB and most people never open the 3D tab, so it is not in the
+ * page's bundle. ssr:false because the viewer needs a WebGL context, which the
+ * server has not got.
+ */
+const Villa360 = dynamic(() => import("./villa-360").then((m) => m.Villa360), {
+  ssr: false,
+  loading: () => (
+    <div className="flex aspect-[16/9] items-center justify-center rounded-2xl border border-ink-700/60 bg-ink-950 text-[12px] text-mist-500">
+      Loading the 3D view…
+    </div>
+  ),
+});
+
+type Mode = "gallery" | "model" | "video";
 
 export interface StageImage {
   src: string;
@@ -21,19 +38,23 @@ export function CinematicStage({
   youtubeId,
   title = "Cinematic view",
   hint,
+  model = true,
 }: {
   images: StageImage[];
   youtubeId?: string;
   title?: string;
   hint?: string;
+  /** Offer the interactive villa alongside the renders. */
+  model?: boolean;
 }) {
   const [broken, setBroken] = useState<Record<string, boolean>>({});
   const usable = images.filter((i) => !broken[i.src]);
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
   const [reduced, setReduced] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
+  const [mode, setMode] = useState<Mode>("gallery");
   const stageRef = useRef<HTMLDivElement>(null);
+  const showVideo = mode === "video";
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -62,27 +83,50 @@ export function CinematicStage({
         hint={hint}
         action={
           <div className="flex items-center gap-1.5">
-            {youtubeId && !showVideo && (
+            {/* One switch rather than a button that only went one way: the old
+                "Play walkthrough" had no partner to come back with. */}
+            <div
+              role="tablist"
+              aria-label="How to view this project"
+              className="flex items-center gap-0.5 rounded-full border border-ink-700 bg-ink-900/70 p-0.5"
+            >
+              {MODES.filter((m) => (m.key === "model" ? model : m.key === "video" ? Boolean(youtubeId) : true)).map(
+                (m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={mode === m.key}
+                    onClick={() => setMode(m.key)}
+                    className={clsx(
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors",
+                      mode === m.key
+                        ? "border border-brand-500/55 bg-ink-700 text-mist-100"
+                        : "border border-transparent text-mist-400 hover:text-mist-200",
+                    )}
+                  >
+                    <m.icon size={12} /> {m.label}
+                  </button>
+                ),
+              )}
+            </div>
+            {mode !== "model" && (
               <button
                 type="button"
-                onClick={() => setShowVideo(true)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-ink-700 bg-ink-800/70 px-3 py-1.5 text-[11px] font-medium text-mist-200 hover:text-mist-100"
+                aria-label="Fullscreen"
+                onClick={() => stageRef.current?.requestFullscreen?.()}
+                className="rounded-lg border border-ink-700 bg-ink-800/70 p-1.5 text-mist-300 hover:text-mist-100"
               >
-                <Play size={12} /> Play walkthrough
+                <Maximize2 size={14} />
               </button>
             )}
-            <button
-              type="button"
-              aria-label="Fullscreen"
-              onClick={() => stageRef.current?.requestFullscreen?.()}
-              className="rounded-lg border border-ink-700 bg-ink-800/70 p-1.5 text-mist-300 hover:text-mist-100"
-            >
-              <Maximize2 size={14} />
-            </button>
           </div>
         }
       />
 
+      {mode === "model" ? (
+        <Villa360 className="aspect-[16/9]" />
+      ) : (
       <div
         ref={stageRef}
         onMouseEnter={() => setPaused(true)}
@@ -101,7 +145,7 @@ export function CinematicStage({
         ) : count === 0 ? (
           <div className="flex h-full items-center justify-center px-6 text-center text-[11px] text-mist-500">
             Project renders to be confirmed — no imagery has been placed yet.
-            {youtubeId && " Use “Play walkthrough” for the project video."}
+            {youtubeId && " The walkthrough is on the Video tab."}
           </div>
         ) : (
           <>
@@ -152,6 +196,13 @@ export function CinematicStage({
           </>
         )}
       </div>
+      )}
     </Card>
   );
 }
+
+const MODES: Array<{ key: Mode; label: string; icon: typeof Images }> = [
+  { key: "gallery", label: "Gallery", icon: Images },
+  { key: "model", label: "3D", icon: Box },
+  { key: "video", label: "Video", icon: Play },
+];
